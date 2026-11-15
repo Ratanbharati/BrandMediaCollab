@@ -1,41 +1,34 @@
-# Brand Media Collab — updated prototype
+# Stagerang — Supabase connection
 
-This project contains the Brand Media Collab landing page and the account onboarding, profiles, discovery, dashboard, messaging, and admin screens. It now includes Brand, Influencer/Creator, and Agency account paths, an agency type field, and a My projects page with create/edit/delete project flows.
+This project is a Next.js site that displays the interface from `/public/site`.
+Connected Supabase features: signup/login, profile basics, profile photo upload, own-project create/edit/delete/list, live open-project feed, project discovery, and one-at-a-time interest applications. First-time profile completion opens the account's profile; later logins open the feed. Demo cards are removed from the live feed and project directory.
 
-## Important before inviting users
+Still to connect before treating the whole platform as operational: conversations/messages and group outreach, meetings and calendar reminders, email invitations, social-provider follower syncing, richer dashboards, profile portfolio/social links, and admin tools. The current UI for those areas may still be a prototype. Do not invite real users based on those unfinished areas.
 
-This ZIP is a front-end prototype. Signup currently leads to profile setup, and profile/project records are stored in the current browser using `localStorage`. The login form does not authenticate a real user; social-account buttons do not sync real metrics; messages and meetings are not persisted to Supabase. Do not collect real passwords, private contact details, or business data with this prototype. A live business service still needs Supabase Auth, secure database reads/writes with Row Level Security, and real integrations.
+## Supabase setup
 
-## Run locally
+1. In Supabase **SQL Editor**, run `supabase/migrations/202611150001_initial_schema.sql` once. It creates empty tables and Row Level Security policies.
+2. If the initial schema is already installed, run `supabase/migrations/202611150002_avatar_storage.sql` once to add the avatar column, public avatar bucket, and owner-only upload/delete policies.
+3. In Supabase **Settings → API Keys**, use the `sb_publishable_...` key. Never use the secret key in the browser or Vercel `NEXT_PUBLIC_` variables.
+4. Configure Supabase **Authentication → URL Configuration**. Set the Site URL to your Vercel domain and add that domain's `/site/**` redirect URL. For local testing, add `http://localhost:3000/site/**`.
 
-1. Install Node.js LTS if it is not already installed.
-2. Open a terminal in this folder.
-3. Run `npm install`.
-4. Run `npm run dev`.
-5. Open the local address shown by Next.js, normally `http://localhost:3000`.
+## Vercel environment variables
 
-The Next.js homepage displays the static site stored in `public/site`.
+Add these under the Vercel project → **Environment Variables**. Select Production and Preview (and Development if shown):
 
-## Put the prototype online with Netlify
+- `NEXT_PUBLIC_SUPABASE_URL` — Project URL, e.g. `https://your-project-ref.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — the `sb_publishable_...` key
 
-1. Unzip the downloaded ZIP on your computer.
-2. In Netlify, choose **Add new site → Deploy manually**.
-3. Drag the `public/site` folder from the unzipped project into the Netlify deploy area.
-4. Open the generated Netlify URL and click through the onboarding and project pages.
+Redeploy after changing environment variables or the GitHub source. Do not add a Supabase secret/service-role key to this frontend project.
 
-This publishes a static prototype. Browser-local records stay in that browser and are not shared with other users.
+## Uploading the project to GitHub
 
-## Deploy the Next.js project with Vercel
+Extract this ZIP on your computer. Upload its contents into the GitHub app directory configured as Vercel's Root Directory (for this account's existing repository upload, that directory is `brand-media-collab-supabase-ready`). Inside that directory, `app`, `public`, `supabase`, and `package.json` must sit directly together. Do not create a second nested `brand-media-collab-supabase-ready` directory. Commit the changes to `main`; Vercel should deploy from the connected repository.
 
-1. Unzip the downloaded ZIP.
-2. Put the contents of `brand-media-collab-v0-project` in a GitHub repository.
-3. In Vercel, choose **Add New → Project**, import that repository, and keep the detected Next.js settings.
-4. Deploy. The root page loads the landing page from `public/site/index.html`.
+## First account and admin access
 
-This also publishes the front-end prototype only. Supabase project ID is not a value you change in code; a real integration uses that project's URL and public/publishable key, while server-side secrets must never be exposed in browser code.
+Sign-up may require email confirmation depending on the Supabase Auth setting. Confirm the email, log in, and finish the profile. The SQL migration does not create an admin account. Platform admin membership must be provisioned securely after the first account is created; never grant admin by a browser form or expose a service-role key.
 
-## Main page flow
+## Data protection notes
 
-`index.html` → account type → `profile-setup.html` → `dashboard.html` → `projects.html` / `messages.html`.
-
-Create a project from **Dashboard** or **Projects**. Manage and edit it from **My projects**.
+The migration enables RLS on the application tables. Private contacts are only selectable by that account and platform admins. Public profile data is visible to authenticated users when discoverable. Keep social tokens and any future service-role key server-side. Review the policies and auth email settings before inviting real users.
