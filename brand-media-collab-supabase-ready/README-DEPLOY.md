@@ -1,13 +1,16 @@
 # Brand Media Collab — Supabase connection
 
-This project is a Next.js site that currently displays the existing HTML prototype in `/public/site`.
-The Supabase integration in this package connects **sign up / log in, profile save, and create/edit/delete/list your own projects**. Other areas (project discovery, applications, messaging, meetings, social metrics syncing, and admin dashboards) remain prototype screens and are not yet connected to database records.
+This project is a Next.js site that displays the interface from `/public/site`.
+Connected Supabase features: signup/login, profile basics, profile photo upload, own-project create/edit/delete/list, live open-project feed, project discovery, and one-at-a-time interest applications. First-time profile completion opens the account's profile; later logins open the feed. Demo cards are removed from the live feed and project directory.
+
+Still to connect before treating the whole platform as operational: conversations/messages and group outreach, meetings and calendar reminders, email invitations, social-provider follower syncing, richer dashboards, profile portfolio/social links, and admin tools. The current UI for those areas may still be a prototype. Do not invite real users based on those unfinished areas.
 
 ## Supabase setup
 
 1. In Supabase **SQL Editor**, run `supabase/migrations/202611150001_initial_schema.sql` once. It creates empty tables and Row Level Security policies.
-2. In Supabase **Settings → API Keys**, use the `sb_publishable_...` key. Never use the secret key in the browser or Vercel `NEXT_PUBLIC_` variables.
-3. Configure Supabase **Authentication → URL Configuration**. Set the Site URL to your Vercel domain and add that domain's `/site/**` redirect URL. For local testing, add `http://localhost:3000/site/**`.
+2. If the initial schema is already installed, run `supabase/migrations/202611150002_avatar_storage.sql` once to add the avatar column, public avatar bucket, and owner-only upload/delete policies.
+3. In Supabase **Settings → API Keys**, use the `sb_publishable_...` key. Never use the secret key in the browser or Vercel `NEXT_PUBLIC_` variables.
+4. Configure Supabase **Authentication → URL Configuration**. Set the Site URL to your Vercel domain and add that domain's `/site/**` redirect URL. For local testing, add `http://localhost:3000/site/**`.
 
 ## Vercel environment variables
 
@@ -20,7 +23,7 @@ Redeploy after changing environment variables or the GitHub source. Do not add a
 
 ## Uploading the project to GitHub
 
-Extract this ZIP on your computer. Open the extracted folder and upload its **contents** to the root of the GitHub repository (so `app`, `public`, `supabase`, and `package.json` appear at the repository root). Do not upload only the ZIP file. Commit the changes to `main`; Vercel should deploy from the connected repository.
+Extract this ZIP on your computer. Upload its contents into the GitHub app directory configured as Vercel's Root Directory (for this account's existing repository upload, that directory is `brand-media-collab-supabase-ready`). Inside that directory, `app`, `public`, `supabase`, and `package.json` must sit directly together. Do not create a second nested `brand-media-collab-supabase-ready` directory. Commit the changes to `main`; Vercel should deploy from the connected repository.
 
 ## First account and admin access
 
