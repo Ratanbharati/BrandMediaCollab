@@ -7,6 +7,8 @@ This is the full Next.js project for `Ratanbharati/BrandMediaCollab`. It serves 
 - Supabase signup, login, password recovery, profiles, and project posting.
 - Live Home feed posts directly below the composer, split into **Brand projects** and **Creator ideas**. The list refreshes periodically.
 - Home activity totals and notification list backed by Supabase.
+- Projects discovery keeps Brand projects and Creator ideas separate; account-specific application and saved-project counts and filters update from Supabase.
+- Messages has a project activity summary with application, chat, message, and unread-alert counts that refresh periodically.
 - Expressing interest saves an application note and starts a private project conversation.
 - Project posts and applications remain separate records; messages are stored in `messages`.
 - Unread message alerts appear on the Messages navigation item.

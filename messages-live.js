@@ -3,11 +3,12 @@
   const $ = (selector) => document.querySelector(selector);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const toast = (message) => { const node = $("#toast"); if (node) { node.textContent = message; node.classList.add("show"); setTimeout(() => node.classList.remove("show"), 2800); } };
-  let supabase, user, activeId = null, poller = null;
+  let supabase, user, activeId = null, poller = null, selectedActivityProject = "all", activityRefresh = null;
   const conversationNode = $("#conversation");
   const threadNode = $("#thread-list");
   const input = $("#message-input");
   const sendButton = $("#send");
+  $(".campaign-box")?.remove();
   threadNode.innerHTML = '<div class="system-note">Loading your conversations…</div>';
   $("#chat-name").textContent = "Loading messages…"; $("#chat-title").textContent = ""; $("#context-title").textContent = "";
   showMessage("Loading your conversation history…");
@@ -38,6 +39,7 @@
     $("#chat-title").textContent = item.projectName;
     $("#context-title").textContent = item.projectName;
     $("#chat-avatar").textContent = item.otherName.slice(0, 2).toUpperCase();
+    if (item.projectId) { selectedActivityProject = item.projectId; await renderProjectActivity(); }
     $("#messages").classList.add("show-chat");
     $(".chat-head").style.display = ""; $(".context").style.display = ""; $(".compose").style.display = "";
     $("#chat-project-link")?.setAttribute("href", `my-projects.html`);
@@ -54,14 +56,14 @@
     for (const conv of existing || []) {
       const { data: members } = await supabase.from("conversation_members").select("user_id").eq("conversation_id", conv.id);
       if ((members || []).some((m) => m.user_id === otherId) && (members || []).some((m) => m.user_id === user.id)) {
-        return selectConversation({ id: conv.id, projectName, otherId, otherName });
+        return selectConversation({ id: conv.id, projectId, projectName, otherId, otherName });
       }
     }
     const { data: conv, error: createError } = await supabase.from("conversations").insert({ project_id: projectId, created_by: user.id, is_group: false }).select("id").single();
     if (createError) throw createError;
     const { error: membersError } = await supabase.from("conversation_members").insert([{ conversation_id: conv.id, user_id: user.id }, { conversation_id: conv.id, user_id: otherId }]);
     if (membersError) throw membersError;
-    const item = { id: conv.id, projectName, otherId, otherName };
+    const item = { id: conv.id, projectId, projectName, otherId, otherName };
     await selectConversation(item);
     await renderThreads();
   }
@@ -89,7 +91,7 @@
       const otherId = (members || []).find((m) => m.conversation_id === conv.id && m.user_id !== user.id)?.user_id;
       if (!otherId) continue;
       const p = profileById[otherId] || {};
-      const item = { id: conv.id, projectName: projectById[conv.project_id]?.project_name || "Collaboration chat", otherId, otherName: p.display_name || p.company_name || "Member" };
+      const item = { id: conv.id, projectId: conv.project_id, projectName: projectById[conv.project_id]?.project_name || "Collaboration chat", otherId, otherName: p.display_name || p.company_name || "Member" };
       items.push(item);
       const button = document.createElement("button"); button.className = "thread"; button.dataset.id = item.id;
       button.innerHTML = `<span class="avatar">${esc(item.otherName.slice(0, 2).toUpperCase())}</span><span class="thread-info"><span class="thread-top"><b>${esc(item.otherName)}</b></span><span class="subject">${esc(item.projectName)}</span><span class="preview">Open conversation</span></span>`;
@@ -98,6 +100,43 @@
     }
     if (activeId) { const active = items.find((item) => item.id === activeId); if (active) [...threadNode.querySelectorAll(".thread")].find((node) => node.dataset.id === activeId)?.classList.add("active"); }
     await renderAcceptedPartners(conversations, members || []);
+    await renderProjectActivity();
+  }
+  async function renderProjectActivity() {
+    const list = $(".list"); if (!list || !supabase || !user) return;
+    let panel = $("#bmc-project-activity");
+    if (!panel) {
+      panel = document.createElement("section"); panel.id = "bmc-project-activity"; panel.className = "campaign-box";
+      panel.innerHTML = '<div class="camp-top"><b>Project activity</b><span>Live account totals</span></div><select id="bmc-activity-project" aria-label="Choose project activity"><option value="all">All projects</option></select><div class="camp-stats"><div class="camp-stat"><b id="bmc-activity-apps">0</b><span>Applications</span></div><div class="camp-stat"><b id="bmc-activity-chats">0</b><span>Chats</span></div><div class="camp-stat"><b id="bmc-activity-messages">0</b><span>Messages</span></div><div class="camp-stat"><b id="bmc-activity-unread">0</b><span>Unread</span></div></div><div class="readline" id="bmc-activity-context">Choose a project to see its conversation activity.</div><a href="dashboard.html" style="display:block;margin:10px 0 0;color:#54763f;font-size:11px">Open full project dashboard →</a>';
+      const threadHost = $("#thread-list"); threadHost?.before(panel);
+      $("#bmc-activity-project").addEventListener("change", (event) => { selectedActivityProject = event.target.value; renderProjectActivity().catch((error) => toast(error.message)); });
+    }
+    const { data: owned, error: ownError } = await supabase.from("projects").select("id,project_name,project_type,owner_id").eq("owner_id", user.id); if (ownError) throw ownError;
+    const { data: outgoing, error: outError } = await supabase.from("applications").select("project_id").eq("applicant_id", user.id); if (outError) throw outError;
+    const memberships = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id); if (memberships.error) throw memberships.error;
+    const convIds = [...new Set((memberships.data || []).map((r) => r.conversation_id))];
+    const chats = convIds.length ? await supabase.from("conversations").select("id,project_id").in("id", convIds) : { data: [], error: null }; if (chats.error) throw chats.error;
+    const ids = [...new Set([...(owned || []).map((p) => p.id), ...(outgoing || []).map((a) => a.project_id), ...(chats.data || []).map((c) => c.project_id).filter(Boolean)])];
+    const projectResult = ids.length ? await supabase.from("projects").select("id,project_name,project_type,owner_id").in("id", ids) : { data: [], error: null }; if (projectResult.error) throw projectResult.error;
+    const projectMap = Object.fromEntries((projectResult.data || []).map((p) => [p.id, p]));
+    const ownedIds = (owned || []).map((p) => p.id);
+    const incoming = ownedIds.length ? await supabase.from("applications").select("id,project_id").in("project_id", ownedIds) : { data: [], error: null }; if (incoming.error) throw incoming.error;
+    const sentByProject = (outgoing || []).reduce((m, a) => { m[a.project_id] = (m[a.project_id] || 0) + 1; return m; }, {});
+    const appByProject = (incoming.data || []).reduce((m, a) => { m[a.project_id] = (m[a.project_id] || 0) + 1; return m; }, { ...sentByProject });
+    const chatsByProject = (chats.data || []).reduce((m, c) => { if (c.project_id) (m[c.project_id] ||= []).push(c.id); return m; }, {});
+    const allChatIds = (chats.data || []).map((c) => c.id);
+    const messageResult = allChatIds.length ? await supabase.from("messages").select("id,conversation_id").in("conversation_id", allChatIds) : { data: [], error: null }; if (messageResult.error) throw messageResult.error;
+    const unreadResult = await supabase.from("notifications").select("id,conversation_id").eq("user_id", user.id).eq("type", "new_message").is("read_at", null); const unreadRows = unreadResult.error ? [] : unreadResult.data || [];
+    const select = $("#bmc-activity-project"); const prev = selectedActivityProject;
+    if (select) { select.innerHTML = '<option value="all">All projects</option>' + ids.map((id) => `<option value="${esc(id)}">${esc(projectMap[id]?.project_name || "Project")}</option>`).join(""); if (prev !== "all" && ids.includes(prev)) select.value = prev; else { selectedActivityProject = "all"; select.value = "all"; } }
+    const scopeIds = selectedActivityProject === "all" ? ids : [selectedActivityProject];
+    const appCount = scopeIds.reduce((n, id) => n + (appByProject[id] || 0), 0);
+    const selectedChatIds = scopeIds.flatMap((id) => chatsByProject[id] || []);
+    const messageCount = (messageResult.data || []).filter((m) => selectedChatIds.includes(m.conversation_id)).length;
+    const unreadCount = unreadRows.filter((n) => selectedChatIds.includes(n.conversation_id)).length;
+    $("#bmc-activity-apps").textContent = appCount; $("#bmc-activity-chats").textContent = selectedChatIds.length; $("#bmc-activity-messages").textContent = messageCount; $("#bmc-activity-unread").textContent = unreadCount;
+    const project = selectedActivityProject === "all" ? null : projectMap[selectedActivityProject];
+    $("#bmc-activity-context").textContent = project ? `${project.project_type === "creator_idea" ? "Creator idea" : "Brand project"} · ${project.owner_id === user.id ? "You posted this" : "You applied"}` : `${ids.length} projects with activity on this account.`;
   }
   async function renderAcceptedPartners(conversations, members) {
     const { data: owned, error: ownError } = await supabase.from("projects").select("id,project_name,owner_id").eq("owner_id", user.id);
@@ -150,6 +189,7 @@
     if (error) { toast(error.message); return; }
     input.value = "";
     await loadMessages(activeId);
+    await renderProjectActivity().catch((activityError) => console.error("Could not refresh project activity:", activityError));
   }
 
   try {
@@ -171,6 +211,7 @@
     input?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
     await renderThreads();
     if (!activeId) { $("#chat-name").textContent = "No conversation selected"; $("#chat-name").removeAttribute("href"); $("#chat-title").textContent = ""; $("#context-title").textContent = "Select a conversation"; $("#chat-avatar").textContent = "—"; $(".chat-head").style.display = "none"; $(".context").style.display = "none"; $(".compose").style.display = "none"; showMessage("Your replies and conversations appear here. Express interest in a project to start a private chat."); }
+    activityRefresh = setInterval(() => renderProjectActivity().catch((error) => console.error("Project activity refresh failed:", error)), 20000);
   } catch (error) {
     console.error("Messages could not load:", error);
     threadNode.innerHTML = "";

@@ -27,6 +27,16 @@ drop policy if exists members_read_conversation on public.conversation_members;
 create policy members_read_conversation on public.conversation_members for select to authenticated
 using (user_id = (select auth.uid()) or (select public.is_conversation_member(conversation_id)) or (select public.is_platform_admin()));
 
+create or replace function public.has_applied_to_project(p_project_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.applications a where a.project_id=p_project_id and a.applicant_id=(select auth.uid()));
+$$;
+drop policy if exists projects_discover_or_owner on public.projects;
+create policy projects_discover_or_owner on public.projects for select to authenticated
+using (status='Open' or owner_id=(select auth.uid()) or (select public.has_applied_to_project(id))
+  or exists (select 1 from public.saved_projects s where s.project_id=id and s.user_id=(select auth.uid()))
+  or (select public.is_platform_admin()));
+
 create or replace function public.notify_application_activity()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare project_owner uuid; project_title text;

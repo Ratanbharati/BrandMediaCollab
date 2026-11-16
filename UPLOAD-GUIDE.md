@@ -23,6 +23,8 @@
 4. In Project Settings → Environment Variables, confirm Production has `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Never put a Supabase secret/service-role key in these variables.
 5. Open `https://www.stagerang.com` in a private/incognito window (or use Ctrl+Shift+R) and sign in with the existing test accounts. Confirm a new interest appears in the owner's dashboard and the conversation appears in Messages.
 6. On Home, confirm posts are directly below the composer, switch between **Brand projects** and **Creator ideas**, and check the right side for real activity and notifications. The old sample conversation should no longer appear.
+7. On Projects, switch the two tabs and confirm brand campaigns and creator ideas stay in their matching tab. Check **My applications** and **Saved projects** counts against those account records, then click each link to view that set.
+8. On Messages, use **Project activity** to choose a project. Its Applications, Chats, Messages, and Unread totals should correspond to the selected project and update periodically. The conversation heading/thread should show the project name.
 
 ## One safe Supabase update (do not rerun the initial schema)
 

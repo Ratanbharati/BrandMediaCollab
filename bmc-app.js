@@ -54,6 +54,9 @@
       if (project.owner_id === user.id) throw new Error("You can’t express interest in your own project.");
       const message = note.trim() || `Hi, I’m interested in “${project.project_name}”. Let’s discuss it here.`;
       const { error } = await supabase.from("applications").upsert({ project_id: id, applicant_id: user.id, status: "interested", message, updated_at: new Date().toISOString() }, { onConflict: "project_id,applicant_id" }); if (error) throw error;
+      const { count } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("applicant_id", user.id);
+      const applicationLabel = document.querySelector('.side-link[data-status="applied"] .count'); if (applicationLabel && count !== null) applicationLabel.textContent = String(count || 0);
+      const projectCard = button?.closest("[data-project-id]"); if (projectCard) projectCard.dataset.applied = "true";
       const conversationId = await startProjectChat(supabase, id, project.owner_id, user, message);
       if (button) { button.textContent = "Interest sent ✓"; button.disabled = true; }
       toast("Interest saved. Your private project conversation is in Messages.");
@@ -351,27 +354,62 @@
   async function openProjectsDirectory() {
     $("#list")?.querySelectorAll(".item").forEach((el) => el.remove());
     const supabase = await client(); const user = await signedIn(supabase);
-    const { data, error } = await supabase.from("projects").select("*").eq("status", "Open").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
     if (error) throw error;
     const host = $("#list"); if (!host) return;
+    const account = await signedIn(supabase);
+    const appCount = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("applicant_id", account.id);
+    const savedCount = await supabase.from("saved_projects").select("project_id", { count: "exact", head: true }).eq("user_id", account.id);
+    const ownApps = await supabase.from("applications").select("project_id").eq("applicant_id", account.id);
+    const savedRows = await supabase.from("saved_projects").select("project_id").eq("user_id", account.id);
+    const appliedSet = new Set((ownApps.data || []).map((x) => x.project_id)); const savedSet = new Set((savedRows.data || []).map((x) => x.project_id));
+    const appliedLabel = document.querySelector('.side-link[data-status="applied"] .count'); if (appliedLabel) appliedLabel.textContent = String(appCount.error ? 0 : appCount.count || 0);
+    const savedLabel = document.querySelector('.side-link[data-status="saved"] .count'); if (savedLabel) savedLabel.textContent = String(savedCount.error ? 0 : savedCount.count || 0);
+    const ownedLabel = document.querySelector('.side-link[data-status="owned"] .count');
+    const ownedCount = await supabase.from("projects").select("id", { count: "exact", head: true }).eq("owner_id", account.id);
+    if (ownedLabel) ownedLabel.textContent = String(ownedCount.error ? 0 : ownedCount.count || 0);
     const empty = $("#empty");
-    if (!data.length) { if (empty) { empty.textContent = "No open projects yet. Published opportunities will appear here."; empty.classList.remove("hidden"); } return; }
+    if (!data.length) { if (empty) { empty.textContent = "No open projects yet. Published opportunities will appear here."; empty.classList.remove("hidden"); } document.body.classList.add("bmc-projects-ready"); if (!window.bmcProjectsPoll) window.bmcProjectsPoll = setInterval(() => openProjectsDirectory().catch((e) => console.error("Projects refresh failed:", e)), 30000); return; }
     if (empty) empty.classList.add("hidden");
     const owners = [...new Set(data.map((p) => p.owner_id))];
     const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,display_name,company_name,account_type").in("id", owners);
     if (profileError) throw profileError;
     const names = Object.fromEntries((profiles || []).map((x) => [x.id, x.display_name || x.company_name || "Member"]));
+    const openRows = data.filter((p) => String(p.status || "").toLowerCase() === "open");
+    const brandTotal = openRows.filter((p) => p.project_type !== "creator_idea" && p.owner_type !== "creator").length;
+    const ideaTotal = openRows.filter((p) => p.project_type === "creator_idea" || p.owner_type === "creator").length;
+    const brandTab = document.querySelector('.segmented button[data-kind="projects"]'); if (brandTab) brandTab.textContent = `Brand projects (${brandTotal})`;
+    const ideaTab = document.querySelector('.segmented button[data-kind="ideas"]'); if (ideaTab) ideaTab.textContent = `Creator ideas (${ideaTotal})`;
+    const ideaLabel = document.querySelector('.side-link[data-status="collab"] .count'); if (ideaLabel) ideaLabel.textContent = String(ideaTotal);
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "panel project item";
-      row.dataset.kind = p.project_type === "creator_idea" ? "ideas" : "projects";
-      row.dataset.category = p.category; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
-      row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category}`.toLowerCase();
-      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand project"} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}">Interested ↗</button>`}</div></div>`;
+      row.dataset.projectId = p.id;
+      const postKind = p.project_type === "creator_idea" || p.owner_type === "creator" ? "ideas" : "projects";
+      row.dataset.kind = postKind;
+      row.dataset.status = p.status; row.dataset.applied = String(appliedSet.has(p.id)); row.dataset.saved = String(savedSet.has(p.id));
+      row.dataset.category = p.category || ""; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
+      row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
+      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${postKind === "ideas" ? "Creator collaboration idea" : "Brand project"} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-save="${esc(p.id)}">${savedSet.has(p.id) ? "♥ Saved" : "♡ Save"}</button><button class="btn" data-apply="${esc(p.id)}">Interested ↗</button>`}</div></div>`;
       host.insertBefore(row, empty || null);
     });
     host.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
       sendProjectInterest(button.dataset.apply, button.closest(".item")?.querySelector("h2")?.textContent, button);
     }));
+    host.querySelectorAll("[data-save]").forEach((button) => button.addEventListener("click", async () => {
+      const projectId = button.dataset.save;
+      const result = savedSet.has(projectId) ? await supabase.from("saved_projects").delete().eq("user_id", user.id).eq("project_id", projectId) : await supabase.from("saved_projects").insert({ user_id: user.id, project_id: projectId });
+      if (result.error) return toast(result.error.message);
+      if (savedSet.has(projectId)) savedSet.delete(projectId); else savedSet.add(projectId);
+      button.textContent = savedSet.has(projectId) ? "♥ Saved" : "♡ Save";
+      const card = host.querySelector(`[data-project-id="${CSS.escape(projectId)}"]`); if (card) card.dataset.saved = String(savedSet.has(projectId));
+      const savedLabel = document.querySelector('.side-link[data-status="saved"] .count'); if (savedLabel) savedLabel.textContent = String(savedSet.size);
+      document.querySelector("#q")?.dispatchEvent(new Event("input", { bubbles: true }));
+    }));
+    document.querySelector("#q")?.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelector("#cat")?.dispatchEvent(new Event("change", { bubbles: true }));
+    window.bmcSetProjectScope = (scope) => { window.bmcProjectScope = scope; if (scope === "collab") document.querySelector('.segmented button[data-kind="ideas"]')?.click(); else if (scope === "discover") document.querySelector('.segmented button[data-kind="projects"]')?.click(); else document.querySelector("#q")?.dispatchEvent(new Event("input", { bubbles: true })); };
+    document.body.classList.add("bmc-projects-ready");
+    if (!window.bmcProjectsPoll) window.bmcProjectsPoll = setInterval(() => openProjectsDirectory().catch((e) => console.error("Projects refresh failed:", e)), 30000);
   }
   function init() {
     const path = location.pathname;
