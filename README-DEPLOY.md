@@ -5,6 +5,7 @@ This is the full Next.js project. It serves the static site pages from `/public/
 ## Connected features in this package
 
 - Email/password signup and login through Supabase Auth.
+- Forgot-password email and secure new-password page using Supabase Auth recovery links.
 - Per-user profiles, profile editing, profile photo upload, and private contact record.
 - Create, edit, list, and delete your own projects.
 - Shared open-project feed and project discovery backed by Supabase.
@@ -28,7 +29,7 @@ This remains a study project/prototype. Do not treat unfinished features as impl
 1. In Supabase **SQL Editor**, run `supabase/migrations/202611150001_initial_schema.sql` once. It creates empty tables and Row Level Security policies.
 2. If the initial schema is already installed, run `supabase/migrations/202611150002_avatar_storage.sql` once to add the avatar column, public avatar bucket, and owner-only upload/delete policies.
 3. In Supabase **Settings → API Keys**, use the `sb_publishable_...` key. Never use the secret key in the browser or Vercel `NEXT_PUBLIC_` variables.
-4. Configure Supabase **Authentication → URL Configuration**. Set the Site URL to your Vercel domain and add that domain's `/site/**` redirect URL. For local testing, add `http://localhost:3000/site/**`.
+4. Configure Supabase **Authentication → URL Configuration**. Set the Site URL to your canonical site URL, add `https://www.stagerang.com/site/update-password.html` as an allowed redirect URL, and retain the site's `/site/**` redirect URL. For local testing, add `http://localhost:3000/site/**`.
 
 ## Vercel environment variables
 

@@ -27,8 +27,17 @@
 
 1. Keep the existing tables and user rows. This package does not require dropping tables or deleting accounts.
 2. In Authentication → URL Configuration, Site URL should be `https://www.stagerang.com` (or the site's chosen canonical domain). Allow the site's `/site/**` callback URL and any required Vercel preview callback URL.
-3. Existing Resend SMTP sender/domain setup is independent of this upload. Keep it as configured; verify email confirmation with a new test address after deployment.
-4. Authenticated profile and project rows live in `profiles` and `projects`; applications in `applications`; conversation threads/messages in `conversations`, `conversation_members`, and `messages`.
+3. Also add this exact recovery callback to Redirect URLs: `https://www.stagerang.com/site/update-password.html`. If you use the apex domain instead, add its matching callback too. Save the URL Configuration.
+4. Existing Resend SMTP sender/domain setup is independent of this upload. Keep it as configured; verify password recovery with a test account after deployment.
+5. Authenticated profile and project rows live in `profiles` and `projects`; applications in `applications`; conversation threads/messages in `conversations`, `conversation_members`, and `messages`.
+
+## Test password reset after deployment
+
+1. Open the site's login dialog and choose **Log in**.
+2. Enter the account email and click **Forgot password?**.
+3. Check the inbox and spam folder for the recovery email and follow its link.
+4. On the Stagerang page, choose and confirm a new password of at least 8 characters, save it, then log in with it.
+5. If no email arrives, check Supabase Authentication → Logs and verify SMTP and the allowed callback URL.
 
 ## Current limitations
 
