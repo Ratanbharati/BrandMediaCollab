@@ -22,6 +22,8 @@ Upload the contents of this project folder to the root of the connected GitHub r
 
 Keep existing user and table data. Do not rerun the initial schema. If it has not already been run successfully, execute `supabase/migrations/202611160001_activity_notifications.sql` once in Supabase SQL Editor. It creates private in-app notifications and activity triggers. If it already succeeded, do not run it again.
 
+After that migration is in place, execute `supabase/migrations/202611170001_saved_projects_visibility.sql` once. It lets an account view a project it saved even after the owner closes it, so the Saved projects scope can show its real rows. Do not rerun the initial schema.
+
 ## Current limits
 
 Notifications are in-app only. Message updates use periodic refresh, not realtime push. Group chats, calendar integration, social account authorization, and follower syncing are not included.

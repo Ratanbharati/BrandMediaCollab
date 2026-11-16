@@ -98,6 +98,7 @@
       };
     });
   }
+  window.bmcSubmitInterest = submitInterest;
   async function signedIn(supabase) {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) throw new Error("Please log in first, then try again.");
@@ -465,6 +466,8 @@
     window.bmcRefreshMessageBadge?.();
   }
   async function openProjectsDirectory() {
+    if (window.bmcProjectsDirectoryHandled) return;
+    if (window.bmcLoadProjectsDirectory) return window.bmcLoadProjectsDirectory();
     $("#list")?.querySelectorAll(".item").forEach((el) => el.remove());
     const supabase = await client(); const user = await signedIn(supabase);
     const { data, error } = await supabase.from("projects").select("*").eq("status", "Open").order("created_at", { ascending: false });

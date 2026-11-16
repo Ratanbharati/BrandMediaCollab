@@ -4,10 +4,67 @@
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const toast = (message) => { const node = $("#toast"); if (node) { node.textContent = message; node.classList.add("show"); setTimeout(() => node.classList.remove("show"), 2800); } };
   let supabase, user, activeId = null, poller = null;
+  let activityTimer = null;
   const conversationNode = $("#conversation");
   const threadNode = $("#thread-list");
   const input = $("#message-input");
   const sendButton = $("#send");
+
+  function ensureActivityPanel() {
+    let panel = $("#bmc-project-activity");
+    if (!panel) {
+      panel = document.createElement("section"); panel.id = "bmc-project-activity"; panel.className = "campaign-box";
+      panel.innerHTML = '<div class="camp-top"><b>Project snapshot</b><span>Live</span></div><select id="bmc-activity-project" aria-label="Choose a project"><option value="all">All your project activity</option></select><div class="camp-stats"><div class="camp-stat"><b data-activity="interests">—</b><span>Interests</span></div><div class="camp-stat"><b data-activity="chats">—</b><span>Chats</span></div><div class="camp-stat"><b data-activity="messages">—</b><span>Messages</span></div><div class="camp-stat"><b data-activity="unread">—</b><span>Unread</span></div></div><div class="readline" id="bmc-activity-context">Counts update from your saved project activity.</div>';
+      $(".list-head")?.after(panel);
+    }
+    return panel;
+  }
+  async function refreshActivity() {
+    const panel = ensureActivityPanel(), chooser = $("#bmc-activity-project"); if (!panel || !chooser) return;
+    const current = chooser.value || "all";
+    const [ownedResult, sentResult] = await Promise.all([
+      supabase.from("projects").select("id,project_name,owner_id").eq("owner_id", user.id),
+      supabase.from("applications").select("project_id,status").eq("applicant_id", user.id).neq("status", "withdrawn")
+    ]);
+    if (ownedResult.error) throw ownedResult.error; if (sentResult.error) throw sentResult.error;
+    const owned = ownedResult.data || [], sent = sentResult.data || [], ownedIds = owned.map((p) => p.id);
+    const appliedIds = [...new Set(sent.map((a) => a.project_id))].filter((id) => !ownedIds.includes(id));
+    const { data: appliedProjects, error: appliedError } = appliedIds.length ? await supabase.from("projects").select("id,project_name,owner_id").in("id", appliedIds) : { data: [], error: null };
+    if (appliedError) throw appliedError;
+    const relevant = [...owned, ...(appliedProjects || [])].sort((a, b) => a.project_name.localeCompare(b.project_name));
+    chooser.innerHTML = '<option value="all">All your project activity</option>' + relevant.map((p) => `<option value="${esc(p.id)}">${esc(p.project_name)} · ${ownedIds.includes(p.id) ? "Your post" : "Applied"}</option>`).join("");
+    chooser.value = relevant.some((p) => p.id === current) ? current : "all";
+    chooser.onchange = () => refreshActivity().catch((e) => { console.error(e); $("#bmc-activity-context").textContent = "Could not refresh project activity."; });
+    const projectIds = chooser.value === "all" ? relevant.map((p) => p.id) : [chooser.value];
+    let received = [];
+    const ownedSelection = projectIds.filter((id) => ownedIds.includes(id));
+    if (ownedSelection.length) {
+      const { data, error } = await supabase.from("applications").select("id,project_id,applicant_id,status").in("project_id", ownedSelection).neq("status", "withdrawn");
+      if (error) throw error; received = data || [];
+    }
+    const outgoing = sent.filter((a) => projectIds.includes(a.project_id));
+    const interestCount = received.length + outgoing.length;
+    const memberResult = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
+    if (memberResult.error) throw memberResult.error;
+    const convIds = [...new Set((memberResult.data || []).map((r) => r.conversation_id))];
+    let chats = [];
+    if (convIds.length) {
+      const { data, error } = await supabase.from("conversations").select("id,project_id").in("id", convIds);
+      if (error) throw error; chats = (data || []).filter((c) => projectIds.includes(c.project_id));
+    }
+    const chatIds = chats.map((c) => c.id); let messages = [], unread = 0;
+    if (chatIds.length) {
+      const { data, error } = await supabase.from("messages").select("id,sender_id,read_at").in("conversation_id", chatIds);
+      if (error) throw error; messages = data || []; unread = messages.filter((m) => m.sender_id !== user.id && !m.read_at).length;
+      const { count, error: unreadError } = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("type", "new_message").is("read_at", null).in("conversation_id", chatIds);
+      if (!unreadError) unread = count || 0;
+    }
+    panel.querySelector('[data-activity="interests"]').textContent = String(interestCount);
+    panel.querySelector('[data-activity="chats"]').textContent = String(chats.length);
+    panel.querySelector('[data-activity="messages"]').textContent = String(messages.length);
+    panel.querySelector('[data-activity="unread"]').textContent = String(unread);
+    $("#bmc-activity-context").textContent = chooser.value === "all" ? `${owned.length} posts · ${appliedIds.length} applied projects` : (ownedIds.includes(chooser.value) ? "Your post · incoming interest and chat activity" : "Your application · conversation activity");
+  }
 
   function showMessage(message) {
     conversationNode.innerHTML = `<div class="system-note">${esc(message)}</div>`;
@@ -45,6 +102,7 @@
     await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).eq("type", "new_message").eq("conversation_id", item.id).is("read_at", null);
     window.bmcRefreshMessageBadge?.();
     window.dispatchEvent(new CustomEvent("bmc-notifications-updated"));
+    refreshActivity().catch(() => {});
     if (poller) clearInterval(poller);
     poller = setInterval(() => { if (activeId === item.id && !document.hidden) loadMessages(item.id).catch(() => {}); }, 5000);
   }
@@ -161,7 +219,7 @@
     if (error || !current) { location.href = "index.html"; return; }
     user = current;
     // Remove static demo counters, threads, and mock message composer behavior.
-    $(".campaign-box")?.remove(); $("#bulk-modal")?.remove(); $("#meeting-modal")?.remove(); $("#schedule")?.remove(); $("#meet-inline")?.remove();
+    $(".campaign-box")?.remove(); ensureActivityPanel(); $("#bulk-modal")?.remove(); $("#meeting-modal")?.remove(); $("#schedule")?.remove(); $("#meet-inline")?.remove();
     threadNode.querySelectorAll(".thread").forEach((node) => node.remove());
     const segmented = document.querySelector(".seg"); if (segmented) segmented.remove();
     if (sendButton) sendButton.onclick = null;
@@ -171,6 +229,7 @@
     $("#back")?.addEventListener("click", () => $("#messages").classList.remove("show-chat"));
     sendButton?.addEventListener("click", sendMessage);
     input?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
+    await refreshActivity(); activityTimer = setInterval(() => refreshActivity().catch((e) => { console.error("Project snapshot refresh failed:", e); $("#bmc-activity-context").textContent = `Could not refresh project counts: ${e.message || "Supabase error"}`; }), 20000);
     await renderThreads();
     if (!activeId) {
       $("#chat-name").textContent = "No conversation selected"; $("#chat-name").removeAttribute("href");
@@ -181,6 +240,7 @@
     document.body.classList.add("bmc-messages-ready");
   } catch (error) {
     console.error("Messages could not load:", error);
+    if ($("#bmc-activity-context")) $("#bmc-activity-context").textContent = `Could not load project counts: ${error.message || "Supabase error"}`;
     threadNode.innerHTML = "";
     $("#chat-name").textContent = "No conversation selected"; $("#chat-title").textContent = "";
     $("#context-title").textContent = "Select a conversation"; $("#chat-avatar").textContent = "—";
