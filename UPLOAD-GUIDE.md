@@ -17,6 +17,8 @@ Avoid uploading files from different subfolders together into the repository roo
 
 The owner console is `https://www.stagerang.com/site/admin-dashboard.html`. Use the verified owner account. Vercel Production must have `STAGERANG_ADMIN_EMAIL=ratnabharati.rb@gmail.com` and the server-only `SUPABASE_SERVICE_ROLE_KEY`, as described in `ADMIN-SETUP.md`. Never expose the service-role key in browser code.
 
+Use `USER-JOURNEYS.md` for the Creator, Brand, and Agency click-by-click flows and the acceptance checklist after deployment.
+
 ## Database
 
 Deployment does not run SQL and does not modify or erase Supabase data. Keep the existing Supabase project and its tables. Do not rerun the initial schema on a database that already contains accounts.

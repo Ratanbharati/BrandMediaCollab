@@ -15,6 +15,8 @@ Preserve the package folder structure when copying it to the connected GitHub re
 
 Keep the existing Supabase project and user data. Vercel deployment does not execute SQL migrations. Do not rerun the initial schema on a database that already contains accounts. The admin console setup is in `ADMIN-SETUP.md`.
 
+The Creator, Brand, and Agency click-by-click journeys and post-deployment acceptance checklist are in `USER-JOURNEYS.md`.
+
 ## Remaining integration limits
 
 - Activity alerts are in-app; push notifications aren’t included. The notification panel needs the existing `notifications` table/policies to be present in Supabase; when absent, the UI shows a fallback.

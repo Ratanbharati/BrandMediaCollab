@@ -115,6 +115,13 @@
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
     const label = type === "brand" ? "Brand" : type === "agency" ? "Agency" : "Creator";
     headerName.textContent = `${name} · ${label}`;
+    if (type === "agency" && location.pathname.endsWith("/project-form.html")) {
+      const kind = $("#kind"); if (kind?.querySelector('option[value="brand"]')) kind.querySelector('option[value="brand"]').textContent = "Agency campaign";
+      if (!new URLSearchParams(location.search).has("id")) {
+        const title = $("#title"); if (title) title.textContent = "Create an agency project";
+        const intro = $(".head p"); if (intro) intro.textContent = "Share a campaign brief your agency is managing and invite creators to collaborate.";
+      }
+    }
     document.body.classList.add("bmc-account-ready");
   }
   async function authSubmit(event) {
@@ -154,7 +161,10 @@
   async function saveProfile(complete) {
     const supabase = await client();
     const user = await signedIn(supabase);
-    const accountType = sessionStorage.getItem("bmc_signup_type") || $("[data-type].selected")?.dataset.type || "creator";
+    const editingProfile = new URLSearchParams(location.search).get("edit") === "1";
+    const accountType = editingProfile
+      ? sessionStorage.getItem("bmc_edit_account_type") || $("[data-type].selected")?.dataset.type || "creator"
+      : sessionStorage.getItem("bmc_signup_type") || $("[data-type].selected")?.dataset.type || "creator";
     const isOrg = accountType === "brand" || accountType === "agency";
     const displayName = (isOrg ? $("#company")?.value : $("#display-name")?.value)?.trim() || sessionStorage.getItem("bmc_signup_name") || "";
     const contentCategories = [...document.querySelectorAll(".tag.selected")].map((x) => x.textContent.trim()).filter(Boolean);
@@ -179,7 +189,7 @@
     const { error: contactError } = await supabase.from("private_contacts").upsert(contact);
     if (contactError) throw contactError;
     if (complete) {
-      sessionStorage.removeItem("bmc_signup_type"); sessionStorage.removeItem("bmc_signup_name");
+      sessionStorage.removeItem("bmc_signup_type"); sessionStorage.removeItem("bmc_signup_name"); sessionStorage.removeItem("bmc_edit_account_type");
       location.href = "my-profile.html";
     } else toast("Profile saved to your account.");
   }
@@ -219,10 +229,22 @@
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (error) throw error;
-    const accountType = profile?.account_type || sessionStorage.getItem("bmc_signup_type") || user.user_metadata?.account_type || "creator";
+    const editingProfile = new URLSearchParams(location.search).get("edit") === "1";
+    if (editingProfile && !profile) { location.replace("profile-setup.html"); return; }
+    const accountType = editingProfile ? profile.account_type : profile?.account_type || sessionStorage.getItem("bmc_signup_type") || user.user_metadata?.account_type || "creator";
     sessionStorage.setItem("bmc_signup_type", accountType);
+    if (editingProfile) sessionStorage.setItem("bmc_edit_account_type", accountType);
     if (user.user_metadata?.display_name && !sessionStorage.getItem("bmc_signup_name")) sessionStorage.setItem("bmc_signup_name", user.user_metadata.display_name);
-    const typeButton = $(`[data-type="${accountType}"]`); if (typeButton) typeButton.click();
+    const typeButton = $(`[data-type="${accountType === "creator" ? "influencer" : accountType}"]`); if (typeButton) typeButton.click();
+    if (editingProfile) {
+      const switcher = $(".account-switch");
+      if (switcher) { const label = document.createElement("p"); label.className = "profile-edit-type"; label.textContent = `Editing your ${accountType === "creator" ? "Creator" : accountType[0].toUpperCase() + accountType.slice(1)} profile`; switcher.before(label); switcher.hidden = true; }
+      document.querySelectorAll(".account-switch [data-type]").forEach((button) => { button.disabled = true; });
+      const title = $("h1"); if (title) title.textContent = `Edit your ${accountType === "creator" ? "creator" : accountType} profile`;
+      const step = $(".step-label"); if (step) step.textContent = "YOUR ACCOUNT · PROFILE EDIT";
+      const save = $("#continue"); if (save) save.textContent = "Save profile changes";
+      const draft = $(".save"); if (draft) draft.textContent = "Save changes";
+    }
     if (!profile) return;
     const values = {
       "#display-name": profile.display_name, "#company": profile.company_name,
@@ -238,6 +260,7 @@
     document.querySelectorAll(".tag").forEach((tag) => {
       if ((profile.content_categories || []).includes(tag.textContent.trim())) tag.classList.add("selected");
     });
+    if (editingProfile) document.documentElement.classList.remove("bmc-profile-loading");
   }
   async function renderMyProfile() {
     const supabase = await client(); const params = new URLSearchParams(location.search);
@@ -248,7 +271,7 @@
     if (error) throw error;
     const root = $("#dynamic-profile"); if (!root) return;
     const isOwner = current.data.user?.id === targetId;
-    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener">${esc(profile.website_url)}</a>` : ""}<div class="tags">${(profile.content_categories || []).map((x) => `<span>${esc(x)}</span>`).join("")}</div>${isOwner ? '<a class="edit" href="profile-setup.html">Edit my profile</a>' : ""}</div></section>`;
+    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener">${esc(profile.website_url)}</a>` : ""}<div class="tags">${(profile.content_categories || []).map((x) => `<span>${esc(x)}</span>`).join("")}</div>${isOwner ? '<a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>' : ""}</div></section>`;
     document.title = `${profile.display_name || "Profile"} — Stagerang`;
   }
   function projectPayload(user, accountType) {
@@ -324,7 +347,8 @@
     $("#empty").hidden = data.length > 0;
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "card project";
-      row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand campaign"} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
+      const projectLabel = p.owner_type === "agency" ? "Agency project" : p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand campaign";
+      row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
       host.append(row);
     });
     host.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", async () => {
@@ -349,6 +373,9 @@
     const person = $(".identity .person");
     if (person) {
       const h = person.querySelector("h3"); if (h) h.textContent = name;
+      // The HTML template still contains a link to the old sample creator profile.
+      // Route the signed-in member's identity card to their live Supabase profile.
+      const identityLink = person.querySelector("a"); if (identityLink) identityLink.href = "my-profile.html";
       const bio = person.querySelector("p"); if (bio) bio.textContent = profile.account_type === "brand" ? "Brand account" : profile.account_type === "agency" ? "Agency account" : "Creator account";
       const loc = person.querySelector(".loc"); if (loc) loc.textContent = profile.location || "Open to collaborations";
       const portrait = person.querySelector(".portrait"); if (portrait) portrait.innerHTML = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(name.slice(0, 1).toUpperCase());
@@ -382,7 +409,7 @@
       }
       if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
       if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
-      const addWork = $("#add-work"); if (addWork && !addWork.dataset.feedBound) { addWork.dataset.feedBound = "true"; addWork.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "profile-setup.html"; }, true); }
+      const addWork = $("#add-work"); if (addWork && !addWork.dataset.feedBound) { addWork.dataset.feedBound = "true"; addWork.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "profile-setup.html?edit=1"; }, true); }
     }
     const { data: projects, error } = await supabase.from("projects").select("*").eq("status", "Open").order("created_at", { ascending: false });
     if (error) throw error;
@@ -393,6 +420,8 @@
       if (ownersError) throw ownersError; owners = data || [];
     }
     const byId = Object.fromEntries(owners.map((p) => [p.id, p]));
+    const kindOf = (p) => p.owner_type === "agency" || byId[p.owner_id]?.account_type === "agency" ? "agency" : p.owner_type === "creator" || byId[p.owner_id]?.account_type === "creator" || p.project_type === "creator_idea" ? "creator" : "brand";
+    const feedKinds = projects.map(kindOf);
     let live = $("#bmc-live-posts");
     const center = $(".center-col");
     if (!live) {
@@ -402,7 +431,7 @@
     }
     if (!$("#bmc-feed-tabs")) {
       const tabs = document.createElement("div"); tabs.id = "bmc-feed-tabs"; tabs.className = "bmc-feed-tabs";
-      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects</button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas</button>`;
+      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects <span data-feed-count="brand">0</span></button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas <span data-feed-count="creator">0</span></button><button type="button" data-feed-kind="agency" class="${selectedKind === "agency" ? "active" : ""}">Agency projects <span data-feed-count="agency">0</span></button>`;
       live.before(tabs);
       tabs.addEventListener("click", (event) => {
         const button = event.target.closest("[data-feed-kind]"); if (!button) return;
@@ -411,10 +440,11 @@
       });
     }
     if (!projects.length) { live.innerHTML = ""; live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedActivityTimer) window.bmcFeedActivityTimer = window.setInterval(() => refreshFeedActivity(supabase, user).catch(() => {}), 20000); if (!window.bmcFeedProjectTimer) window.bmcFeedProjectTimer = window.setInterval(() => openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)), 30000); return; }
+    ["brand", "creator", "agency"].forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
     live.innerHTML = projects.map((p) => {
       const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
-      const type = p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand campaign";
-      const kind = p.project_type === "creator_idea" ? "creator" : "brand";
+      const kind = kindOf(p);
+      const type = kind === "agency" ? "Agency project" : kind === "creator" ? "Creator idea" : "Brand project";
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const canApply = user.id !== p.owner_id;
       return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions">${canApply ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
@@ -440,18 +470,18 @@
     if (!empty) { empty = document.createElement("div"); empty.id = "bmc-feed-kind-empty"; empty.className = "panel empty"; host.append(empty); }
     const visible = [...host.querySelectorAll(".post[data-kind]")].some((card) => !card.hidden);
     empty.hidden = visible;
-    empty.textContent = search ? "No projects or ideas match this search." : kind === "brand" ? "No brand projects have been posted yet." : "No creator ideas have been posted yet.";
+    empty.textContent = search ? "No projects or ideas match this search." : kind === "brand" ? "No brand projects have been posted yet." : kind === "agency" ? "No agency projects have been posted yet." : "No creator ideas have been posted yet.";
   }
   async function refreshFeedActivity(supabase, user) {
     const stats = $("#bmc-feed-stats"), notifications = $("#bmc-feed-notifications");
     const { count: postCount, error: postError } = await supabase.from("projects").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
     if (postError) throw postError;
-    const { count: sentCount, error: sentError } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("applicant_id", user.id);
+    const { count: sentCount, error: sentError } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("applicant_id", user.id).neq("status", "withdrawn");
     if (sentError) throw sentError;
     const own = await supabase.from("projects").select("id").eq("owner_id", user.id);
     if (own.error) throw own.error;
     const ids = (own.data || []).map((row) => row.id); let receivedCount = 0;
-    if (ids.length) { const received = await supabase.from("applications").select("id", { count: "exact", head: true }).in("project_id", ids); if (received.error) throw received.error; receivedCount = received.count || 0; }
+    if (ids.length) { const received = await supabase.from("applications").select("id", { count: "exact", head: true }).in("project_id", ids).neq("status", "withdrawn"); if (received.error) throw received.error; receivedCount = received.count || 0; }
     if (stats) stats.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><span><b>${postCount || 0}</b><br>Projects/ideas posted</span><span><b>${sentCount || 0}</b><br>Interests sent</span><span><b>${receivedCount}</b><br>Interests received</span><span><b>${window.bmcUnreadMessages || 0}</b><br>Unread messages</span></div>`;
     const { data, error } = await supabase.from("notifications").select("id,title,body,type,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(6);
     if (error) { if (notifications) notifications.textContent = "Run the activity-notifications SQL update to enable alerts."; return; }
@@ -482,10 +512,12 @@
     const names = Object.fromEntries((profiles || []).map((x) => [x.id, x.display_name || x.company_name || "Member"]));
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "panel project item";
-      row.dataset.kind = p.project_type === "creator_idea" ? "ideas" : "projects";
+      const owner = (profiles || []).find((item) => item.id === p.owner_id);
+      row.dataset.kind = p.owner_type === "agency" || owner?.account_type === "agency" ? "agency" : p.owner_type === "creator" || owner?.account_type === "creator" || p.project_type === "creator_idea" ? "ideas" : "projects";
       row.dataset.category = p.category; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
       row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
-      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand project"} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested ↗</button>`}</div></div>`;
+      const kindLabel = row.dataset.kind === "agency" ? "Agency project" : row.dataset.kind === "ideas" ? "Creator idea" : "Brand project";
+      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${kindLabel} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested ↗</button>`}</div></div>`;
       host.insertBefore(row, empty || null);
     });
     host.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
@@ -501,7 +533,7 @@
     if (!path.endsWith("/index.html") && path !== "/" && !path.endsWith("/logout.html")) loadAccountHeader().catch(() => {});
     if (path.endsWith("/index.html") || path === "/") $("#auth-form")?.addEventListener("submit", authSubmit, true);
     if (path.endsWith("/profile-setup.html")) document.addEventListener("click", profileClick, true);
-    if (path.endsWith("/profile-setup.html")) loadProfileSetup().catch((error) => toast(error.message));
+    if (path.endsWith("/profile-setup.html")) loadProfileSetup().catch((error) => { document.documentElement.classList.remove("bmc-profile-loading"); toast(error.message); });
     if (path.endsWith("/project-form.html")) {
       $("#form")?.addEventListener("submit", projectSubmit, true);
       if (!new URLSearchParams(location.search).has("id")) {

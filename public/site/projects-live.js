@@ -7,8 +7,9 @@
   const toast = (s) => { const n = $("#toast"); if (n) { n.textContent = s; n.classList.add("show"); setTimeout(() => n.classList.remove("show"), 2400); } };
   const host = $("#list"), empty = $("#empty");
   if (!host || !empty) return;
-  let db, user, projects = [], applications = [], saved = new Set(), scope = "discover", activeKind = "projects";
-  const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0 };
+  const requestedScope = new URLSearchParams(location.search).get("scope");
+  let db, user, projects = [], applications = [], saved = new Set(), scope = ["owned", "applied", "saved"].includes(requestedScope) ? requestedScope : "discover", activeKind = "brand";
+  const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0, agencies: 0 };
   const selected = (v, key) => (v || []).some((x) => String(x).toLowerCase().includes(key));
   function setCount(status, count) { const el = document.querySelector(`[data-count="${status}"]`); if (el) el.textContent = String(count); }
   function renderFilters() {
@@ -26,18 +27,19 @@
   window.bmcApplyProjectFilters = renderFilters;
   function setScope(next) {
     scope = next;
-    document.querySelectorAll(".side-link[data-status]").forEach((x) => x.classList.toggle("active", x.dataset.status === (next === "discover" ? (activeKind === "ideas" ? "collab" : "discover") : next)));
+    document.querySelectorAll(".side-link[data-status]").forEach((x) => x.classList.toggle("active", x.dataset.status === (next === "discover" ? (activeKind === "creator" ? "collab" : activeKind === "agency" ? "agency" : "discover") : next)));
     renderFilters();
   }
   function setKind(next) {
     activeKind = next;
     document.querySelectorAll(".segmented [data-kind]").forEach((x) => x.classList.toggle("active", x.dataset.kind === next));
+    if (scope === "discover") document.querySelectorAll(".side-link[data-status]").forEach((x) => x.classList.toggle("active", x.dataset.status === (next === "creator" ? "collab" : next === "agency" ? "agency" : "discover")));
     renderFilters();
   }
   function buildCard(p, names) {
-    const owner = names[p.owner_id] || "Member", idea = p.project_type === "creator_idea";
+    const owner = names[p.owner_id] || "Member", idea = p.owner_type === "creator" || p.project_type === "creator_idea", agency = p.owner_type === "agency";
     const row = document.createElement("article"); row.className = "panel project item";
-    row.dataset.kind = idea ? "ideas" : "projects"; row.dataset.status = String(p.status || "").toLowerCase(); row.dataset.owner = p.owner_id;
+    row.dataset.kind = agency ? "agency" : idea ? "creator" : "brand"; row.dataset.status = String(p.status || "").toLowerCase(); row.dataset.owner = p.owner_id;
     row.dataset.applied = applications.some((a) => a.project_id === p.id && a.status !== "withdrawn"); row.dataset.saved = saved.has(p.id);
     row.dataset.category = p.category || ""; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
     row.dataset.search = `${p.project_name || ""} ${owner} ${p.requirements || ""} ${p.category || ""} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
@@ -45,7 +47,7 @@
     const actions = p.owner_id === user.id
       ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>`
       : `<button class="btn save ${isSaved ? "active" : ""}" data-save="${esc(p.id)}">${isSaved ? "♥ Saved" : "♡ Save"}</button><button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}" ${applied ? "disabled" : ""}>${applied ? "Interest sent ✓" : "Interested ↗"}</button>`;
-    row.innerHTML = `<div class="project-top"><div class="logo">${esc(owner.slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(owner)}</a></b><span>${idea ? "Creator idea" : "Brand project"} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category || "Other")}</span>${(p.platforms || []).map((x) => `<span class="chip">${esc(x)}</span>`).join("")}<span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span>${p.delivery_date ? `<span class="chip">Delivery by ${esc(p.delivery_date)}</span>` : ""}</div><div class="bottom"><small>${p.owner_id === user.id ? "Your post" : applied ? "You expressed interest" : "Open opportunity"}</small><div class="actions">${actions}</div></div>`;
+    row.innerHTML = `<div class="project-top"><div class="logo">${esc(owner.slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(owner)}</a></b><span>${agency ? "Agency project" : idea ? "Creator idea" : "Brand project"} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category || "Other")}</span>${(p.platforms || []).map((x) => `<span class="chip">${esc(x)}</span>`).join("")}<span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span>${p.delivery_date ? `<span class="chip">Delivery by ${esc(p.delivery_date)}</span>` : ""}</div><div class="bottom"><small>${p.owner_id === user.id ? "Your post" : applied ? "You expressed interest" : "Open opportunity"}</small><div class="actions">${actions}</div></div>`;
     return row;
   }
   async function load() {
@@ -60,8 +62,9 @@
     for (const r of [postResult, appResult, savedResult, ownResult]) if (r.error) throw r.error;
     projects = postResult.data || []; applications = appResult.data || []; saved = new Set((savedResult.data || []).map((r) => r.project_id)); counts.owned = ownResult.count || 0;
     counts.applications = new Set(applications.filter((a) => a.status !== "withdrawn").map((a) => a.project_id)).size; counts.saved = saved.size;
-    counts.ideas = projects.filter((p) => p.project_type === "creator_idea" && p.status === "Open").length; counts.brands = projects.filter((p) => p.project_type === "brand_campaign" && p.status === "Open").length;
-    setCount("owned", counts.owned); setCount("applied", counts.applications); setCount("saved", counts.saved); setCount("ideas", counts.ideas); setCount("ideaTab", counts.ideas); setCount("brands", counts.brands);
+      const kindOf = (p) => p.owner_type === "agency" ? "agency" : p.owner_type === "creator" || p.project_type === "creator_idea" ? "creator" : "brand";
+    counts.ideas = projects.filter((p) => kindOf(p) === "creator" && String(p.status).toLowerCase() === "open").length; counts.brands = projects.filter((p) => kindOf(p) === "brand" && String(p.status).toLowerCase() === "open").length; counts.agencies = projects.filter((p) => kindOf(p) === "agency" && String(p.status).toLowerCase() === "open").length;
+    setCount("owned", counts.owned); setCount("applied", counts.applications); setCount("saved", counts.saved); setCount("ideas", counts.ideas); setCount("ideaTab", counts.ideas); setCount("brands", counts.brands); setCount("agency", counts.agencies); setCount("agencyTab", counts.agencies);
     const owners = [...new Set(projects.map((p) => p.owner_id))];
     const { data: profiles, error: profileError } = owners.length ? await db.from("profiles").select("id,display_name,company_name").in("id", owners) : { data: [], error: null };
     if (profileError) throw profileError;
@@ -72,7 +75,7 @@
   }
   function wire() {
     document.querySelectorAll(".segmented [data-kind]").forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind)));
-    document.querySelectorAll(".side-link[data-status]").forEach((b) => { b.onclick = (event) => { event.preventDefault(); if (b.dataset.status === "collab") { setKind("ideas"); setScope("discover"); } else if (b.dataset.status === "discover") { setKind("projects"); setScope("discover"); } else if (["applied", "saved"].includes(b.dataset.status)) setScope(b.dataset.status); }; });
+    document.querySelectorAll(".side-link[data-status]").forEach((b) => { b.onclick = (event) => { event.preventDefault(); if (b.dataset.status === "collab") { setKind("creator"); setScope("discover"); } else if (b.dataset.status === "agency") { setKind("agency"); setScope("discover"); } else if (b.dataset.status === "discover") { setKind("brand"); setScope("discover"); } else if (["applied", "saved"].includes(b.dataset.status)) setScope(b.dataset.status); }; });
     ["q", "cat", "tier", "platform", "location"].forEach((id) => $("#" + id).addEventListener(id === "q" ? "input" : "change", renderFilters));
     $("#clear").onclick = () => { ["q", "cat", "tier", "platform", "location"].forEach((id, i) => $("#" + id).value = i ? "all" : ""); renderFilters(); };
     host.addEventListener("click", async (event) => {
@@ -93,7 +96,7 @@
   try {
     db = await window.bmcSupabaseReady; if (!db) throw new Error(window.bmcSupabaseError || "Supabase is unavailable.");
     wire(); host.querySelectorAll(".item").forEach((x) => x.remove());
-    await load(); setInterval(() => load().catch((e) => { console.error(e); }), 30000);
+    await load(); setScope(scope); setInterval(() => load().catch((e) => { console.error(e); }), 30000);
   } catch (error) {
     console.error("Live project directory could not load:", error); host.querySelectorAll(".item").forEach((x) => x.remove());
     empty.textContent = `Could not load live projects: ${error.message || "check Supabase connection and policies"}`; empty.classList.remove("hidden"); document.body.classList.add("bmc-projects-ready");

@@ -13,11 +13,12 @@
     notice.className = "panel table-panel"; notice.style.cssText = "margin:0 0 14px;padding:14px 16px";
     notice.innerHTML = '<div class="table-head" style="padding:0 0 9px"><h2>Recent notifications</h2><span id="notification-caption">New interest and message activity for this account</span></div><div id="notification-list" style="display:grid;gap:8px"></div>';
     layout.prepend(notice);
-    $("#table-title").textContent = "Projects posted by this account";
+    $("#table-title").textContent = "Brand projects";
     $("#table-head")?.replaceChildren();
     const postsPanel = $("#table-body")?.closest(".table-panel");
     const sentPanel = $("#creator-table-body")?.closest(".table-panel");
-    const firstHead = postsPanel?.querySelector(".table-head h2"); if (firstHead) firstHead.textContent = "Projects posted by this account";
+    postsPanel?.querySelector("#table-body")?.replaceChildren(); sentPanel?.querySelector("#creator-table-body")?.replaceChildren();
+    const firstHead = postsPanel?.querySelector(".table-head h2"); if (firstHead) firstHead.textContent = "Brand projects";
     const firstSpan = postsPanel?.querySelector(".table-head span"); if (firstSpan) firstSpan.textContent = "Incoming interest, decisions, and private chats";
     const secondHead = sentPanel?.querySelector(".table-head h2"); if (secondHead) secondHead.textContent = "Applications sent to other accounts";
     const secondSpan = sentPanel?.querySelector(".table-head span"); if (secondSpan) secondSpan.textContent = "Your activity on other members’ projects";
@@ -25,7 +26,16 @@
     if (heads) heads.innerHTML = "<th>Project</th><th>Status</th><th>Responses</th><th>Interested</th><th>Working together</th><th>Passed</th><th>Chats</th><th>Actions</th>";
     const secondHeads = sentPanel?.querySelector("thead tr");
     if (secondHeads) secondHeads.innerHTML = "<th>Project</th><th>Owner</th><th>Application status</th><th>Your note</th><th>Applied</th><th colspan=2>Conversation</th><th>Actions</th>";
-    const insight = $(".insight"); if (insight) insight.innerHTML = '<b>How it works:</b> “Projects posted” shows responses to your own posts. “Applications sent” shows your interest in other people’s posts. Each conversation is private and one-to-one. A bulk update sends the same message separately to each interested person.';
+    const makePanel = (id, title, summaryId, bodyId, emptyId, interestLabel) => {
+      const section = document.createElement("section"); section.id = id; section.className = "panel table-panel";
+      section.innerHTML = `<div class="table-head"><div><h2>${title}</h2><span id="${summaryId}">Loading live project activity…</span></div><span>Counts use this account’s saved project activity</span></div><div class="table-wrap"><table><thead><tr><th>Project</th><th>Status</th><th>Responses</th><th>${interestLabel}</th><th>Working together</th><th>Rejected</th><th>Project chats</th><th>Actions</th></tr></thead><tbody id="${bodyId}"></tbody></table><div class="empty" id="${emptyId}">No projects in this date range.</div></div><div class="table-footer">Project activity is grouped by the account type that created the post.</div>`;
+      return section;
+    };
+    const creatorPanel = makePanel("creator-ideas-panel", "Creator ideas", "creator-ideas-summary", "creator-ideas-body", "creator-ideas-empty", "Interested brands");
+    const agencyPanel = makePanel("agency-projects-panel", "Agency projects", "agency-projects-summary", "agency-projects-body", "agency-projects-empty", "Interested creators");
+    if (postsPanel && sentPanel) { postsPanel.after(creatorPanel); creatorPanel.after(agencyPanel); }
+    const rolePicker = $("#role"); if (rolePicker) rolePicker.hidden = true;
+    const insight = $(".insight"); if (insight) insight.innerHTML = '<b>How it works:</b> Brand projects, Creator ideas, and Agency projects are separated by the account that posted them. “Applications sent” is your interest in other people’s posts. Each conversation is private and one-to-one. A bulk update sends the same message separately to each interested person.';
   }
 
   async function ensureChat(projectId, otherId, message) {
@@ -86,30 +96,70 @@
   }
 
   function renderOwned(owned, applications, conversations) {
-    const ownBody = $("#table-body"); const creatorBody = $("#creator-table-body");
+    const ownBody = $("#table-body"); const creatorIdeaBody = $("#creator-ideas-body"); const agencyBody = $("#agency-projects-body"); const sentBody = $("#creator-table-body");
     const ownedIds = new Set(owned.map((p) => p.id));
     const forProject = Object.fromEntries(owned.map((project) => [project.id, applications.filter((app) => app.project_id === project.id)]));
     for (const project of owned) project.applications = forProject[project.id] || [];
     const chatCounts = conversations.reduce((out, chat) => { if (chat.project_id) out[chat.project_id] = (out[chat.project_id] || 0) + 1; return out; }, {});
-    if (ownBody) ownBody.innerHTML = owned.map((p) => {
+    const kindOf = (p) => p.owner_type === "agency" ? "agency" : p.owner_type === "creator" || p.project_type === "creator_idea" ? "creator" : "brand";
+    const brandPosts = owned.filter((p) => kindOf(p) === "brand");
+    const creatorPosts = owned.filter((p) => kindOf(p) === "creator");
+    const agencyPosts = owned.filter((p) => kindOf(p) === "agency");
+    const renderProjectRows = (posts) => posts.map((p) => {
       const rows = forProject[p.id] || []; const interested = rows.filter((x) => x.status === "interested").length;
       const together = rows.filter((x) => x.status === "working_together").length; const rejected = rows.filter((x) => x.status === "rejected").length;
-      return `<tr><td class="project-cell"><b>${esc(p.project_name)}</b><span>${esc(p.project_type === "creator_idea" ? "Creator idea" : "Brand campaign")} · ${esc(p.category)}</span></td><td>${esc(p.status)}</td><td>${rows.length}</td><td>${interested}</td><td>${together}</td><td>${rejected}</td><td>${chatCounts[p.id] || 0}</td><td><div class="row-actions"><button class="action" data-applicants="${esc(p.id)}">View responses (${rows.length})</button><button class="action primary-action" data-bulk="${esc(p.id)}">Message interested</button></div></td></tr>`;
+      const label = kindOf(p) === "agency" ? "Agency project" : kindOf(p) === "creator" ? "Creator idea" : "Brand project";
+      return `<tr class="data-row" data-role="${esc(p.owner_type)}" data-date="${esc((p.created_at || "").slice(0,10))}" data-project="${esc(p.project_name)}" data-recipients="${interested}"><td class="project-cell"><b>${esc(p.project_name)}</b><span>${label} · ${esc(p.category)}</span></td><td>${esc(p.status)}</td><td><span class="metric">${rows.length}</span></td><td><span class="metric">${interested}</span></td><td><span class="metric">${together}</span></td><td><span class="metric">${rejected}</span></td><td><span class="metric">${chatCounts[p.id] || 0}</span></td><td><div class="row-actions"><button class="action" data-applicants="${esc(p.id)}">View responses (${rows.length})</button><button class="action primary-action" data-bulk="${esc(p.id)}">Message interested</button></div></td></tr>`;
     }).join("");
+    if (ownBody) ownBody.innerHTML = renderProjectRows(brandPosts);
+    if (creatorIdeaBody) creatorIdeaBody.innerHTML = renderProjectRows(creatorPosts);
+    if (agencyBody) agencyBody.innerHTML = renderProjectRows(agencyPosts);
     const externalApps = applications.filter((app) => !ownedIds.has(app.project_id));
-    if (creatorBody) creatorBody.innerHTML = externalApps.map((app) => {
+    if (sentBody) sentBody.innerHTML = externalApps.map((app) => {
       const project = projectById[app.project_id] || {}; const owner = profileById[project.owner_id] || {};
       const name = owner.display_name || owner.company_name || "Project owner";
       const chat = conversations.find((c) => c.project_id === app.project_id && c.memberIds?.includes(project.owner_id));
-      return `<tr><td class="project-cell"><b>${esc(project.project_name || "Project")}</b><span>${esc(project.category || "")}</span></td><td>${esc(name)}</td><td>${esc(app.status)}</td><td>${esc(app.message || "—")}</td><td>${new Date(app.created_at).toLocaleDateString()}</td><td colspan="2">${chat ? "Private chat ready" : "No chat yet"}</td><td><button class="action primary-action" data-open-chat="${esc(app.project_id)}" data-other="${esc(project.owner_id || "")}">Open chat</button></td></tr>`;
+      return `<tr class="data-row" data-role="applications" data-date="${esc((app.created_at || "").slice(0,10))}" data-project="${esc(project.project_name || "Project")}"><td class="project-cell"><b>${esc(project.project_name || "Project")}</b><span>${esc(project.category || "")}</span></td><td>${esc(name)}</td><td>${esc(app.status)}</td><td>${esc(app.message || "—")}</td><td>${new Date(app.created_at).toLocaleDateString()}</td><td colspan="2">${chat ? "Private chat ready" : "No chat yet"}</td><td><button class="action primary-action" data-open-chat="${esc(app.project_id)}" data-other="${esc(project.owner_id || "")}">Open chat</button></td></tr>`;
     }).join("");
-    if (ownBody) ownBody.querySelectorAll("[data-applicants]").forEach((button) => button.onclick = () => openApplicants(button.dataset.applicants));
-    if (ownBody) ownBody.querySelectorAll("[data-bulk]").forEach((button) => button.onclick = () => bulkMessage(button.dataset.bulk));
-    if (creatorBody) creatorBody.querySelectorAll("[data-open-chat]").forEach((button) => button.onclick = async () => { try { const id = await ensureChat(button.closest("tr").querySelector("[data-open-chat]").dataset.openChat, button.dataset.other); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } });
-    const ownEmpty = $("#empty"); if (ownEmpty) ownEmpty.style.display = owned.length ? "none" : "block";
+    [ownBody, creatorIdeaBody, agencyBody].filter(Boolean).forEach((body) => {
+      body.querySelectorAll("[data-applicants]").forEach((button) => button.onclick = () => openApplicants(button.dataset.applicants));
+      body.querySelectorAll("[data-bulk]").forEach((button) => button.onclick = () => bulkMessage(button.dataset.bulk));
+    });
+    if (sentBody) sentBody.querySelectorAll("[data-open-chat]").forEach((button) => button.onclick = async () => { try { const id = await ensureChat(button.closest("tr").querySelector("[data-open-chat]").dataset.openChat, button.dataset.other); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } });
+    const setEmpty = (id, list, text) => { const el = $(id); if (el) { el.textContent = text; el.style.display = list.length ? "none" : "block"; } };
+    setEmpty("#empty", brandPosts, "No brand projects have been posted yet.");
+    setEmpty("#creator-ideas-empty", creatorPosts, "No creator ideas have been posted yet.");
+    setEmpty("#agency-projects-empty", agencyPosts, "No agency projects have been posted yet.");
     const sentEmpty = $("#creator-empty"); if (sentEmpty) sentEmpty.style.display = externalApps.length ? "none" : "block";
-    const summary = $("#range-summary"); if (summary) summary.textContent = `${owned.length} post${owned.length === 1 ? "" : "s"} · ${applications.filter((a) => ownedIds.has(a.project_id)).length} responses received`;
+    const summary = (rows) => `${rows.length} post${rows.length === 1 ? "" : "s"} · ${rows.reduce((n,p) => n + (forProject[p.id] || []).length, 0)} responses received`;
+    const brandSummary = $("#range-summary"); if (brandSummary) brandSummary.textContent = summary(brandPosts);
+    const creatorSummary = $("#creator-ideas-summary"); if (creatorSummary) creatorSummary.textContent = summary(creatorPosts);
+    const agencySummary = $("#agency-projects-summary"); if (agencySummary) agencySummary.textContent = summary(agencyPosts);
     const sentSummary = $("#creator-range-summary"); if (sentSummary) sentSummary.textContent = `${externalApps.length} application${externalApps.length === 1 ? "" : "s"} sent to other members’ posts`;
+    syncDashboardDates();
+  }
+
+  function syncDashboardDates() {
+    const from = $("#date-from")?.value || "0000-01-01", to = $("#date-to")?.value || "9999-12-31";
+    const groups = [
+      ["#table-body", "#empty", "#range-summary", "projects"],
+      ["#creator-ideas-body", "#creator-ideas-empty", "#creator-ideas-summary", "ideas"],
+      ["#agency-projects-body", "#agency-projects-empty", "#agency-projects-summary", "projects"],
+      ["#creator-table-body", "#creator-empty", "#creator-range-summary", "applications"]
+    ];
+    for (const [bodySelector, emptySelector, summarySelector, label] of groups) {
+      const body = $(bodySelector); if (!body) continue;
+      const all = [...body.querySelectorAll("tr[data-date]")];
+      all.forEach((row) => { row.style.display = row.dataset.date >= from && row.dataset.date <= to ? "" : "none"; });
+      const visible = all.filter((row) => row.style.display !== "none");
+      const empty = $(emptySelector); if (empty) empty.style.display = visible.length ? "none" : "block";
+      const summary = $(summarySelector);
+      if (summary && label === "applications") summary.textContent = `${visible.length} application${visible.length === 1 ? "" : "s"} sent in this date range`;
+      else if (summary) {
+        const totals = [2,3,4,5,6].map((index) => visible.reduce((sum, row) => sum + Number(row.cells[index]?.querySelector(".metric")?.textContent || 0), 0));
+        summary.textContent = `${visible.length} ${label} · ${totals[0]} responses · ${totals[1]} interested · ${totals[2]} working together · ${totals[3]} passed · ${totals[4]} chats`;
+      }
+    }
   }
 
   async function renderNotifications() {
@@ -131,7 +181,7 @@
     const { data: outgoing, error: appsError } = await supabase.from("applications").select("id,project_id,applicant_id,status,message,created_at,updated_at").eq("applicant_id", user.id).order("created_at", { ascending: false });
     if (appsError) throw appsError;
     const ownIds = (own || []).map((p) => p.id);
-    const incomingResult = ownIds.length ? await supabase.from("applications").select("id,project_id,applicant_id,status,message,created_at,updated_at").in("project_id", ownIds) : { data: [], error: null };
+    const incomingResult = ownIds.length ? await supabase.from("applications").select("id,project_id,applicant_id,status,message,created_at,updated_at").in("project_id", ownIds).neq("status", "withdrawn") : { data: [], error: null };
     if (incomingResult.error) throw incomingResult.error;
     const allProjectIds = [...new Set([...ownIds, ...(outgoing || []).map((a) => a.project_id)])];
     const externalIds = allProjectIds.filter((id) => !ownIds.includes(id));
@@ -169,6 +219,9 @@
     const picker = $("#role"); if (picker) { picker.value = type; picker.disabled = true; }
     const title = $("#page-title"); if (title) title.textContent = type === "creator" ? "Creator project dashboard" : type === "agency" ? "Agency project dashboard" : "Brand project dashboard";
     const create = $("#create-project"); if (create) create.onclick = () => { location.href = `project-form.html?kind=${type === "creator" ? "creator" : "brand"}`; };
+    $("#apply-date")?.addEventListener("click", () => setTimeout(syncDashboardDates, 0));
+    $("#date-from")?.addEventListener("change", () => document.querySelector('[data-preset="custom"]')?.classList.add("active"));
+    $("#date-to")?.addEventListener("change", () => document.querySelector('[data-preset="custom"]')?.classList.add("active"));
     await refreshDashboardData();
     await renderNotifications();
     setInterval(() => { refreshDashboardData().catch(() => {}); renderNotifications().catch(() => {}); }, 20000);

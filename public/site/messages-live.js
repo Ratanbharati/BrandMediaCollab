@@ -42,7 +42,7 @@
       const { data, error } = await supabase.from("applications").select("id,project_id,applicant_id,status").in("project_id", ownedSelection).neq("status", "withdrawn");
       if (error) throw error; received = data || [];
     }
-    const outgoing = sent.filter((a) => projectIds.includes(a.project_id));
+    const outgoing = sent.filter((a) => projectIds.includes(a.project_id) && !ownedIds.includes(a.project_id));
     const interestCount = received.length + outgoing.length;
     const memberResult = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
     if (memberResult.error) throw memberResult.error;
