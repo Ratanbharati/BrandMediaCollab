@@ -7,7 +7,8 @@
   const toast = (s) => { const n = $("#toast"); if (n) { n.textContent = s; n.classList.add("show"); setTimeout(() => n.classList.remove("show"), 2400); } };
   const host = $("#list"), empty = $("#empty");
   if (!host || !empty) return;
-  let db, user, projects = [], applications = [], saved = new Set(), scope = "discover", activeKind = "brand";
+  const requestedScope = new URLSearchParams(location.search).get("scope");
+  let db, user, projects = [], applications = [], saved = new Set(), scope = ["owned", "applied", "saved"].includes(requestedScope) ? requestedScope : "discover", activeKind = "brand";
   const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0, agencies: 0 };
   const selected = (v, key) => (v || []).some((x) => String(x).toLowerCase().includes(key));
   function setCount(status, count) { const el = document.querySelector(`[data-count="${status}"]`); if (el) el.textContent = String(count); }
@@ -95,7 +96,7 @@
   try {
     db = await window.bmcSupabaseReady; if (!db) throw new Error(window.bmcSupabaseError || "Supabase is unavailable.");
     wire(); host.querySelectorAll(".item").forEach((x) => x.remove());
-    await load(); setInterval(() => load().catch((e) => { console.error(e); }), 30000);
+    await load(); setScope(scope); setInterval(() => load().catch((e) => { console.error(e); }), 30000);
   } catch (error) {
     console.error("Live project directory could not load:", error); host.querySelectorAll(".item").forEach((x) => x.remove());
     empty.textContent = `Could not load live projects: ${error.message || "check Supabase connection and policies"}`; empty.classList.remove("hidden"); document.body.classList.add("bmc-projects-ready");
