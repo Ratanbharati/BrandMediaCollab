@@ -39,7 +39,7 @@
     $("#chat-title").textContent = item.projectName;
     $("#context-title").textContent = item.projectName;
     $("#chat-avatar").textContent = item.otherName.slice(0, 2).toUpperCase();
-    if (item.projectId) { selectedActivityProject = item.projectId; await renderProjectActivity(); }
+    if (item.projectId) { selectedActivityProject = item.projectId; await renderProjectActivity().catch((activityError) => { console.error("Project activity refresh failed:", activityError); }); }
     $("#messages").classList.add("show-chat");
     $(".chat-head").style.display = ""; $(".context").style.display = ""; $(".compose").style.display = "";
     $("#chat-project-link")?.setAttribute("href", `my-projects.html`);
@@ -100,14 +100,14 @@
     }
     if (activeId) { const active = items.find((item) => item.id === activeId); if (active) [...threadNode.querySelectorAll(".thread")].find((node) => node.dataset.id === activeId)?.classList.add("active"); }
     await renderAcceptedPartners(conversations, members || []);
-    await renderProjectActivity();
   }
   async function renderProjectActivity() {
     const list = $(".list"); if (!list || !supabase || !user) return;
     let panel = $("#bmc-project-activity");
     if (!panel) {
       panel = document.createElement("section"); panel.id = "bmc-project-activity"; panel.className = "campaign-box";
-      panel.innerHTML = '<div class="camp-top"><b>Project activity</b><span>Live account totals</span></div><select id="bmc-activity-project" aria-label="Choose project activity"><option value="all">All projects</option></select><div class="camp-stats"><div class="camp-stat"><b id="bmc-activity-apps">0</b><span>Applications</span></div><div class="camp-stat"><b id="bmc-activity-chats">0</b><span>Chats</span></div><div class="camp-stat"><b id="bmc-activity-messages">0</b><span>Messages</span></div><div class="camp-stat"><b id="bmc-activity-unread">0</b><span>Unread</span></div></div><div class="readline" id="bmc-activity-context">Choose a project to see its conversation activity.</div><a href="dashboard.html" style="display:block;margin:10px 0 0;color:#54763f;font-size:11px">Open full project dashboard →</a>';
+      panel.setAttribute("aria-label", "Compact project activity dashboard");
+      panel.innerHTML = '<div class="camp-top"><b>Project snapshot</b><span>Live totals</span></div><select id="bmc-activity-project" aria-label="Choose a project for activity counts"><option value="all">All projects</option></select><div class="camp-stats"><div class="camp-stat"><b id="bmc-activity-apps">0</b><span>Interests</span></div><div class="camp-stat"><b id="bmc-activity-chats">0</b><span>Chats</span></div><div class="camp-stat"><b id="bmc-activity-messages">0</b><span>Messages</span></div><div class="camp-stat"><b id="bmc-activity-unread">0</b><span>Unread</span></div></div><div class="readline" id="bmc-activity-context">Choose a project to see its activity.</div><a href="dashboard.html" style="display:block;margin:7px 0 0;color:#54763f;font-size:10px">Open full dashboard →</a>';
       const threadHost = $("#thread-list"); threadHost?.before(panel);
       $("#bmc-activity-project").addEventListener("change", (event) => { selectedActivityProject = event.target.value; renderProjectActivity().catch((error) => toast(error.message)); });
     }
@@ -209,6 +209,7 @@
     $("#back")?.addEventListener("click", () => $("#messages").classList.remove("show-chat"));
     sendButton?.addEventListener("click", sendMessage);
     input?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
+    await renderProjectActivity().catch((activityError) => { console.error("Initial project activity could not load:", activityError); const context = $("#bmc-activity-context"); if (context) context.textContent = "Project counts could not load. Refresh to try again."; });
     await renderThreads();
     if (!activeId) { $("#chat-name").textContent = "No conversation selected"; $("#chat-name").removeAttribute("href"); $("#chat-title").textContent = ""; $("#context-title").textContent = "Select a conversation"; $("#chat-avatar").textContent = "—"; $(".chat-head").style.display = "none"; $(".context").style.display = "none"; $(".compose").style.display = "none"; showMessage("Your replies and conversations appear here. Express interest in a project to start a private chat."); }
     activityRefresh = setInterval(() => renderProjectActivity().catch((error) => console.error("Project activity refresh failed:", error)), 20000);

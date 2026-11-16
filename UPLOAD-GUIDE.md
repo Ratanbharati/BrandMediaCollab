@@ -8,7 +8,7 @@
 
 ## Upload the package to GitHub
 
-1. Download and extract `Stagerang-Update.zip`.
+1. Download and extract `Stagerang-Update-Nov16.zip`.
 2. Open the extracted folder. You should immediately see `app`, `public`, `supabase`, `package.json`, `tsconfig.json`, `README-DEPLOY.md`, and this guide.
 3. Open GitHub → `Ratanbharati/BrandMediaCollab` → branch `main`.
 4. Choose **Add file → Upload files**.
@@ -21,10 +21,10 @@
 2. If build fails, open that deployment → Build Logs and use the first error line to diagnose. Do not repeatedly redeploy an unchanged failed build.
 3. In Project Settings → Build and Deployment, Root Directory must remain empty. If the setting was changed, save it and make one fresh deployment from the latest `main` commit.
 4. In Project Settings → Environment Variables, confirm Production has `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Never put a Supabase secret/service-role key in these variables.
-5. Open `https://www.stagerang.com` in a private/incognito window (or use Ctrl+Shift+R) and sign in with the existing test accounts. Confirm a new interest appears in the owner's dashboard and the conversation appears in Messages.
+5. Open `https://www.stagerang.com` in a private/incognito window (or use Ctrl+Shift+R). Confirm **Log in** and **Join now** appear in the landing-page header; open each to verify the login/signup form. Sign in with the existing test accounts and confirm a new interest appears in the owner's dashboard and Messages.
 6. On Home, confirm posts are directly below the composer, switch between **Brand projects** and **Creator ideas**, and check the right side for real activity and notifications. The old sample conversation should no longer appear.
 7. On Projects, switch tabs and confirm brand campaigns and creator ideas stay in their matching tab. Tab totals count currently open posts by post type. Sidebar totals are account-specific: My projects counts posts owned by this account; My applications counts distinct projects this account applied to; Saved projects counts distinct saved projects; Creator ideas counts currently open ideas. Application and saved counts may include closed posts, so they need not equal the open-post totals. Counts refresh every 30 seconds and immediately after save/interest actions. Test the search, category, tier, platform, and location filters.
-8. On Messages, use **Project activity** to choose a project. Its Applications, Chats, Messages, and Unread totals should correspond to the selected project and update periodically. The conversation heading/thread should show the project name.
+8. On Messages, confirm the compact **Project snapshot** appears above the conversation list, choose a project, and check its live Interests, Chats, Messages, and Unread totals. The conversation list and selected conversation should show the project name.
 
 ## One safe Supabase update (do not rerun the initial schema)
 
