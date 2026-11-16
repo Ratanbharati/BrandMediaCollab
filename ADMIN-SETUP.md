@@ -6,7 +6,7 @@ The live owner console is served at `/site/admin-dashboard.html`. Sign in there 
 
 In Vercel, open the project’s **Settings → Environment Variables** and add:
 
-- `STAGERANG_ADMIN_EMAIL`: the exact verified email used by the platform owner’s Stagerang account.
+- `STAGERANG_ADMIN_EMAIL`: `ratnabharati.rb@gmail.com` (the verified owner account email).
 - `SUPABASE_SERVICE_ROLE_KEY`: the Supabase service-role secret for the connected project. Store this as a server-only variable. Never prefix it with `NEXT_PUBLIC_`, put it in a browser file, or send it in chat.
 
 Keep the existing `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` variables. Redeploy after adding environment variables.

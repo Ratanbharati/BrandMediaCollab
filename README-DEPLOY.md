@@ -1,22 +1,23 @@
 # Stagerang deployment notes
 
-This repository serves the production site from `public/site`. Vercel should deploy from the repository root with the Root Directory setting left empty.
+The production site is served from `public/site`. Vercel must use the repository root as its Root Directory (leave the Root Directory field empty).
 
-## Current workflow behavior
+## Included workflows
 
-- Home and Projects divide posts consistently into Brand projects, Creator ideas, and Agency projects using the posting account type and saved project type.
-- Projects search, filters, owned/applied/saved scopes, and live counts use Supabase.
-- Dashboard separates owned Brand projects, Creator ideas, and Agency projects from applications this account sent to other members. The date range affects all four tables and their totals.
-- Messages shows a project activity summary derived from Supabase applications, conversations, messages, and unread notifications.
-- Signup/login, password recovery, profiles, project posting, and private project conversations use the connected Supabase project.
-- Profile editing is locked to the signed-in user’s saved account type.
+- Brand, Creator, and Agency account types and separate Brand project, Creator idea, and Agency project views on Home and Projects.
+- Supabase-backed signup, login, password reset, profiles, project posts, saved items, applications/interest, dashboard summaries, and project-linked conversations.
+- Profile editing stays tied to the signed-in account type.
+- A protected owner console at `/site/admin-dashboard.html` for member/profile, project, application, support-request, and admin-audit records.
 
 ## Deployment
 
-Upload the contents of the project folder to the connected GitHub repository root, commit to `main`, and wait until the newest Vercel deployment shows **Ready** and **Production**. Afterward, hard-refresh `https://www.stagerang.com` with **Ctrl+Shift+R**.
+Preserve the package folder structure when copying it to the connected GitHub repository. Commit and push to `main`, then wait for the newest Vercel Production deployment to show **Ready**. Hard-refresh `https://www.stagerang.com` with **Ctrl+Shift+R**.
 
-Keep existing Supabase tables and user data. No new SQL is required for the workflow changes in this update. If the prior activity notifications or saved-project visibility migrations have not been applied, run each applicable migration once in Supabase SQL Editor. Do not rerun the initial schema on a database that already has accounts or data. Never put a Supabase service-role key in browser settings.
+Keep the existing Supabase project and user data. Vercel deployment does not execute SQL migrations. Do not rerun the initial schema on a database that already contains accounts. The admin console setup is in `ADMIN-SETUP.md`.
 
-## Current integration limits
+## Remaining integration limits
 
-Notifications are in-app, and Messages refreshes periodically rather than using push delivery. Social account authorization/follower syncing and automatic calendar integration are not part of this update.
+- Activity alerts are in-app; push notifications aren’t included. The notification panel needs the existing `notifications` table/policies to be present in Supabase; when absent, the UI shows a fallback.
+- Social-network OAuth and automatic follower-count syncing aren’t implemented.
+- Google Calendar integration and automatic calendar invitations aren’t included.
+- Messages refresh periodically rather than using push delivery. The admin console does not reveal private chat bodies.
