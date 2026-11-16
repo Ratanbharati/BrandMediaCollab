@@ -37,9 +37,10 @@
     renderFilters();
   }
   function buildCard(p, names) {
-    const owner = names[p.owner_id] || "Member", idea = p.owner_type === "creator" || p.project_type === "creator_idea", agency = p.owner_type === "agency";
+    const owner = names[p.owner_id] || "Member";
+    const kind = p.project_type === "creator_idea" ? "creator" : p.owner_type === "agency" ? "agency" : p.owner_type === "creator" ? "creator" : "brand";
     const row = document.createElement("article"); row.className = "panel project item";
-    row.dataset.kind = agency ? "agency" : idea ? "creator" : "brand"; row.dataset.status = String(p.status || "").toLowerCase(); row.dataset.owner = p.owner_id;
+    row.dataset.kind = kind; row.dataset.status = String(p.status || "").toLowerCase(); row.dataset.owner = p.owner_id;
     row.dataset.applied = applications.some((a) => a.project_id === p.id && a.status !== "withdrawn"); row.dataset.saved = saved.has(p.id);
     row.dataset.category = p.category || ""; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
     row.dataset.search = `${p.project_name || ""} ${owner} ${p.requirements || ""} ${p.category || ""} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
