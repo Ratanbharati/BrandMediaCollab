@@ -28,12 +28,6 @@ export async function requirePlatformAdmin(request: Request): Promise<AdminConte
   const user = await authResponse.json().catch(() => ({}));
   if (!authResponse.ok || !user.id) throw new AdminRouteError(401, "Your sign-in has expired. Sign in again.");
 
-  const configuredOwner = process.env.STAGERANG_ADMIN_EMAIL?.trim().toLowerCase();
-  const verified = Boolean(user.email_confirmed_at || user.confirmed_at);
-  if (!configuredOwner || !verified || String(user.email || "").toLowerCase() !== configuredOwner) {
-    throw new AdminRouteError(403, "This account is not the configured platform owner.");
-  }
-
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
   const membershipResponse = await fetch(`${baseUrl}/rest/v1/platform_admins?user_id=eq.${encodeURIComponent(user.id)}&select=user_id&limit=1`, { headers, cache: "no-store" });
   if (!membershipResponse.ok) throw new AdminRouteError(503, "Could not check the platform-admin membership table.");
@@ -42,6 +36,11 @@ export async function requirePlatformAdmin(request: Request): Promise<AdminConte
 
   // First-owner bootstrap: only the configured, verified owner email can be
   // added, and only while the platform-admin table has no members.
+  const configuredOwner = process.env.STAGERANG_ADMIN_EMAIL?.trim().toLowerCase();
+  const verified = Boolean(user.email_confirmed_at || user.confirmed_at);
+  if (!configuredOwner || !verified || String(user.email || "").toLowerCase() !== configuredOwner) {
+    throw new AdminRouteError(403, "This account is not a platform admin. Sign in with the owner account configured for this deployment.");
+  }
   const anyAdminResponse = await fetch(`${baseUrl}/rest/v1/platform_admins?select=user_id&limit=1`, { headers, cache: "no-store" });
   if (!anyAdminResponse.ok) throw new AdminRouteError(503, "Could not check platform-admin setup.");
   const anyAdmins = await anyAdminResponse.json();
