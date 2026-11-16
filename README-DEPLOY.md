@@ -1,29 +1,22 @@
 # Stagerang deployment notes
 
-This is the full Next.js project for `Ratanbharati/BrandMediaCollab`. It serves the site from `public/site` and uses the Supabase public project URL and publishable key.
+This repository serves the production site from `public/site`. Vercel should deploy from the repository root with the Root Directory setting left empty.
 
-## Included in this update
+## Current workflow behavior
 
-- Supabase signup, login, password recovery, profiles, and project posting.
-- Live Home feed posts directly below the composer, split into **Brand projects** and **Creator ideas**. The list refreshes periodically.
-- Home activity totals and notification list backed by Supabase.
-- Projects discovery keeps Brand projects and Creator ideas separate; account-specific application and saved-project counts and filters update from Supabase.
-- Messages has a project activity summary with application, chat, message, and unread-alert counts that refresh periodically.
-- Expressing interest saves an application note and starts a private project conversation.
-- Project posts and applications remain separate records; messages are stored in `messages`.
-- Unread message alerts appear on the Messages navigation item.
-- Dashboard rows and messages are read from Supabase rather than demo cards.
+- Home and Projects divide posts consistently into Brand projects, Creator ideas, and Agency projects using the posting account type and saved project type.
+- Projects search, filters, owned/applied/saved scopes, and live counts use Supabase.
+- Dashboard separates owned Brand projects, Creator ideas, and Agency projects from applications this account sent to other members. The date range affects all four tables and their totals.
+- Messages shows a project activity summary derived from Supabase applications, conversations, messages, and unread notifications.
+- Signup/login, password recovery, profiles, project posting, and private project conversations use the connected Supabase project.
+- Profile editing is locked to the signed-in user’s saved account type.
 
-## Upload
+## Deployment
 
-Upload the contents of this project folder to the root of the connected GitHub repository, commit to `main`, and wait for Vercel to deploy. Keep Vercel Root Directory empty. Confirm the current production environment has `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; never expose a service-role key in browser settings.
+Upload the contents of the project folder to the connected GitHub repository root, commit to `main`, and wait until the newest Vercel deployment shows **Ready** and **Production**. Afterward, hard-refresh `https://www.stagerang.com` with **Ctrl+Shift+R**.
 
-## Supabase update
+Keep existing Supabase tables and user data. No new SQL is required for the workflow changes in this update. If the prior activity notifications or saved-project visibility migrations have not been applied, run each applicable migration once in Supabase SQL Editor. Do not rerun the initial schema on a database that already has accounts or data. Never put a Supabase service-role key in browser settings.
 
-Keep existing user and table data. Do not rerun the initial schema. If it has not already been run successfully, execute `supabase/migrations/202611160001_activity_notifications.sql` once in Supabase SQL Editor. It creates private in-app notifications and activity triggers. If it already succeeded, do not run it again.
+## Current integration limits
 
-After that migration is in place, execute `supabase/migrations/202611170001_saved_projects_visibility.sql` once. It lets an account view a project it saved even after the owner closes it, so the Saved projects scope can show its real rows. Do not rerun the initial schema.
-
-## Current limits
-
-Notifications are in-app only. Message updates use periodic refresh, not realtime push. Group chats, calendar integration, social account authorization, and follower syncing are not included.
+Notifications are in-app, and Messages refreshes periodically rather than using push delivery. Social account authorization/follower syncing and automatic calendar integration are not part of this update.
