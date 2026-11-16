@@ -5,6 +5,7 @@ The production site is served from `public/site`. Vercel must use the repository
 ## Included workflows
 
 - Brand, Creator, and Agency account types and separate Brand project, Creator idea, and Agency project views on Home and Projects.
+- Home and Projects classify each post by its owner’s saved account type and explicitly hide cards outside the selected tab.
 - Supabase-backed signup, login, password reset, profiles, project posts, saved items, applications/interest, dashboard summaries, and project-linked conversations.
 - Profile editing stays tied to the signed-in account type.
 - A protected owner console at `/site/admin-dashboard.html` for member/profile, project, application, support-request, and admin-audit records.

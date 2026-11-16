@@ -420,7 +420,11 @@
       if (ownersError) throw ownersError; owners = data || [];
     }
     const byId = Object.fromEntries(owners.map((p) => [p.id, p]));
-    const kindOf = (p) => p.owner_type === "agency" || byId[p.owner_id]?.account_type === "agency" ? "agency" : p.owner_type === "creator" || byId[p.owner_id]?.account_type === "creator" || p.project_type === "creator_idea" ? "creator" : "brand";
+    const kindOf = (p) => {
+      const accountType = byId[p.owner_id]?.account_type;
+      if (["brand", "creator", "agency"].includes(accountType)) return accountType;
+      return p.owner_type === "agency" ? "agency" : p.owner_type === "creator" || p.project_type === "creator_idea" ? "creator" : "brand";
+    };
     const feedKinds = projects.map(kindOf);
     let live = $("#bmc-live-posts");
     const center = $(".center-col");
@@ -465,7 +469,10 @@
     const host = $("#bmc-live-posts"); if (!host) return;
     const kind = host.dataset.kind || "brand";
     const search = (window.bmcFeedSearch || "").trim().toLowerCase();
-    host.querySelectorAll(".post[data-kind]").forEach((card) => { card.hidden = card.dataset.kind !== kind || Boolean(search && !card.dataset.search.includes(search)); });
+    host.querySelectorAll(".post[data-kind]").forEach((card) => {
+      const visible = card.dataset.kind === kind && (!search || card.dataset.search.includes(search));
+      card.hidden = !visible; card.style.display = visible ? "" : "none";
+    });
     let empty = $("#bmc-feed-kind-empty");
     if (!empty) { empty = document.createElement("div"); empty.id = "bmc-feed-kind-empty"; empty.className = "panel empty"; host.append(empty); }
     const visible = [...host.querySelectorAll(".post[data-kind]")].some((card) => !card.hidden);

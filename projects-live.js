@@ -19,7 +19,7 @@
       const status = row.dataset.status, kindOk = row.dataset.kind === activeKind;
       const scopeOk = scope === "owned" ? row.dataset.owner === user.id : scope === "applied" ? row.dataset.applied === "true" : scope === "saved" ? row.dataset.saved === "true" : status === "open" && row.dataset.owner !== user.id;
       const ok = kindOk && scopeOk && (!q || row.dataset.search.includes(q)) && (cat === "all" || row.dataset.category.toLowerCase().includes(cat)) && (tier === "all" || row.dataset.tier.toLowerCase().includes(tier)) && (platform === "all" || row.dataset.platform.toLowerCase().includes(platform)) && (loc === "all" || row.dataset.location.toLowerCase().includes(loc));
-      row.classList.toggle("hidden", !ok); if (ok) shown++;
+      row.classList.toggle("hidden", !ok); row.style.display = ok ? "" : "none"; if (ok) shown++;
     });
     empty.textContent = scope === "owned" ? "You haven’t posted anything in this category yet." : scope === "applied" ? "You have no applications in this category yet." : scope === "saved" ? "You haven’t saved anything in this category yet." : "No live posts in this category yet.";
     empty.classList.toggle("hidden", shown > 0);
@@ -36,8 +36,16 @@
     if (scope === "discover") document.querySelectorAll(".side-link[data-status]").forEach((x) => x.classList.toggle("active", x.dataset.status === (next === "creator" ? "collab" : next === "agency" ? "agency" : "discover")));
     renderFilters();
   }
-  function buildCard(p, names) {
-    const owner = names[p.owner_id] || "Member", idea = p.owner_type === "creator" || p.project_type === "creator_idea", agency = p.owner_type === "agency";
+  function projectKind(p, ownerProfile) {
+    const accountType = ownerProfile?.account_type;
+    if (["brand", "creator", "agency"].includes(accountType)) return accountType;
+    if (p.owner_type === "agency") return "agency";
+    if (p.owner_type === "creator" || p.project_type === "creator_idea") return "creator";
+    return "brand";
+  }
+  function buildCard(p, profilesById) {
+    const ownerProfile = profilesById[p.owner_id] || {}, owner = ownerProfile.display_name || ownerProfile.company_name || "Member";
+    const kind = projectKind(p, ownerProfile), idea = kind === "creator", agency = kind === "agency";
     const row = document.createElement("article"); row.className = "panel project item";
     row.dataset.kind = agency ? "agency" : idea ? "creator" : "brand"; row.dataset.status = String(p.status || "").toLowerCase(); row.dataset.owner = p.owner_id;
     row.dataset.applied = applications.some((a) => a.project_id === p.id && a.status !== "withdrawn"); row.dataset.saved = saved.has(p.id);
@@ -62,15 +70,15 @@
     for (const r of [postResult, appResult, savedResult, ownResult]) if (r.error) throw r.error;
     projects = postResult.data || []; applications = appResult.data || []; saved = new Set((savedResult.data || []).map((r) => r.project_id)); counts.owned = ownResult.count || 0;
     counts.applications = new Set(applications.filter((a) => a.status !== "withdrawn").map((a) => a.project_id)).size; counts.saved = saved.size;
-      const kindOf = (p) => p.owner_type === "agency" ? "agency" : p.owner_type === "creator" || p.project_type === "creator_idea" ? "creator" : "brand";
+    const owners = [...new Set(projects.map((p) => p.owner_id))];
+    const { data: profiles, error: profileError } = owners.length ? await db.from("profiles").select("id,display_name,company_name,account_type").in("id", owners) : { data: [], error: null };
+    if (profileError) throw profileError;
+    const profilesById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+    const kindOf = (p) => projectKind(p, profilesById[p.owner_id]);
     counts.ideas = projects.filter((p) => kindOf(p) === "creator" && String(p.status).toLowerCase() === "open").length; counts.brands = projects.filter((p) => kindOf(p) === "brand" && String(p.status).toLowerCase() === "open").length; counts.agencies = projects.filter((p) => kindOf(p) === "agency" && String(p.status).toLowerCase() === "open").length;
     setCount("owned", counts.owned); setCount("applied", counts.applications); setCount("saved", counts.saved); setCount("ideas", counts.ideas); setCount("ideaTab", counts.ideas); setCount("brands", counts.brands); setCount("agency", counts.agencies); setCount("agencyTab", counts.agencies);
-    const owners = [...new Set(projects.map((p) => p.owner_id))];
-    const { data: profiles, error: profileError } = owners.length ? await db.from("profiles").select("id,display_name,company_name").in("id", owners) : { data: [], error: null };
-    if (profileError) throw profileError;
-    const names = Object.fromEntries((profiles || []).map((p) => [p.id, p.display_name || p.company_name || "Member"]));
     host.querySelectorAll(".item").forEach((x) => x.remove());
-    projects.forEach((p) => host.insertBefore(buildCard(p, names), empty));
+    projects.forEach((p) => host.insertBefore(buildCard(p, profilesById), empty));
     document.body.classList.add("bmc-projects-ready"); renderFilters();
   }
   function wire() {

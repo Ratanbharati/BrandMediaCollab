@@ -66,15 +66,15 @@ flowchart TD
 
 ## Shared navigation and expected behavior
 
-- **Home:** the signed-in member’s own identity/profile card, current live posts grouped by owner type, and relevant recent activity. Brand, Creator, and Agency posts are distinct.
-- **Projects:** Brand projects, Creator ideas, and Agency projects are separate; search/filter affects the current tab; **My applications**, **Saved projects**, and **My projects** show only the signed-in account’s records.
+- **Home:** the signed-in member’s own identity/profile card, current live posts grouped by the owner’s saved account type, and relevant recent activity. Brand projects show only Brand-owned posts, Creator ideas only Creator-owned posts, and Agency projects only Agency-owned posts.
+- **Projects:** the same strict separation applies to all three tabs. Selecting one tab must hide cards belonging to the other two types; counts must match the live Open posts in that selected category. Search/filter affects the current tab; **My applications**, **Saved projects**, and **My projects** show only the signed-in account’s records.
 - **Dashboard:** separate tables for Brand projects, Creator ideas, Agency projects, and applications sent. Each displayed count is derived from actual records, not sample totals.
 - **Messages:** each conversation names the other member and linked project/idea. Sending and receiving messages persists. New unread messages update the message badge and project activity count.
 - **Profile privacy:** public profile details are visible as intended, while email, phone, and private contact data remain private unless the member chooses to share them.
 
 ## Acceptance run before calling a role complete
 
-Use one test account for each role and keep a small expected-results list. For every role: create/sign in; save its profile; post one item; confirm it appears in the right tab; use another role to show interest with a note; confirm both accounts see the matching application; open the correct private conversation; exchange a message; verify unread state and dashboard/activity counts; sign out and back in; confirm all records persist and stay associated with the right accounts. Repeat once for a Creator idea and once for an Agency campaign.
+Use one test account for each role and keep a small expected-results list. For every role: create/sign in; save its profile; post one item; confirm it appears in its matching tab; select each of the other two tabs and confirm the card disappears; confirm the three tab counts match their Open posts; use another role to show interest with a note; confirm both accounts see the matching application; open the correct private conversation; exchange a message; verify unread state and dashboard/activity counts; sign out and back in; confirm all records persist and stay associated with the right accounts. Repeat once for a Creator idea and once for an Agency campaign.
 
 If a button only shows a sample card, preview toast, or browser-only change, record it as not connected and do not count it as complete. Share the exact page, click, expected result, and actual result when reporting a failure.
 
