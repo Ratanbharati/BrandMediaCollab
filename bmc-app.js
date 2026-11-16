@@ -3,6 +3,13 @@
 (function () {
   const $ = (selector) => document.querySelector(selector);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function projectKind(project, owner) {
+    const type = String(project?.project_type || "").toLowerCase();
+    if (type.includes("creator") || type.includes("idea")) return "creator";
+    if (type.includes("brand") || type.includes("campaign")) return "brand";
+    const ownerType = String(project?.owner_type || owner?.account_type || "").toLowerCase();
+    return ownerType === "creator" || ownerType === "influencer" ? "creator" : "brand";
+  }
   async function client() {
     if (!window.bmcSupabaseReady) throw new Error("Supabase setup script is missing.");
     const supabase = await window.bmcSupabaseReady;
@@ -320,7 +327,7 @@
     let live = document.createElement("div"); live.id = "bmc-live-posts"; const composerNode = center?.querySelector(".composer"); if (composerNode) { composerNode.insertAdjacentElement("afterend", tabs); tabs.insertAdjacentElement("afterend", live); } else center?.append(tabs, live);
     tabs.onclick = (e) => { const btn = e.target.closest("[data-kind]"); if (!btn) return; window.bmcFeedKind = btn.dataset.kind; tabs.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === btn)); updateFeedVisibility(); };
     live.innerHTML = (projects || []).map((p) => {
-      const owner = byId[p.owner_id] || {}, display = owner.display_name || owner.company_name || "Stagerang member", kind = p.project_type === "creator_idea" ? "creator" : "brand", typeName = kind === "creator" ? "Creator idea" : "Brand project";
+      const owner = byId[p.owner_id] || {}, display = owner.display_name || owner.company_name || "Stagerang member", kind = projectKind(p, owner), typeName = kind === "creator" ? "Creator idea" : "Brand project";
       const budget = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)} ${esc(x.amount_range || "")}</span>`).join("");
       return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${typeName} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="meta-chip">Delivery ${esc(p.delivery_date || "Not set")}</span></div>${budget ? `<div class="deliverables"><div class="deliverable-list">${budget}</div></div>` : ""}<div class="post-bottom"><span>${user.id === p.owner_id ? "Your post" : "Open opportunity"}</span><div class="actions">${user.id === p.owner_id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>`}</div></div></article>`;
     }).join("");
@@ -352,22 +359,28 @@
     window.bmcRefreshMessageBadge?.();
   }
   async function openProjectsDirectory() {
-    $("#list")?.querySelectorAll(".item").forEach((el) => el.remove());
     const supabase = await client(); const user = await signedIn(supabase);
     const { data, error } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
     if (error) throw error;
     const host = $("#list"); if (!host) return;
+    host.querySelectorAll(".item").forEach((el) => el.remove());
     const account = await signedIn(supabase);
-    const appCount = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("applicant_id", account.id);
-    const savedCount = await supabase.from("saved_projects").select("project_id", { count: "exact", head: true }).eq("user_id", account.id);
     const ownApps = await supabase.from("applications").select("project_id").eq("applicant_id", account.id);
     const savedRows = await supabase.from("saved_projects").select("project_id").eq("user_id", account.id);
     const appliedSet = new Set((ownApps.data || []).map((x) => x.project_id)); const savedSet = new Set((savedRows.data || []).map((x) => x.project_id));
-    const appliedLabel = document.querySelector('.side-link[data-status="applied"] .count'); if (appliedLabel) appliedLabel.textContent = String(appCount.error ? 0 : appCount.count || 0);
-    const savedLabel = document.querySelector('.side-link[data-status="saved"] .count'); if (savedLabel) savedLabel.textContent = String(savedCount.error ? 0 : savedCount.count || 0);
+    if (ownApps.error) throw ownApps.error; if (savedRows.error) throw savedRows.error;
+    const appliedLabel = document.querySelector('.side-link[data-status="applied"] .count'); if (appliedLabel) appliedLabel.textContent = String(appliedSet.size);
+    const savedLabel = document.querySelector('.side-link[data-status="saved"] .count'); if (savedLabel) savedLabel.textContent = String(savedSet.size);
     const ownedLabel = document.querySelector('.side-link[data-status="owned"] .count');
     const ownedCount = await supabase.from("projects").select("id", { count: "exact", head: true }).eq("owner_id", account.id);
-    if (ownedLabel) ownedLabel.textContent = String(ownedCount.error ? 0 : ownedCount.count || 0);
+    if (ownedCount.error) throw ownedCount.error;
+    if (ownedLabel) ownedLabel.textContent = String(ownedCount.count || 0);
+    const openRows = data.filter((p) => String(p.status || "").toLowerCase() === "open");
+    const brandTotal = openRows.filter((p) => projectKind(p) === "brand").length;
+    const ideaTotal = openRows.filter((p) => projectKind(p) === "creator").length;
+    const brandTab = document.querySelector('.segmented button[data-kind="projects"]'); if (brandTab) brandTab.textContent = `Brand projects (${brandTotal})`;
+    const ideaTab = document.querySelector('.segmented button[data-kind="ideas"]'); if (ideaTab) ideaTab.textContent = `Creator ideas (${ideaTotal})`;
+    const ideaLabel = document.querySelector('.side-link[data-status="collab"] .count'); if (ideaLabel) ideaLabel.textContent = String(ideaTotal);
     const empty = $("#empty");
     if (!data.length) { if (empty) { empty.textContent = "No open projects yet. Published opportunities will appear here."; empty.classList.remove("hidden"); } document.body.classList.add("bmc-projects-ready"); if (!window.bmcProjectsPoll) window.bmcProjectsPoll = setInterval(() => openProjectsDirectory().catch((e) => console.error("Projects refresh failed:", e)), 30000); return; }
     if (empty) empty.classList.add("hidden");
@@ -375,16 +388,10 @@
     const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,display_name,company_name,account_type").in("id", owners);
     if (profileError) throw profileError;
     const names = Object.fromEntries((profiles || []).map((x) => [x.id, x.display_name || x.company_name || "Member"]));
-    const openRows = data.filter((p) => String(p.status || "").toLowerCase() === "open");
-    const brandTotal = openRows.filter((p) => p.project_type !== "creator_idea" && p.owner_type !== "creator").length;
-    const ideaTotal = openRows.filter((p) => p.project_type === "creator_idea" || p.owner_type === "creator").length;
-    const brandTab = document.querySelector('.segmented button[data-kind="projects"]'); if (brandTab) brandTab.textContent = `Brand projects (${brandTotal})`;
-    const ideaTab = document.querySelector('.segmented button[data-kind="ideas"]'); if (ideaTab) ideaTab.textContent = `Creator ideas (${ideaTotal})`;
-    const ideaLabel = document.querySelector('.side-link[data-status="collab"] .count'); if (ideaLabel) ideaLabel.textContent = String(ideaTotal);
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "panel project item";
       row.dataset.projectId = p.id;
-      const postKind = p.project_type === "creator_idea" || p.owner_type === "creator" ? "ideas" : "projects";
+      const postKind = projectKind(p) === "creator" ? "ideas" : "projects";
       row.dataset.kind = postKind;
       row.dataset.status = p.status; row.dataset.applied = String(appliedSet.has(p.id)); row.dataset.saved = String(savedSet.has(p.id));
       row.dataset.category = p.category || ""; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
@@ -407,7 +414,7 @@
     }));
     document.querySelector("#q")?.dispatchEvent(new Event("input", { bubbles: true }));
     document.querySelector("#cat")?.dispatchEvent(new Event("change", { bubbles: true }));
-    window.bmcSetProjectScope = (scope) => { window.bmcProjectScope = scope; if (scope === "collab") document.querySelector('.segmented button[data-kind="ideas"]')?.click(); else if (scope === "discover") document.querySelector('.segmented button[data-kind="projects"]')?.click(); else document.querySelector("#q")?.dispatchEvent(new Event("input", { bubbles: true })); };
+    window.bmcSetProjectScope = (scope) => { window.bmcProjectScope = scope === "collab" ? "discover" : scope; if (scope === "collab") document.querySelector('.segmented button[data-kind="ideas"]')?.click(); else if (scope === "discover") document.querySelector('.segmented button[data-kind="projects"]')?.click(); else document.querySelector("#q")?.dispatchEvent(new Event("input", { bubbles: true })); };
     document.body.classList.add("bmc-projects-ready");
     if (!window.bmcProjectsPoll) window.bmcProjectsPoll = setInterval(() => openProjectsDirectory().catch((e) => console.error("Projects refresh failed:", e)), 30000);
   }
@@ -430,7 +437,7 @@
     if (path.endsWith("/my-projects.html")) loadMyProjects().catch((error) => toast(error.message || "Log in to see your projects."));
     if (path.endsWith("/my-profile.html")) renderMyProfile().catch((error) => toast(error.message || "Could not load this profile."));
     if (path.endsWith("/feed.html")) openProjectsForFeed().catch(() => { location.href = "index.html"; });
-    if (path.endsWith("/projects.html")) openProjectsDirectory().catch(() => { location.href = "index.html"; });
+    if (path.endsWith("/projects.html")) openProjectsDirectory().catch((error) => { console.error("Projects could not load:", error); $("#list")?.querySelectorAll(".item").forEach((el) => el.remove()); document.body.classList.add("bmc-projects-ready"); const empty = $("#empty"); if (empty) { empty.textContent = error.message || "Projects could not load. Please refresh and try again."; empty.classList.remove("hidden"); } });
     if (path.endsWith("/logout.html")) client().then((supabase) => supabase.auth.signOut()).finally(() => { location.href = "index.html"; });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
