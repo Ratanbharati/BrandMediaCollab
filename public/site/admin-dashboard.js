@@ -27,13 +27,18 @@
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setVisible(login, true); setVisible(panel, false); setVisible($("#sign-out"), false); return; }
     token = session.access_token; $("#admin-email").textContent = session.user.email || "Signed in";
-    setVisible(login, false); setVisible(panel, true); setVisible($("#sign-out"), true); notice.classList.add("hidden");
+    setVisible(panel, false); setVisible(login, true); setVisible($("#sign-out"), false);
+    errorBox.textContent = ""; notice.classList.add("hidden");
     try {
       await loadOverview();
+      setVisible(login, false); setVisible(panel, true); setVisible($("#sign-out"), true);
       await loadView(activeView);
       $("#last-updated").textContent = `Last updated ${new Date().toLocaleTimeString()}. Refreshes every 20 seconds while this page is open.`;
+    } catch (error) {
+      token = "";
+      setVisible(panel, false); setVisible(login, true); setVisible($("#sign-out"), false);
+      errorBox.textContent = error.message || "This account is not authorized for platform administration.";
     }
-    catch (error) { showError(error); }
   }
 
   async function loadOverview() {
@@ -128,7 +133,7 @@
     $("#login-form").addEventListener("submit", async (event) => {
       event.preventDefault(); errorBox.textContent = "";
       const button = event.currentTarget.querySelector("button[type=submit]"); button.disabled = true;
-      try { const { error } = await supabase.auth.signInWithPassword({ email: $("#email").value.trim(), password: $("#password").value }); if (error) throw error; await showConsole(); if (panel.classList.contains("hidden")) throw new Error("Admin data could not be opened."); }
+      try { const { error } = await supabase.auth.signInWithPassword({ email: $("#email").value.trim(), password: $("#password").value }); if (error) throw error; await showConsole(); }
       catch (error) { errorBox.textContent = error.message || "Sign in failed."; }
       finally { button.disabled = false; }
     });
