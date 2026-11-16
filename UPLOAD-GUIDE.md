@@ -8,7 +8,7 @@
 
 ## Upload the package to GitHub
 
-1. Download and extract `Stagerang-Full-Project-Upload.zip`.
+1. Download and extract `Stagerang-Update.zip`.
 2. Open the extracted folder. You should immediately see `app`, `public`, `supabase`, `package.json`, `tsconfig.json`, `README-DEPLOY.md`, and this guide.
 3. Open GitHub → `Ratanbharati/BrandMediaCollab` → branch `main`.
 4. Choose **Add file → Upload files**.
@@ -22,6 +22,7 @@
 3. In Project Settings → Build and Deployment, Root Directory must remain empty. If the setting was changed, save it and make one fresh deployment from the latest `main` commit.
 4. In Project Settings → Environment Variables, confirm Production has `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Never put a Supabase secret/service-role key in these variables.
 5. Open `https://www.stagerang.com` in a private/incognito window (or use Ctrl+Shift+R) and sign in with the existing test accounts. Confirm a new interest appears in the owner's dashboard and the conversation appears in Messages.
+6. On Home, confirm posts are directly below the composer, switch between **Brand projects** and **Creator ideas**, and check the right side for real activity and notifications. The old sample conversation should no longer appear.
 
 ## One safe Supabase update (do not rerun the initial schema)
 
@@ -48,6 +49,7 @@
 ## What the updated flow does
 
 - An interested person adds a note; the application is saved and a private project conversation starts immediately for both people.
+- Home shows database-backed posts under the composer, separated into Brand projects and Creator ideas. Its right sidebar shows account activity totals and in-app notifications; the Messages navigation badge counts unread message alerts.
 - The dashboard separates posts owned by the signed-in account from applications that account sent to others' posts.
 - Project owners can review each response, update its status, open that person's chat, or send the same message privately to all interested people (each receives an individual message, not a group chat).
 - Dashboard notifications are in-app only and need the migration above. Email/push alerts, group chats, calendar invitations/reminders, social OAuth/follower syncing, and a complete admin workflow are not included yet.
