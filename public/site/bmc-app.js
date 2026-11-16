@@ -14,6 +14,21 @@
     if (node) { node.textContent = message; node.classList.add("show"); }
     else alert(message);
   }
+  async function refreshMessageBadge() {
+    try {
+      const supabase = await client(); const user = await signedIn(supabase);
+      const { count, error } = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("type", "new_message").is("read_at", null);
+      if (error) throw error;
+      const total = count || 0; window.bmcUnreadMessages = total;
+      document.querySelectorAll('a[href$="messages.html"],a[href*="messages.html?"]').forEach((link) => {
+        link.style.position = "relative";
+        let badge = link.querySelector(".bmc-message-badge");
+        if (!badge) { badge = document.createElement("span"); badge.className = "bmc-message-badge"; badge.setAttribute("aria-label", "Unread messages"); badge.style.cssText = "position:absolute;top:-3px;right:0;min-width:15px;height:15px;padding:0 4px;border-radius:9px;background:#d73535;color:#fff;font:700 9px/15px Arial;text-align:center"; link.append(badge); }
+        badge.textContent = total > 9 ? "9+" : String(total); badge.hidden = total === 0;
+      });
+    } catch (_) { /* Badge is available after the activity migration is installed. */ }
+  }
+  window.bmcRefreshMessageBadge = refreshMessageBadge;
   async function getOrCreateProjectChat(supabase, projectId, otherId, user, firstMessage) {
     const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
     if (membershipError) throw membershipError;
@@ -99,6 +114,7 @@
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
     const label = type === "brand" ? "Brand" : type === "agency" ? "Agency" : "Creator";
     headerName.textContent = `${name} · ${label}`;
+    document.body.classList.add("bmc-account-ready");
   }
   async function authSubmit(event) {
     event.preventDefault(); event.stopImmediatePropagation();
@@ -318,7 +334,8 @@
     }));
   }
   async function openProjectsForFeed() {
-    document.querySelectorAll(".center-col .post").forEach((node) => node.remove());
+    const selectedKind = window.bmcSelectedFeedKind || "brand";
+    document.querySelectorAll(".center-col .post, #bmc-live-posts, #bmc-feed-tabs").forEach((node) => node.remove());
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error: pError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (pError) throw pError;
@@ -344,6 +361,12 @@
     if (metricPanel) metricPanel.innerHTML = '<div class="side-title">Social accounts</div><div class="trend"><b>Connect profiles from your profile setup</b><span>Follower syncing will appear here after platform authorization is configured.</span></div>';
     $(".right-col .profile-prompt")?.remove();
     $(".right-col .upcoming")?.remove();
+    const side = $(".right-col");
+    if (side && !$("#bmc-feed-activity")) {
+      const activity = document.createElement("section"); activity.id = "bmc-feed-activity"; activity.className = "panel";
+      activity.innerHTML = '<h3 style="padding:14px 15px 8px;margin:0">Your activity</h3><div id="bmc-feed-stats" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading your activity…</div><div style="padding:0 15px 12px"><a href="dashboard.html" style="font-size:11px;color:#54763f">Open dashboard →</a></div><h3 style="padding:12px 15px 8px;margin:0;border-top:1px solid #efeee8">Notifications</h3><div id="bmc-feed-notifications" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading notifications…</div>';
+      side.prepend(activity);
+    }
     const feedTip = $(".right-col .tip p");
     if (feedTip) feedTip.textContent = "When you send interest, add a note and a private one-to-one project chat opens for both people. You can manage the application status from your dashboard.";
     const composer = $(".composer");
@@ -356,9 +379,9 @@
         if (primary) primary.textContent = "Share a collaboration idea with brands...";
         if (idea) idea.textContent = "Post an idea";
       }
-      if (primary) primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true);
-      if (idea) idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true);
-      $("#add-work")?.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "profile-setup.html"; }, true);
+      if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
+      if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
+      const addWork = $("#add-work"); if (addWork && !addWork.dataset.feedBound) { addWork.dataset.feedBound = "true"; addWork.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "profile-setup.html"; }, true); }
     }
     const { data: projects, error } = await supabase.from("projects").select("*").eq("status", "Open").order("created_at", { ascending: false });
     if (error) throw error;
@@ -370,21 +393,76 @@
     }
     const byId = Object.fromEntries(owners.map((p) => [p.id, p]));
     let live = $("#bmc-live-posts");
-    if (!live) { live = document.createElement("div"); live.id = "bmc-live-posts"; ($(".filters") || $(".center-col")).insertAdjacentElement("afterend", live); }
-    if (!projects.length) { live.innerHTML = '<section class="panel empty">No live projects yet. When a brand or creator posts an open opportunity, it will appear here.</section>'; document.body.classList.add("bmc-data-ready"); return; }
+    const center = $(".center-col");
+    if (!live) {
+      live = document.createElement("div"); live.id = "bmc-live-posts";
+      const composer = center?.querySelector(".composer");
+      if (composer) composer.insertAdjacentElement("afterend", live); else center?.append(live);
+    }
+    if (!$("#bmc-feed-tabs")) {
+      const tabs = document.createElement("div"); tabs.id = "bmc-feed-tabs"; tabs.className = "bmc-feed-tabs";
+      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects</button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas</button>`;
+      live.before(tabs);
+      tabs.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-feed-kind]"); if (!button) return;
+        tabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
+        window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind; applyFeedVisibility();
+      });
+    }
+    if (!projects.length) { live.innerHTML = ""; live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedActivityTimer) window.bmcFeedActivityTimer = window.setInterval(() => refreshFeedActivity(supabase, user).catch(() => {}), 20000); if (!window.bmcFeedProjectTimer) window.bmcFeedProjectTimer = window.setInterval(() => openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)), 30000); return; }
     live.innerHTML = projects.map((p) => {
       const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
       const type = p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand campaign";
+      const kind = p.project_type === "creator_idea" ? "creator" : "brand";
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const canApply = user.id !== p.owner_id;
-      return `<article class="panel card post" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions">${canApply ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
+      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions">${canApply ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
     }).join("");
     live.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
       const card = button.closest(".post");
       submitInterest(button.dataset.apply, card?.querySelector(".project-title")?.textContent || "Project", button).catch((error) => toast(error.message));
     }));
+    live.dataset.kind = $("#bmc-feed-tabs .active")?.dataset.feedKind || selectedKind;
+    applyFeedVisibility();
+    await refreshFeedActivity(supabase, user);
+    if (!window.bmcFeedActivityTimer) window.bmcFeedActivityTimer = window.setInterval(() => refreshFeedActivity(supabase, user).catch(() => {}), 20000);
+    if (!window.bmcFeedProjectTimer) window.bmcFeedProjectTimer = window.setInterval(() => openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)), 30000);
     document.body.classList.add("bmc-data-ready");
-    document.querySelector("#search")?.dispatchEvent(new Event("input", { bubbles: true }));
+    window.bmcRefreshMessageBadge?.();
+  }
+  function applyFeedVisibility() {
+    const host = $("#bmc-live-posts"); if (!host) return;
+    const kind = host.dataset.kind || "brand";
+    const search = (window.bmcFeedSearch || "").trim().toLowerCase();
+    host.querySelectorAll(".post[data-kind]").forEach((card) => { card.hidden = card.dataset.kind !== kind || Boolean(search && !card.dataset.search.includes(search)); });
+    let empty = $("#bmc-feed-kind-empty");
+    if (!empty) { empty = document.createElement("div"); empty.id = "bmc-feed-kind-empty"; empty.className = "panel empty"; host.append(empty); }
+    const visible = [...host.querySelectorAll(".post[data-kind]")].some((card) => !card.hidden);
+    empty.hidden = visible;
+    empty.textContent = search ? "No projects or ideas match this search." : kind === "brand" ? "No brand projects have been posted yet." : "No creator ideas have been posted yet.";
+  }
+  async function refreshFeedActivity(supabase, user) {
+    const stats = $("#bmc-feed-stats"), notifications = $("#bmc-feed-notifications");
+    const { count: postCount, error: postError } = await supabase.from("projects").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
+    if (postError) throw postError;
+    const { count: sentCount, error: sentError } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("applicant_id", user.id);
+    if (sentError) throw sentError;
+    const own = await supabase.from("projects").select("id").eq("owner_id", user.id);
+    if (own.error) throw own.error;
+    const ids = (own.data || []).map((row) => row.id); let receivedCount = 0;
+    if (ids.length) { const received = await supabase.from("applications").select("id", { count: "exact", head: true }).in("project_id", ids); if (received.error) throw received.error; receivedCount = received.count || 0; }
+    if (stats) stats.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><span><b>${postCount || 0}</b><br>Projects/ideas posted</span><span><b>${sentCount || 0}</b><br>Interests sent</span><span><b>${receivedCount}</b><br>Interests received</span><span><b>${window.bmcUnreadMessages || 0}</b><br>Unread messages</span></div>`;
+    const { data, error } = await supabase.from("notifications").select("id,title,body,type,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(6);
+    if (error) { if (notifications) notifications.textContent = "Run the activity-notifications SQL update to enable alerts."; return; }
+    if (notifications) {
+      notifications.innerHTML = data?.length ? data.map((item) => `<a href="${item.conversation_id ? `messages.html?conversation=${encodeURIComponent(item.conversation_id)}` : "dashboard.html"}" data-notification-id="${esc(item.id)}" style="display:block;padding:9px 0;border-top:1px solid #efeee8;text-decoration:none;color:inherit;${item.read_at ? "" : "font-weight:700"}"><b>${esc(item.title)}</b><br><span style="font-size:10px;color:#788078">${esc(item.body)} · ${new Date(item.created_at).toLocaleDateString()}</span></a>`).join("") : "No new activity yet.";
+      notifications.querySelectorAll("[data-notification-id]").forEach((link) => link.addEventListener("click", async (event) => {
+        event.preventDefault();
+        await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", link.dataset.notificationId);
+        await refreshMessageBadge(); location.href = link.href;
+      }));
+    }
+    window.bmcRefreshMessageBadge?.();
   }
   async function openProjectsDirectory() {
     $("#list")?.querySelectorAll(".item").forEach((el) => el.remove());
@@ -415,6 +493,8 @@
   }
   function init() {
     const path = location.pathname;
+    refreshMessageBadge(); window.setInterval(refreshMessageBadge, 20000);
+    $("#search")?.addEventListener("input", (event) => { window.bmcFeedSearch = event.target.value; applyFeedVisibility(); });
     if (!path.endsWith("/index.html") && path !== "/" && !path.endsWith("/logout.html")) loadAccountHeader().catch(() => {});
     if (path.endsWith("/index.html") || path === "/") $("#auth-form")?.addEventListener("submit", authSubmit, true);
     if (path.endsWith("/profile-setup.html")) document.addEventListener("click", profileClick, true);

@@ -9,6 +9,8 @@ This is the full Next.js project. It serves the static site pages from `/public/
 - Per-user profiles, profile editing, profile photo upload, and private contact record.
 - Create, edit, list, and delete your own projects.
 - Shared open-project feed and project discovery backed by Supabase.
+- Live feed posts appear below the composer, with separate Brand projects and Creator ideas tabs.
+- Feed sidebar activity totals and private in-app notifications are loaded from Supabase; message navigation shows the unread message count.
 - Express interest with a private note; the application is saved and a one-to-one project conversation starts immediately.
 - Separate dashboard reports for projects this account posted and applications this account sent to other members' projects.
 - Applicant review from each owned post, including status updates and individual chat links.
@@ -21,7 +23,7 @@ This is the full Next.js project. It serves the static site pages from `/public/
 
 - Group chats (bulk updates are private one-to-one sends).
 - Email or browser push notifications. Current alerts are in-app only.
-- Read receipts/unread indicators and realtime messaging (messages refresh by polling).
+- Message read receipts and realtime message delivery (messages refresh by polling; the navigation badge counts unread message alerts).
 - Calendar integration, invitations, and automated reminders.
 - Social OAuth and follower-count syncing.
 - Complete admin dashboard and production hardening/security review.

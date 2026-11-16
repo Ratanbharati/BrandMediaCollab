@@ -125,21 +125,7 @@
     });
   }
 
-  try {
-    setupReports();
-    supabase = await window.bmcSupabaseReady;
-    if (!supabase) throw new Error(window.bmcSupabaseError || "Could not connect to Supabase.");
-    const { data: { user: current }, error: authError } = await supabase.auth.getUser();
-    if (authError || !current) { location.href = "index.html"; return; }
-    user = current;
-    const { data: profile, error: profileError } = await supabase.from("profiles").select("display_name,company_name,account_type").eq("id", user.id).maybeSingle();
-    if (profileError) throw profileError;
-    const name = profile?.display_name || profile?.company_name || "Member";
-    const type = profile?.account_type || "creator";
-    const header = $(".collabry-account > span"); if (header) header.textContent = `${name} · ${type === "creator" ? "Creator" : type[0].toUpperCase() + type.slice(1)}`;
-    const picker = $("#role"); if (picker) { picker.value = type; picker.disabled = true; }
-    const title = $("#page-title"); if (title) title.textContent = type === "creator" ? "Creator project dashboard" : type === "agency" ? "Agency project dashboard" : "Brand project dashboard";
-    const create = $("#create-project"); if (create) create.onclick = () => { location.href = `project-form.html?kind=${type === "creator" ? "creator" : "brand"}`; };
+  async function refreshDashboardData() {
     const { data: own, error: ownError } = await supabase.from("projects").select("*").eq("owner_id", user.id).order("created_at", { ascending: false });
     if (ownError) throw ownError;
     const { data: outgoing, error: appsError } = await supabase.from("applications").select("id,project_id,applicant_id,status,message,created_at,updated_at").eq("applicant_id", user.id).order("created_at", { ascending: false });
@@ -166,8 +152,26 @@
     const memberMap = (memberIds.data || []).reduce((map, row) => { (map[row.conversation_id] ||= []).push(row.user_id); return map; }, {});
     const chats = (chatResult.data || []).map((c) => ({ ...c, memberIds: memberMap[c.id] || [] }));
     renderOwned(own || [], [...(incomingResult.data || []), ...(outgoing || [])], chats);
+  }
+
+  try {
+    setupReports();
+    supabase = await window.bmcSupabaseReady;
+    if (!supabase) throw new Error(window.bmcSupabaseError || "Could not connect to Supabase.");
+    const { data: { user: current }, error: authError } = await supabase.auth.getUser();
+    if (authError || !current) { location.href = "index.html"; return; }
+    user = current;
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("display_name,company_name,account_type").eq("id", user.id).maybeSingle();
+    if (profileError) throw profileError;
+    const name = profile?.display_name || profile?.company_name || "Member";
+    const type = profile?.account_type || "creator";
+    const header = $(".collabry-account > span"); if (header) header.textContent = `${name} · ${type === "creator" ? "Creator" : type[0].toUpperCase() + type.slice(1)}`;
+    const picker = $("#role"); if (picker) { picker.value = type; picker.disabled = true; }
+    const title = $("#page-title"); if (title) title.textContent = type === "creator" ? "Creator project dashboard" : type === "agency" ? "Agency project dashboard" : "Brand project dashboard";
+    const create = $("#create-project"); if (create) create.onclick = () => { location.href = `project-form.html?kind=${type === "creator" ? "creator" : "brand"}`; };
+    await refreshDashboardData();
     await renderNotifications();
-    setInterval(() => renderNotifications().catch(() => {}), 20000);
+    setInterval(() => { refreshDashboardData().catch(() => {}); renderNotifications().catch(() => {}); }, 20000);
     document.body.classList.add("bmc-dashboard-ready");
   } catch (error) {
     console.error("Live dashboard could not load:", error);

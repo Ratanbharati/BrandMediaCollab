@@ -36,9 +36,15 @@
     $("#context-title").textContent = item.projectName;
     $("#chat-avatar").textContent = item.otherName.slice(0, 2).toUpperCase();
     $("#messages").classList.add("show-chat");
+    $(".compose").style.display = "";
+    $(".chat-head").style.display = "";
+    $(".context").style.display = "";
     $("#chat-project-link")?.setAttribute("href", `my-projects.html`);
     [...threadNode.querySelectorAll(".thread")].forEach((node) => node.classList.toggle("active", node.dataset.id === item.id));
     await loadMessages(item.id);
+    await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).eq("type", "new_message").eq("conversation_id", item.id).is("read_at", null);
+    window.bmcRefreshMessageBadge?.();
+    window.dispatchEvent(new CustomEvent("bmc-notifications-updated"));
     if (poller) clearInterval(poller);
     poller = setInterval(() => { if (activeId === item.id && !document.hidden) loadMessages(item.id).catch(() => {}); }, 5000);
   }
@@ -166,11 +172,19 @@
     sendButton?.addEventListener("click", sendMessage);
     input?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
     await renderThreads();
-    if (!activeId) showMessage("Select a conversation. New project interest starts a private chat automatically.");
+    if (!activeId) {
+      $("#chat-name").textContent = "No conversation selected"; $("#chat-name").removeAttribute("href");
+      $("#chat-title").textContent = ""; $("#context-title").textContent = "Select a conversation";
+      $("#chat-avatar").textContent = "—"; $(".chat-head").style.display = "none"; $(".context").style.display = "none"; $(".compose").style.display = "none";
+      showMessage("Your replies and conversations will appear here. Express interest in a project to start a private project chat.");
+    }
     document.body.classList.add("bmc-messages-ready");
   } catch (error) {
     console.error("Messages could not load:", error);
     threadNode.innerHTML = "";
+    $("#chat-name").textContent = "No conversation selected"; $("#chat-title").textContent = "";
+    $("#context-title").textContent = "Select a conversation"; $("#chat-avatar").textContent = "—";
+    $(".chat-head").style.display = "none"; $(".context").style.display = "none"; $(".compose").style.display = "none";
     showMessage(error.message || "Your conversations could not be loaded.");
     toast(error.message || "Your conversations could not be loaded.");
     document.body.classList.add("bmc-messages-ready");
