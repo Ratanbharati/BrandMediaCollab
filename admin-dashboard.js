@@ -1,7 +1,7 @@
 (async function () {
   const $ = (selector) => document.querySelector(selector);
   const login = $("#login-panel"), panel = $("#admin-panel"), errorBox = $("#login-error"), notice = $("#setup-notice"), toastNode = $("#toast");
-  let supabase, token = "", usersPage = 1, usersHasMore = false, activeView = "overview", cache = {};
+  let supabase, token = "", usersPage = 1, usersHasMore = false, activeView = "overview", cache = {}, refreshTimer = 0, refreshBusy = false;
   const esc = (value) => String(value ?? "");
   function toast(message) { toastNode.textContent = message; toastNode.classList.add("show"); setTimeout(() => toastNode.classList.remove("show"), 2600); }
   function date(value) { return value ? new Date(value).toLocaleString() : "—"; }
@@ -28,7 +28,11 @@
     if (!session) { setVisible(login, true); setVisible(panel, false); setVisible($("#sign-out"), false); return; }
     token = session.access_token; $("#admin-email").textContent = session.user.email || "Signed in";
     setVisible(login, false); setVisible(panel, true); setVisible($("#sign-out"), true); notice.classList.add("hidden");
-    try { await loadOverview(); await loadView(activeView); }
+    try {
+      await loadOverview();
+      await loadView(activeView);
+      $("#last-updated").textContent = `Last updated ${new Date().toLocaleTimeString()}. Refreshes every 20 seconds while this page is open.`;
+    }
     catch (error) { showError(error); }
   }
 
@@ -102,6 +106,22 @@
     if (view === "users") await loadUsers(); else if (view === "projects") await loadProjects(); else if (view === "applications") await loadApplications(); else if (view === "support") await loadSupport(); else if (view === "audit") await loadAudit();
   }
 
+  async function refreshCurrent(showToast = false) {
+    if (refreshBusy || document.visibilityState !== "visible" || panel.classList.contains("hidden")) return;
+    refreshBusy = true;
+    try {
+      await loadOverview();
+      await loadView(activeView);
+      $("#last-updated").textContent = `Last updated ${new Date().toLocaleTimeString()}. Refreshes every 20 seconds while this page is open.`;
+      notice.classList.add("hidden");
+      if (showToast) toast("Admin data refreshed.");
+    } catch (error) {
+      showError(error);
+    } finally {
+      refreshBusy = false;
+    }
+  }
+
   try {
     supabase = await window.bmcSupabaseReady;
     if (!supabase) throw new Error(window.bmcSupabaseError || "Supabase could not start.");
@@ -118,8 +138,10 @@
     $("[data-search='applications']").addEventListener("input", () => renderApplications(cache.applications || []));
     $("#users-prev").onclick = () => { if (usersPage > 1) { usersPage--; loadUsers().catch(showError); } };
     $("#users-next").onclick = () => { if (usersHasMore) { usersPage++; loadUsers().catch(showError); } };
-    $("#refresh").onclick = async () => { try { await loadOverview(); await loadView(activeView); toast("Admin data refreshed."); } catch (error) { showError(error); } };
-    $("#sign-out").onclick = async () => { await supabase.auth.signOut(); cache = {}; setVisible(panel, false); setVisible(login, true); setVisible($("#sign-out"), false); $("#admin-email").textContent = ""; };
+    $("#refresh").onclick = () => refreshCurrent(true);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshCurrent(false); });
+    $("#sign-out").onclick = async () => { if (refreshTimer) window.clearInterval(refreshTimer); refreshTimer = 0; await supabase.auth.signOut(); cache = {}; setVisible(panel, false); setVisible(login, true); setVisible($("#sign-out"), false); $("#admin-email").textContent = ""; };
     await showConsole();
+    refreshTimer = window.setInterval(() => refreshCurrent(false), 20_000);
   } catch (error) { showError(error); setVisible(login, true); }
 })();
