@@ -19,6 +19,8 @@ The owner console is `https://www.stagerang.com/site/admin-dashboard.html`. Use 
 
 Use `USER-JOURNEYS.md` for the Creator, Brand, and Agency click-by-click flows and the acceptance checklist after deployment.
 
+Use `ADMIN-WORKFLOW.md` for the owner’s admin-console steps, safety boundaries, and post-deployment admin check.
+
 ## Database
 
 Deployment does not run SQL and does not modify or erase Supabase data. Keep the existing Supabase project and its tables. Do not rerun the initial schema on a database that already contains accounts.

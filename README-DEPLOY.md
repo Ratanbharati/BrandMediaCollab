@@ -17,6 +17,8 @@ Keep the existing Supabase project and user data. Vercel deployment does not exe
 
 The Creator, Brand, and Agency click-by-click journeys and post-deployment acceptance checklist are in `USER-JOURNEYS.md`.
 
+The owner console click-by-click workflow and admin limitations are in `ADMIN-WORKFLOW.md`.
+
 ## Remaining integration limits
 
 - Activity alerts are in-app; push notifications aren’t included. The notification panel needs the existing `notifications` table/policies to be present in Supabase; when absent, the UI shows a fallback.

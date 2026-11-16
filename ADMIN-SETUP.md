@@ -2,6 +2,8 @@
 
 The live owner console is served at `/site/admin-dashboard.html`. Sign in there with the owner’s existing verified Stagerang account.
 
+For the complete owner journey and a post-deployment checklist, see `ADMIN-WORKFLOW.md`.
+
 ## Vercel environment variables
 
 In Vercel, open the project’s **Settings → Environment Variables** and add:
