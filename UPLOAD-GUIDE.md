@@ -10,6 +10,8 @@ This update fixes the Home, Projects, Dashboard, Messages, and profile-edit work
 4. Commit the changes to `main`. In Vercel, wait for the newest deployment to show **Ready** and **Production**.
 5. Open `https://www.stagerang.com` and hard refresh with **Ctrl+Shift+R**.
 
+The Agency account journey and the files that implement each step are listed in `AGENCY-WORKFLOW.md`.
+
 No new SQL migration is required for these workflow changes. Keep all existing Supabase tables and user data. The project notification panel needs `202611160001_activity_notifications.sql`, and the saved-project visibility update is `202611170001_saved_projects_visibility.sql`. If either has not yet been run successfully, run that exact migration once in Supabase SQL Editor. Do not rerun a migration that already succeeded, and never rerun the initial schema on a project that contains your account data.
 
 ## What changed
@@ -19,5 +21,6 @@ No new SQL migration is required for these workflow changes. Keep all existing S
 - **Messages** project snapshot counts use this account’s projects and applications, conversations, messages, and unread-message notifications. It refreshes every 20 seconds. An application withdrawn by the account is excluded from active interest totals.
 - **Profile editing** opens the signed-in user’s existing account type and hides the type switcher. A Creator account opens the Creator profile form; Brand and Agency accounts open their respective forms. The old `edit-profile.html` address redirects to the locked editor.
 - **Profile navigation** now sends the Home identity card to the signed-in user’s live profile. Clicking a member name on a project still opens that project owner’s live profile. This link correction requires no SQL change.
+- **Agency workflow** labels agency campaigns distinctly on the post form and in My projects. Agency posts are grouped on Home and Projects, reported in their own Dashboard table, and support applicant review, private chats, and individual delivery of bulk messages.
 
 If data still looks old after deployment, check that the production deployment used the newest Git commit. If a page shows a Supabase error, share the exact message and the deployment commit so the failing query or policy can be identified.
