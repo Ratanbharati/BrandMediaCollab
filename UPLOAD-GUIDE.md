@@ -4,11 +4,11 @@
 
 - This ZIP is for the existing GitHub repository `Ratanbharati/BrandMediaCollab`.
 - In Vercel → Project Settings → Build and Deployment → Root Directory, leave the field empty. Do not enter `\`, `\.`, `./`, or a subfolder.
-- Do not change DNS, Resend records, or Supabase tables for this code upload.
+- Do not change DNS or Resend records for this code upload. Run the one new notification migration below before testing dashboard alerts.
 
 ## Upload the package to GitHub
 
-1. Download and extract `Stagerang-Supabase-Ready.zip`.
+1. Download and extract `Stagerang-Full-Project-Upload.zip`.
 2. Open the extracted folder. You should immediately see `app`, `public`, `supabase`, `package.json`, `tsconfig.json`, `README-DEPLOY.md`, and this guide.
 3. Open GitHub → `Ratanbharati/BrandMediaCollab` → branch `main`.
 4. Choose **Add file → Upload files**.
@@ -21,15 +21,21 @@
 2. If build fails, open that deployment → Build Logs and use the first error line to diagnose. Do not repeatedly redeploy an unchanged failed build.
 3. In Project Settings → Build and Deployment, Root Directory must remain empty. If the setting was changed, save it and make one fresh deployment from the latest `main` commit.
 4. In Project Settings → Environment Variables, confirm Production has `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Never put a Supabase secret/service-role key in these variables.
-5. Open `https://www.stagerang.com` in a private/incognito window and sign in with the existing test accounts. Confirm profile, feed, project creation, dashboard, and accepted-collaboration messaging behavior.
+5. Open `https://www.stagerang.com` in a private/incognito window (or use Ctrl+Shift+R) and sign in with the existing test accounts. Confirm a new interest appears in the owner's dashboard and the conversation appears in Messages.
 
-## Supabase settings to verify (do not rerun the schema)
+## One safe Supabase update (do not rerun the initial schema)
+
+1. On GitHub, after uploading this package, open `supabase/migrations/202611160001_activity_notifications.sql` and copy its full contents.
+2. Supabase → SQL Editor → New query. Paste the copied SQL and click **Run** once. This adds an in-app notification table and triggers without deleting existing account, project, application, or message rows.
+3. The SQL Editor should report success. If it reports an error, stop and share the error; do not rerun the initial schema.
+
+## Supabase settings to verify
 
 1. Keep the existing tables and user rows. This package does not require dropping tables or deleting accounts.
 2. In Authentication → URL Configuration, Site URL should be `https://www.stagerang.com` (or the site's chosen canonical domain). Allow the site's `/site/**` callback URL and any required Vercel preview callback URL.
 3. Also add this exact recovery callback to Redirect URLs: `https://www.stagerang.com/site/update-password.html`. If you use the apex domain instead, add its matching callback too. Save the URL Configuration.
 4. Existing Resend SMTP sender/domain setup is independent of this upload. Keep it as configured; verify password recovery with a test account after deployment.
-5. Authenticated profile and project rows live in `profiles` and `projects`; applications in `applications`; conversation threads/messages in `conversations`, `conversation_members`, and `messages`.
+5. Profile rows remain in `profiles`; posts belong to their author in `projects`; responses to posts live separately in `applications` with `project_id` and `applicant_id`; private chats/messages remain in `conversations`, `conversation_members`, and `messages`. In-app alerts are in `notifications`.
 
 ## Test password reset after deployment
 
@@ -39,6 +45,10 @@
 4. On the Stagerang page, choose and confirm a new password of at least 8 characters, save it, then log in with it.
 5. If no email arrives, check Supabase Authentication → Logs and verify SMTP and the allowed callback URL.
 
-## Current limitations
+## What the updated flow does
 
-Dashboard counts and project rows read Supabase. Individual conversation messages are stored in Supabase and the page refreshes the open conversation periodically. A chat can be started from an accepted (`working_together`) application. Group chats, bulk outreach, full read receipts, calendar invitations/reminders, social OAuth/follower syncing, and a complete admin workflow are not included yet. Do not interpret static old mockup screens as real records or working features.
+- An interested person adds a note; the application is saved and a private project conversation starts immediately for both people.
+- The dashboard separates posts owned by the signed-in account from applications that account sent to others' posts.
+- Project owners can review each response, update its status, open that person's chat, or send the same message privately to all interested people (each receives an individual message, not a group chat).
+- Dashboard notifications are in-app only and need the migration above. Email/push alerts, group chats, calendar invitations/reminders, social OAuth/follower syncing, and a complete admin workflow are not included yet.
+- Search filters live projects and creator ideas from Supabase. Preview/sample cards are hidden while live content loads.

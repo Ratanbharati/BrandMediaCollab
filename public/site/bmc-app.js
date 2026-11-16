@@ -14,6 +14,75 @@
     if (node) { node.textContent = message; node.classList.add("show"); }
     else alert(message);
   }
+  async function getOrCreateProjectChat(supabase, projectId, otherId, user, firstMessage) {
+    const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
+    if (membershipError) throw membershipError;
+    const ids = (memberships || []).map((row) => row.conversation_id);
+    if (ids.length) {
+      const { data: chats, error } = await supabase.from("conversations").select("id,project_id").eq("project_id", projectId).in("id", ids);
+      if (error) throw error;
+      for (const chat of chats || []) {
+        const { data: members, error: membersError } = await supabase.from("conversation_members").select("user_id").eq("conversation_id", chat.id);
+        if (membersError) throw membersError;
+        if ((members || []).some((m) => m.user_id === user.id) && (members || []).some((m) => m.user_id === otherId)) {
+          if (firstMessage) {
+            const { error: messageError } = await supabase.from("messages").insert({ conversation_id: chat.id, sender_id: user.id, body: firstMessage });
+            if (messageError) throw messageError;
+          }
+          return chat.id;
+        }
+      }
+    }
+    const { data: chat, error: chatError } = await supabase.from("conversations").insert({ project_id: projectId, created_by: user.id, is_group: false }).select("id").single();
+    if (chatError) throw chatError;
+    const { error: addMembersError } = await supabase.from("conversation_members").insert([{ conversation_id: chat.id, user_id: user.id }, { conversation_id: chat.id, user_id: otherId }]);
+    if (addMembersError) throw addMembersError;
+    const { error: messageError } = await supabase.from("messages").insert({ conversation_id: chat.id, sender_id: user.id, body: firstMessage || "Hi, I’m interested in this project. Let’s discuss it here." });
+    if (messageError) throw messageError;
+    return chat.id;
+  }
+  function interestDialog(projectName) {
+    let dialog = document.querySelector("#bmc-interest-dialog");
+    if (!dialog) {
+      dialog = document.createElement("div"); dialog.id = "bmc-interest-dialog"; dialog.className = "modal-back open"; dialog.style.cssText = "display:flex;position:fixed;inset:0;z-index:9999;background:#14221caa;align-items:center;justify-content:center;padding:20px";
+      dialog.innerHTML = '<section style="background:#fffefa;border-radius:16px;padding:24px;width:min(100%,520px);box-shadow:0 20px 70px #0003"><h2 style="margin:0 0 8px;font:700 20px Arial">Send your interest</h2><p class="bmc-interest-project" style="color:#647066"></p><label for="bmc-interest-note">Add a short note to start the conversation</label><textarea id="bmc-interest-note" maxlength="1000" rows="5" style="display:block;width:100%;box-sizing:border-box;margin-top:8px;padding:12px;border:1px solid #dfe4d9;border-radius:9px;font:14px Arial" placeholder="Tell them why this project is a good fit..."></textarea><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button type="button" data-cancel style="padding:10px 15px">Cancel</button><button type="button" data-send style="padding:10px 15px;background:#293d30;color:white;border:0;border-radius:20px">Send interest</button></div></section>';
+      document.body.append(dialog);
+    }
+    dialog.querySelector(".bmc-interest-project").textContent = projectName;
+    dialog.querySelector("#bmc-interest-note").value = "";
+    return dialog;
+  }
+  async function submitInterest(projectId, projectName, button) {
+    const dialog = interestDialog(projectName);
+    const note = dialog.querySelector("#bmc-interest-note");
+    const cancel = dialog.querySelector("[data-cancel]"); const send = dialog.querySelector("[data-send]");
+    return new Promise((resolve) => {
+      const close = () => { dialog.remove(); resolve(false); };
+      cancel.onclick = close;
+      send.onclick = async () => {
+        send.disabled = true;
+        try {
+          const supabase = await client(); const user = await signedIn(supabase);
+          const { data: project, error: projectError } = await supabase.from("projects").select("id,owner_id,project_name").eq("id", projectId).single();
+          if (projectError) throw projectError;
+          if (project.owner_id === user.id) throw new Error("You can’t express interest in your own project.");
+          const { data: prior, error: priorError } = await supabase.from("applications").select("id,status").eq("project_id", projectId).eq("applicant_id", user.id).maybeSingle();
+          if (priorError) throw priorError;
+          const message = note.value.trim() || `Hi, I’m interested in “${project.project_name}”. Let’s discuss it here.`;
+          const save = prior
+            ? await supabase.from("applications").update({ message, updated_at: new Date().toISOString() }).eq("id", prior.id)
+            : await supabase.from("applications").insert({ project_id: projectId, applicant_id: user.id, status: "interested", message });
+          if (save.error) throw save.error;
+          const conversationId = await getOrCreateProjectChat(supabase, projectId, project.owner_id, user, message);
+          dialog.remove();
+          if (button) { button.textContent = "Interest sent ✓"; button.disabled = true; }
+          toast("Interest sent. Your private project chat is ready in Messages.");
+          if (location.pathname.endsWith("/messages.html")) location.href = `messages.html?conversation=${encodeURIComponent(conversationId)}`;
+          resolve(true);
+        } catch (error) { send.disabled = false; toast(error.message || "Could not send interest."); }
+      };
+    });
+  }
   async function signedIn(supabase) {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) throw new Error("Please log in first, then try again.");
@@ -273,6 +342,10 @@
     }
     const metricPanel = [...document.querySelectorAll(".left-col .panel")].find((panel) => panel.textContent.includes("Your social stats"));
     if (metricPanel) metricPanel.innerHTML = '<div class="side-title">Social accounts</div><div class="trend"><b>Connect profiles from your profile setup</b><span>Follower syncing will appear here after platform authorization is configured.</span></div>';
+    $(".right-col .profile-prompt")?.remove();
+    $(".right-col .upcoming")?.remove();
+    const feedTip = $(".right-col .tip p");
+    if (feedTip) feedTip.textContent = "When you send interest, add a note and a private one-to-one project chat opens for both people. You can manage the application status from your dashboard.";
     const composer = $(".composer");
     if (composer) {
       const idea = $("#open-post-idea"); const primary = $("#open-post");
@@ -298,20 +371,20 @@
     const byId = Object.fromEntries(owners.map((p) => [p.id, p]));
     let live = $("#bmc-live-posts");
     if (!live) { live = document.createElement("div"); live.id = "bmc-live-posts"; ($(".filters") || $(".center-col")).insertAdjacentElement("afterend", live); }
-    if (!projects.length) { live.innerHTML = '<section class="panel empty">No live projects yet. When a brand or creator posts an open opportunity, it will appear here.</section>'; return; }
+    if (!projects.length) { live.innerHTML = '<section class="panel empty">No live projects yet. When a brand or creator posts an open opportunity, it will appear here.</section>'; document.body.classList.add("bmc-data-ready"); return; }
     live.innerHTML = projects.map((p) => {
       const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
       const type = p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand campaign";
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const canApply = user.id !== p.owner_id;
-      return `<article class="panel card post"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions">${canApply ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
+      return `<article class="panel card post" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions">${canApply ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
     }).join("");
     live.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
-      button.disabled = true;
-      const { error: applyError } = await supabase.from("applications").upsert({ project_id: button.dataset.apply, applicant_id: user.id, status: "interested" }, { onConflict: "project_id,applicant_id" });
-      if (applyError) { button.disabled = false; return toast(applyError.message); }
-      button.textContent = "Interested ✓"; toast("Your interest was sent to the project owner.");
+      const card = button.closest(".post");
+      submitInterest(button.dataset.apply, card?.querySelector(".project-title")?.textContent || "Project", button).catch((error) => toast(error.message));
     }));
+    document.body.classList.add("bmc-data-ready");
+    document.querySelector("#search")?.dispatchEvent(new Event("input", { bubbles: true }));
   }
   async function openProjectsDirectory() {
     $("#list")?.querySelectorAll(".item").forEach((el) => el.remove());
@@ -320,7 +393,7 @@
     if (error) throw error;
     const host = $("#list"); if (!host) return;
     const empty = $("#empty");
-    if (!data.length) { if (empty) { empty.textContent = "No open projects yet. Published opportunities will appear here."; empty.classList.remove("hidden"); } return; }
+    if (!data.length) { if (empty) { empty.textContent = "No open projects yet. Published opportunities will appear here."; empty.classList.remove("hidden"); } document.body.classList.add("bmc-projects-ready"); return; }
     if (empty) empty.classList.add("hidden");
     const owners = [...new Set(data.map((p) => p.owner_id))];
     const { data: profiles, error: profileError } = await supabase.from("profiles").select("id,display_name,company_name,account_type").in("id", owners);
@@ -330,14 +403,15 @@
       const row = document.createElement("article"); row.className = "panel project item";
       row.dataset.kind = p.project_type === "creator_idea" ? "ideas" : "projects";
       row.dataset.category = p.category; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
-      row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category}`.toLowerCase();
-      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand project"} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}">Interested ↗</button>`}</div></div>`;
+      row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
+      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand project"} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested ↗</button>`}</div></div>`;
       host.insertBefore(row, empty || null);
     });
     host.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
-      const { error: applyError } = await supabase.from("applications").upsert({ project_id: button.dataset.apply, applicant_id: user.id, status: "interested" }, { onConflict: "project_id,applicant_id" });
-      if (applyError) return toast(applyError.message); button.textContent = "Interested ✓";
+      submitInterest(button.dataset.apply, button.dataset.projectName || button.closest(".item")?.querySelector("h2")?.textContent || "Project", button).catch((error) => toast(error.message));
     }));
+    document.querySelectorAll("#q,#search").forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true })));
+    document.body.classList.add("bmc-projects-ready");
   }
   function init() {
     const path = location.pathname;

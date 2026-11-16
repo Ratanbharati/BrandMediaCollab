@@ -91,6 +91,8 @@
       threadNode.append(button);
     }
     if (activeId) { const active = items.find((item) => item.id === activeId); if (active) [...threadNode.querySelectorAll(".thread")].find((node) => node.dataset.id === activeId)?.classList.add("active"); }
+    const requestedId = new URLSearchParams(location.search).get("conversation");
+    if (!activeId && requestedId) { const requested = items.find((item) => item.id === requestedId); if (requested) await selectConversation(requested); }
     await renderAcceptedPartners(conversations, members || []);
   }
   async function renderAcceptedPartners(conversations, members) {
@@ -152,7 +154,7 @@
     const { data: { user: current }, error } = await supabase.auth.getUser();
     if (error || !current) { location.href = "index.html"; return; }
     user = current;
-    // Remove the static demo campaign counters, demo threads, and mock message composer behavior.
+    // Remove static demo counters, threads, and mock message composer behavior.
     $(".campaign-box")?.remove(); $("#bulk-modal")?.remove(); $("#meeting-modal")?.remove(); $("#schedule")?.remove(); $("#meet-inline")?.remove();
     threadNode.querySelectorAll(".thread").forEach((node) => node.remove());
     const segmented = document.querySelector(".seg"); if (segmented) segmented.remove();
@@ -164,11 +166,13 @@
     sendButton?.addEventListener("click", sendMessage);
     input?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
     await renderThreads();
-    if (!activeId) showMessage("Select a conversation or start a chat with an accepted collaborator.");
+    if (!activeId) showMessage("Select a conversation. New project interest starts a private chat automatically.");
+    document.body.classList.add("bmc-messages-ready");
   } catch (error) {
     console.error("Messages could not load:", error);
     threadNode.innerHTML = "";
     showMessage(error.message || "Your conversations could not be loaded.");
     toast(error.message || "Your conversations could not be loaded.");
+    document.body.classList.add("bmc-messages-ready");
   }
 })();

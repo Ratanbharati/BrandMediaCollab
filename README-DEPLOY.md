@@ -9,14 +9,18 @@ This is the full Next.js project. It serves the static site pages from `/public/
 - Per-user profiles, profile editing, profile photo upload, and private contact record.
 - Create, edit, list, and delete your own projects.
 - Shared open-project feed and project discovery backed by Supabase.
-- Express interest in an open project and view applications for your projects.
-- Dashboard project/application counts backed by the signed-in user's rows.
-- Individual messages stored in Supabase for accepted collaborations; conversation list refreshes periodically.
+- Express interest with a private note; the application is saved and a one-to-one project conversation starts immediately.
+- Separate dashboard reports for projects this account posted and applications this account sent to other members' projects.
+- Applicant review from each owned post, including status updates and individual chat links.
+- Project-wide bulk updates delivered as separate private messages to each interested person.
+- In-app notifications for received interest, application status changes, and new project messages (after running the added notification migration).
+- Supabase-backed project discovery and search; the sample preview cards are hidden while live records load.
+- Individual messages stored in Supabase and refreshed periodically.
 
 ## Still not complete
 
-- Group chats and bulk campaign outreach.
-- In-app accept/reject workflow UI for project applications (status changes may need admin/SQL until that UI is added).
+- Group chats (bulk updates are private one-to-one sends).
+- Email or browser push notifications. Current alerts are in-app only.
 - Read receipts/unread indicators and realtime messaging (messages refresh by polling).
 - Calendar integration, invitations, and automated reminders.
 - Social OAuth and follower-count syncing.
@@ -26,10 +30,10 @@ This remains a study project/prototype. Do not treat unfinished features as impl
 
 ## Supabase setup
 
-1. In Supabase **SQL Editor**, run `supabase/migrations/202611150001_initial_schema.sql` once. It creates empty tables and Row Level Security policies.
-2. If the initial schema is already installed, run `supabase/migrations/202611150002_avatar_storage.sql` once to add the avatar column, public avatar bucket, and owner-only upload/delete policies.
+1. Keep the existing tables and user data. Do not rerun the initial schema or avatar migration if they are already installed.
+2. In Supabase **SQL Editor**, run only the new file `supabase/migrations/202611160001_activity_notifications.sql`. This adds private in-app notifications and database triggers; it does not delete or recreate data.
 3. In Supabase **Settings → API Keys**, use the `sb_publishable_...` key. Never use the secret key in the browser or Vercel `NEXT_PUBLIC_` variables.
-4. Configure Supabase **Authentication → URL Configuration**. Set the Site URL to your canonical site URL, add `https://www.stagerang.com/site/update-password.html` as an allowed redirect URL, and retain the site's `/site/**` redirect URL. For local testing, add `http://localhost:3000/site/**`.
+4. Keep Supabase **Authentication → URL Configuration** set to the canonical site URL and retain the recovery redirect `https://www.stagerang.com/site/update-password.html` and the site's `/site/**` redirect URL.
 
 ## Vercel environment variables
 
@@ -58,4 +62,4 @@ Sign-up may require email confirmation depending on the Supabase Auth setting. C
 
 ## Data protection notes
 
-The migration enables RLS on the application tables. Private contacts are only selectable by that account and platform admins. Public profile data is visible to authenticated users when discoverable. Keep social tokens and any future service-role key server-side. Review the policies and auth email settings before inviting real users.
+The migrations enable RLS on the application tables. Private contacts are only selectable by that account and platform admins. Public profile data is visible to authenticated users when discoverable. Keep social tokens and any future service-role key server-side. Interest notes are visible to the application parties; chat messages are visible only to conversation members.
