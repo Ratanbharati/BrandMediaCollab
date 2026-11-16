@@ -8,19 +8,31 @@
   const host = $("#list"), empty = $("#empty");
   if (!host || !empty) return;
   const requestedScope = new URLSearchParams(location.search).get("scope");
-  let db, user, projects = [], applications = [], saved = new Set(), scope = ["owned", "applied", "saved"].includes(requestedScope) ? requestedScope : "discover", activeKind = "brand";
+  let db, user, projects = [], applications = [], saved = new Set(), profilesById = {}, scope = ["owned", "applied", "saved"].includes(requestedScope) ? requestedScope : "discover", activeKind = "brand";
   const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0, agencies: 0 };
   const selected = (v, key) => (v || []).some((x) => String(x).toLowerCase().includes(key));
   function setCount(status, count) { const el = document.querySelector(`[data-count="${status}"]`); if (el) el.textContent = String(count); }
   function renderFilters() {
     const q = $("#q").value.trim().toLowerCase(), cat = $("#cat").value.toLowerCase(), tier = $("#tier").value.toLowerCase(), platform = $("#platform").value.toLowerCase(), loc = $("#location").value.toLowerCase();
-    let shown = 0;
-    host.querySelectorAll(".item").forEach((row) => {
-      const status = row.dataset.status, kindOk = row.dataset.kind === activeKind;
-      const scopeOk = scope === "owned" ? row.dataset.owner === user.id : scope === "applied" ? row.dataset.applied === "true" : scope === "saved" ? row.dataset.saved === "true" : status === "open" && row.dataset.owner !== user.id;
-      const ok = kindOk && scopeOk && (!q || row.dataset.search.includes(q)) && (cat === "all" || row.dataset.category.toLowerCase().includes(cat)) && (tier === "all" || row.dataset.tier.toLowerCase().includes(tier)) && (platform === "all" || row.dataset.platform.toLowerCase().includes(platform)) && (loc === "all" || row.dataset.location.toLowerCase().includes(loc));
-      row.classList.toggle("hidden", !ok); row.style.display = ok ? "" : "none"; if (ok) shown++;
+    // Filter the project records before creating cards. A tab change replaces
+    // the rendered dataset, so cards from other categories are not merely hidden.
+    const visibleProjects = projects.filter((project) => {
+      const kindOk = projectKind(project, profilesById[project.owner_id]) === activeKind;
+      const projectApplications = applications.filter((application) => application.project_id === project.id);
+      const scopeOk = scope === "owned" ? project.owner_id === user.id
+        : scope === "applied" ? projectApplications.some((application) => application.status !== "withdrawn")
+        : scope === "saved" ? saved.has(project.id)
+        : String(project.status || "").toLowerCase() === "open" && project.owner_id !== user.id;
+      return kindOk && scopeOk
+        && (!q || `${project.project_name || ""} ${profilesById[project.owner_id]?.display_name || ""} ${profilesById[project.owner_id]?.company_name || ""} ${project.requirements || ""} ${project.category || ""} ${(project.platforms || []).join(" ")} ${(project.creator_tiers || []).join(" ")} ${project.location || ""}`.toLowerCase().includes(q))
+        && (cat === "all" || String(project.category || "").toLowerCase().includes(cat))
+        && (tier === "all" || (project.creator_tiers || []).some((value) => String(value).toLowerCase().includes(tier)))
+        && (platform === "all" || (project.platforms || []).some((value) => String(value).toLowerCase().includes(platform)))
+        && (loc === "all" || String(project.location || "").toLowerCase().includes(loc));
     });
+    host.querySelectorAll(".item").forEach((row) => row.remove());
+    visibleProjects.forEach((project) => host.insertBefore(buildCard(project, profilesById), empty));
+    const shown = visibleProjects.length;
     empty.textContent = scope === "owned" ? "You haven’t posted anything in this category yet." : scope === "applied" ? "You have no applications in this category yet." : scope === "saved" ? "You haven’t saved anything in this category yet." : "No live posts in this category yet.";
     empty.classList.toggle("hidden", shown > 0);
   }
@@ -37,10 +49,18 @@
     renderFilters();
   }
   function projectKind(p, ownerProfile) {
-    const accountType = ownerProfile?.account_type;
-    if (["brand", "creator", "agency"].includes(accountType)) return accountType;
-    if (p.owner_type === "agency") return "agency";
-    if (p.owner_type === "creator" || p.project_type === "creator_idea") return "creator";
+    const normalize = (value) => {
+      const type = String(value || "").trim().toLowerCase();
+      if (["creator", "influencer", "creator/influencer"].includes(type)) return "creator";
+      return ["brand", "agency"].includes(type) ? type : "";
+    };
+    // The post's saved category is stable even if its owner later edits their
+    // profile. Use the account type only for legacy rows without a saved type.
+    const savedOwnerType = normalize(p.owner_type);
+    if (savedOwnerType) return savedOwnerType;
+    if (p.project_type === "creator_idea") return "creator";
+    const accountType = normalize(ownerProfile?.account_type);
+    if (accountType) return accountType;
     return "brand";
   }
   function buildCard(p, profilesById) {
@@ -73,12 +93,11 @@
     const owners = [...new Set(projects.map((p) => p.owner_id))];
     const { data: profiles, error: profileError } = owners.length ? await db.from("profiles").select("id,display_name,company_name,account_type").in("id", owners) : { data: [], error: null };
     if (profileError) throw profileError;
-    const profilesById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+    profilesById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
     const kindOf = (p) => projectKind(p, profilesById[p.owner_id]);
     counts.ideas = projects.filter((p) => kindOf(p) === "creator" && String(p.status).toLowerCase() === "open").length; counts.brands = projects.filter((p) => kindOf(p) === "brand" && String(p.status).toLowerCase() === "open").length; counts.agencies = projects.filter((p) => kindOf(p) === "agency" && String(p.status).toLowerCase() === "open").length;
     setCount("owned", counts.owned); setCount("applied", counts.applications); setCount("saved", counts.saved); setCount("ideas", counts.ideas); setCount("ideaTab", counts.ideas); setCount("brands", counts.brands); setCount("agency", counts.agencies); setCount("agencyTab", counts.agencies);
     host.querySelectorAll(".item").forEach((x) => x.remove());
-    projects.forEach((p) => host.insertBefore(buildCard(p, profilesById), empty));
     document.body.classList.add("bmc-projects-ready"); renderFilters();
   }
   function wire() {
