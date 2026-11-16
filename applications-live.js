@@ -21,18 +21,18 @@
     const byProject = Object.fromEntries((projects || []).map((p) => [p.id, p]));
     const byOwner = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
     const rows = apps || [];
-    const count = (status) => rows.filter((a) => status === "all" || (status === "pending" ? a.status === "interested" : status === "matched" ? a.status === "working_together" : a.status === "rejected")).length;
+    const count = (status) => rows.filter((a) => status === "all" || a.status === status).length;
     document.querySelectorAll("[data-filter]").forEach((button) => {
       const key = button.dataset.filter;
-      const label = key === "all" ? "All" : key === "pending" ? "Awaiting response" : key === "matched" ? "Working together" : "Passed";
+      const label = key === "all" ? "All" : key === "interested" ? "Awaiting response" : key === "working_together" ? "Working together" : key === "rejected" ? "Passed" : "Withdrawn";
       button.textContent = `${label} · ${count(key)}`;
     });
     for (const app of rows) {
       const project = byProject[app.project_id] || {}; const owner = byOwner[project.owner_id] || {};
-      const statusKey = app.status === "working_together" ? "matched" : app.status === "rejected" ? "passed" : "pending";
-      const card = document.createElement("article"); card.className = `card application`; card.dataset.status = statusKey;
-      card.innerHTML = `<div class="topline"><div class="symbol">${esc((owner.display_name || owner.company_name || "SR").slice(0,2).toUpperCase())}</div><div class="meta"><b>${esc(owner.display_name || owner.company_name || "Project owner")}</b><span>Applied ${new Date(app.created_at).toLocaleDateString()} · ${esc(project.category || "Project")}</span></div><span class="status ${statusKey === "matched" ? "match" : statusKey === "passed" ? "pass" : ""}">${esc(app.status.replaceAll("_", " "))}</span></div><h2>${esc(project.project_name || "Project")}</h2><p>${esc(app.message || "No note was added.")}</p><div class="actions"><button class="btn dark" data-open-chat>Open private project chat ↗</button>${app.status === "interested" ? '<button class="btn" data-withdraw>Withdraw interest</button>' : ""}</div>`;
-      card.querySelector("[data-open-chat]").onclick = async () => {
+      const statusKey = app.status === "working_together" ? "matched" : app.status === "rejected" ? "passed" : app.status === "withdrawn" ? "withdrawn" : "pending";
+      const card = document.createElement("article"); card.className = `card application`; card.dataset.status = app.status;
+      card.innerHTML = `<div class="topline"><div class="symbol">${esc((owner.display_name || owner.company_name || "SR").slice(0,2).toUpperCase())}</div><div class="meta"><b>${esc(owner.display_name || owner.company_name || "Project owner")}</b><span>Applied ${new Date(app.created_at).toLocaleDateString()} · ${esc(project.category || "Project")}</span></div><span class="status ${statusKey === "matched" ? "match" : statusKey === "passed" || statusKey === "withdrawn" ? "pass" : ""}">${statusKey === "pending" ? "Awaiting response" : statusKey === "matched" ? "Working together" : statusKey === "withdrawn" ? "Withdrawn" : "Not selected"}</span></div><h2>${esc(project.project_name || "Project")}</h2><p>${esc(app.message || "No note was added.")}</p><div class="actions">${app.status !== "withdrawn" ? '<button class="btn dark" data-open-chat>Open private project chat ↗</button>' : ""}${app.status === "interested" ? '<button class="btn" data-withdraw>Withdraw interest</button>' : ""}</div>`;
+      card.querySelector("[data-open-chat]")?.addEventListener("click", async () => {
         try {
           const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
           if (membershipError) throw membershipError;
@@ -51,11 +51,11 @@
           }
           location.href = `messages.html?conversation=${encodeURIComponent(conversationId)}`;
         } catch (chatError) { toast(chatError.message || "Could not open the project chat."); }
-      };
+      });
       card.querySelector("[data-withdraw]")?.addEventListener("click", async () => {
         const { error: updateError } = await supabase.from("applications").update({ status: "withdrawn", updated_at: new Date().toISOString() }).eq("id", app.id);
         if (updateError) return toast(updateError.message);
-        card.remove(); toast("Interest withdrawn.");
+        location.reload();
       });
       list.insertBefore(card, empty);
     }

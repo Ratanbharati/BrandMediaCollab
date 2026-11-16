@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Help &amp; support — Stagerang</title>
+  <style>
+    :root{--ink:#1b2b22;--muted:#788078;--paper:#f6f5f0;--white:#fffefa;--line:#e9e7df;--deep:#293d30;--pale:#eff5e8}*{box-sizing:border-box}body{margin:0;background:var(--paper);font-family:Arial,sans-serif;color:var(--ink)}a{text-decoration:none;color:inherit}.nav{height:64px;background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 max(20px,calc((100% - 1080px)/2))}.logo{font-weight:700;font-size:20px}.logo b{background:#dff1e7;color:#32885a;border-radius:7px;padding:4px 7px;margin-right:6px}.nav-links{display:flex;gap:20px;font-size:13px}.wrap{max-width:780px;margin:30px auto;padding:0 18px}.heading h1{margin:0 0 7px;font-size:26px}.heading p,.muted{color:var(--muted);font-size:14px;line-height:1.55}.card{background:var(--white);border:1px solid var(--line);border-radius:13px;padding:20px;margin:14px 0}.card h2{font-size:17px;margin:0 0 14px}.field{margin:13px 0}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;background:white;padding:11px;font:inherit;font-size:14px}.field textarea{height:120px;resize:vertical}.primary,.secondary{border:0;border-radius:999px;padding:11px 16px;font-size:13px;font-weight:700;cursor:pointer}.primary{background:var(--deep);color:white}.primary:disabled{opacity:.6;cursor:wait}.secondary{background:#eef3e8;color:var(--ink)}.status{display:none;border-radius:9px;padding:12px;font-size:13px;line-height:1.5;margin-top:12px}.status.show{display:block}.ticket{border-top:1px solid #efeee8;padding:12px 0;font-size:13px}.ticket small{display:block;color:var(--muted);margin-top:5px}.empty{color:var(--muted);font-size:14px}.privacy{background:#f1f5eb;border-radius:8px;padding:12px;font-size:12px;line-height:1.5;color:#596958}.account{color:var(--muted);font-size:12px}@media(max-width:650px){.nav{padding:0 12px}.nav-links{gap:9px;font-size:12px}.wrap{margin-top:20px}}
+  </style>
+</head>
+<body>
+  <header class="nav"><a class="logo" href="feed.html"><b>SR</b>Stagerang</a><nav class="nav-links" aria-label="Main navigation"><a href="feed.html">Home</a><a href="projects.html">Projects</a><a href="dashboard.html">Dashboard</a><a href="messages.html">Messages</a><a href="logout.html">Log out</a></nav></header>
+  <main class="wrap">
+    <div class="heading"><h1>Help &amp; support</h1><p>Send a real request to the Stagerang support queue. You can check its status here after submitting it.</p></div>
+    <section class="card"><h2>Send a support request</h2>
+      <form id="help-form">
+        <div class="field"><label for="category">What do you need help with?</label><select id="category" required><option value="">Choose a topic</option><option>Account or profile</option><option>Social account connection</option><option>Project or application</option><option>Messages or meeting</option><option>Payment or payout</option><option>Report a member or conversation</option><option>Other</option></select></div>
+        <div class="field"><label for="project">Related project or campaign (optional)</label><input id="project" maxlength="160" placeholder="Project name"></div>
+        <div class="field"><label for="subject">Subject</label><input id="subject" required maxlength="160" placeholder="Briefly describe the issue"></div>
+        <div class="field"><label for="details">Details</label><textarea id="details" required maxlength="5000" placeholder="What happened? What were you trying to do?"></textarea></div>
+        <p class="privacy">Your request and account ID are saved for the support team. Private conversation messages are not attached or shown to support.</p>
+        <button class="primary" type="submit">Send to support</button><div class="status" id="notice" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+    <section class="card"><h2>My support requests</h2><div id="request-list" class="empty">Loading your requests…</div></section>
+  </main>
+  <script src="/site/bmc-supabase.js"></script>
+  <script>
+    (async function(){
+      const form=document.querySelector('#help-form'), notice=document.querySelector('#notice'), list=document.querySelector('#request-list'), button=form.querySelector('button[type="submit"]');
+      const say=(text,isError=false)=>{notice.textContent=text;notice.style.background=isError?'#fff0ed':'#eef5e7';notice.style.color=isError?'#8b3526':'#405d32';notice.classList.add('show')};
+      const esc=(s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      try{
+        const db=await window.bmcSupabaseReady;if(!db)throw new Error(window.bmcSupabaseError||'Could not connect to Stagerang.');
+        const {data:{user},error:authError}=await db.auth.getUser();if(authError||!user){location.href='index.html';return;}
+        const params=new URLSearchParams(location.search);if(params.has('topic'))document.querySelector('#category').value=params.get('topic');if(params.has('subject'))document.querySelector('#subject').value=params.get('subject');
+        async function loadRequests(){const {data,error}=await db.from('support_requests').select('id,subject,status,created_at,updated_at').eq('user_id',user.id).order('created_at',{ascending:false});if(error)throw error;list.className=data?.length?'':'empty';list.innerHTML=data?.length?data.map(r=>`<article class="ticket"><b>${esc(r.subject)}</b><small>${esc(r.status.replaceAll('_',' '))} · Submitted ${new Date(r.created_at).toLocaleString()} · Ref ${esc(r.id.slice(0,8))}</small></article>`).join(''):'No support requests yet.';}
+        await loadRequests();window.setInterval(()=>{if(document.visibilityState==="visible")loadRequests().catch(()=>{})},30000);
+        form.addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;try{const category=document.querySelector('#category').value,project=document.querySelector('#project').value.trim(),details=document.querySelector('#details').value.trim();const description=`Topic: ${category}${project?`\nRelated project: ${project}`:''}\n\n${details}`;const {data,error}=await db.from('support_requests').insert({user_id:user.id,subject:document.querySelector('#subject').value.trim(),description}).select('id').single();if(error)throw error;form.reset();say(`Request saved and sent to the support queue. Reference: ${data.id.slice(0,8)}.`);await loadRequests();}catch(error){say(error.message||'Your request could not be saved. Please try again.',true);}finally{button.disabled=false;}});
+      }catch(error){list.textContent=error.message||'Could not load support requests.';say(error.message||'Support is unavailable.',true);}
+    })();
+  </script>
+</body>
+</html>

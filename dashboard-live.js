@@ -5,7 +5,7 @@
   const $ = (selector) => document.querySelector(selector);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const toast = (message) => { const node = $("#toast"); if (node) { node.textContent = message; node.classList.add("show"); setTimeout(() => node.classList.remove("show"), 3200); } };
-  let supabase, user, projectById = {}, profileById = {};
+  let supabase, user, accountType = "creator", projectById = {}, profileById = {}, dashboardApplications = [], dashboardConversations = [];
 
   function setupReports() {
     const layout = $(".layout"); if (!layout) return;
@@ -13,6 +13,7 @@
     notice.className = "panel table-panel"; notice.style.cssText = "margin:0 0 14px;padding:14px 16px";
     notice.innerHTML = '<div class="table-head" style="padding:0 0 9px"><h2>Recent notifications</h2><span id="notification-caption">New interest and message activity for this account</span></div><div id="notification-list" style="display:grid;gap:8px"></div>';
     layout.prepend(notice);
+    ["#range-summary", "#creator-range-summary"].forEach((selector) => { const node = $(selector); if (node) node.textContent = "Loading your live activity…"; });
     $("#table-title").textContent = "Brand projects";
     $("#table-head")?.replaceChildren();
     const postsPanel = $("#table-body")?.closest(".table-panel");
@@ -77,7 +78,7 @@
       const profile = profileById[app.applicant_id] || {}; const name = profile.display_name || profile.company_name || "Member";
       return `<article style="border-top:1px solid #e5e8df;padding:14px 0;display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,2fr) auto;gap:12px;align-items:center"><div><b>${esc(name)}</b><div>${esc(profile.account_type || "Member")} · ${new Date(app.created_at).toLocaleDateString()}</div></div><div>${esc(app.message || "No note included")}</div><div style="display:flex;gap:6px;flex-wrap:wrap"><select data-status="${esc(app.id)}"><option value="interested">Interested</option><option value="working_together">Work together</option><option value="rejected">Pass</option></select><button data-chat="${esc(app.id)}">Open chat</button></div></article>`;
     }).join("") : '<p>No one has expressed interest in this post yet.</p>';
-    items.forEach((app) => { const select = $(`[data-status="${CSS.escape(app.id)}"]`); if (select) { select.value = app.status; select.onchange = async () => { const { error } = await supabase.from("applications").update({ status: select.value, updated_at: new Date().toISOString() }).eq("id", app.id); if (error) toast(error.message); else { app.status = select.value; toast("Application status updated."); } }; } const button = $(`[data-chat="${CSS.escape(app.id)}"]`); if (button) button.onclick = async () => { try { const id = await ensureChat(projectId, app.applicant_id); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } }; });
+    items.forEach((app) => { const select = $(`[data-status="${CSS.escape(app.id)}"]`); if (select) { select.value = app.status; select.onchange = async () => { const { error } = await supabase.from("applications").update({ status: select.value, updated_at: new Date().toISOString() }).eq("id", app.id); if (error) toast(error.message); else { app.status = select.value; toast("Application status updated."); await refreshDashboardData(); await renderNotifications(); } }; } const button = $(`[data-chat="${CSS.escape(app.id)}"]`); if (button) button.onclick = async () => { try { const id = await ensureChat(projectId, app.applicant_id); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } }; });
   }
 
   async function bulkMessage(projectId) {
@@ -86,12 +87,16 @@
     const text = prompt(`Send a private message about “${project.project_name}” to ${recipients.length} interested person(s). Each person gets a separate private message:`);
     if (!text?.trim()) return;
     try {
+      let sent = 0; const failed = [];
       for (const app of recipients) {
-        const id = await ensureChat(projectId, app.applicant_id);
-        const { error } = await supabase.from("messages").insert({ conversation_id: id, sender_id: user.id, body: text.trim() });
-        if (error) throw error;
+        try {
+          const id = await ensureChat(projectId, app.applicant_id);
+          const { error } = await supabase.from("messages").insert({ conversation_id: id, sender_id: user.id, body: text.trim() });
+          if (error) throw error;
+          sent++;
+        } catch (_) { failed.push(app.applicant_id); }
       }
-      toast(`Sent privately to ${recipients.length} interested person(s).`);
+      toast(failed.length ? `Sent to ${sent} of ${recipients.length}; ${failed.length} message(s) failed.` : `Sent privately to ${sent} interested person(s).`);
     } catch (error) { toast(error.message || "Could not send the project update."); }
   }
 
@@ -101,7 +106,7 @@
     const forProject = Object.fromEntries(owned.map((project) => [project.id, applications.filter((app) => app.project_id === project.id)]));
     for (const project of owned) project.applications = forProject[project.id] || [];
     const chatCounts = conversations.reduce((out, chat) => { if (chat.project_id) out[chat.project_id] = (out[chat.project_id] || 0) + 1; return out; }, {});
-    const kindOf = (p) => p.owner_type === "agency" ? "agency" : p.owner_type === "creator" || p.project_type === "creator_idea" ? "creator" : "brand";
+    const kindOf = () => accountType;
     const brandPosts = owned.filter((p) => kindOf(p) === "brand");
     const creatorPosts = owned.filter((p) => kindOf(p) === "creator");
     const agencyPosts = owned.filter((p) => kindOf(p) === "agency");
@@ -109,7 +114,7 @@
       const rows = forProject[p.id] || []; const interested = rows.filter((x) => x.status === "interested").length;
       const together = rows.filter((x) => x.status === "working_together").length; const rejected = rows.filter((x) => x.status === "rejected").length;
       const label = kindOf(p) === "agency" ? "Agency project" : kindOf(p) === "creator" ? "Creator idea" : "Brand project";
-      return `<tr class="data-row" data-role="${esc(p.owner_type)}" data-date="${esc((p.created_at || "").slice(0,10))}" data-project="${esc(p.project_name)}" data-recipients="${interested}"><td class="project-cell"><b>${esc(p.project_name)}</b><span>${label} · ${esc(p.category)}</span></td><td>${esc(p.status)}</td><td><span class="metric">${rows.length}</span></td><td><span class="metric">${interested}</span></td><td><span class="metric">${together}</span></td><td><span class="metric">${rejected}</span></td><td><span class="metric">${chatCounts[p.id] || 0}</span></td><td><div class="row-actions"><button class="action" data-applicants="${esc(p.id)}">View responses (${rows.length})</button><button class="action primary-action" data-bulk="${esc(p.id)}">Message interested</button></div></td></tr>`;
+      return `<tr class="data-row" data-role="${esc(kindOf(p))}" data-project-id="${esc(p.id)}" data-date="${esc((p.created_at || "").slice(0,10))}" data-project="${esc(p.project_name)}" data-recipients="${interested}"><td class="project-cell"><b>${esc(p.project_name)}</b><span>${label} · ${esc(p.category)}</span></td><td>${esc(p.status)}</td><td><span class="metric">${rows.length}</span></td><td><span class="metric">${interested}</span></td><td><span class="metric">${together}</span></td><td><span class="metric">${rejected}</span></td><td><span class="metric">${chatCounts[p.id] || 0}</span></td><td><div class="row-actions"><button class="action" data-applicants="${esc(p.id)}">View responses (${rows.length})</button><button class="action primary-action" data-bulk="${esc(p.id)}">Message interested</button></div></td></tr>`;
     }).join("");
     if (ownBody) ownBody.innerHTML = renderProjectRows(brandPosts);
     if (creatorIdeaBody) creatorIdeaBody.innerHTML = renderProjectRows(creatorPosts);
@@ -141,6 +146,7 @@
 
   function syncDashboardDates() {
     const from = $("#date-from")?.value || "0000-01-01", to = $("#date-to")?.value || "9999-12-31";
+    const within = (value) => { const day = String(value || "").slice(0, 10); return day >= from && day <= to; };
     const groups = [
       ["#table-body", "#empty", "#range-summary", "projects"],
       ["#creator-ideas-body", "#creator-ideas-empty", "#creator-ideas-summary", "ideas"],
@@ -152,12 +158,20 @@
       const all = [...body.querySelectorAll("tr[data-date]")];
       all.forEach((row) => { row.style.display = row.dataset.date >= from && row.dataset.date <= to ? "" : "none"; });
       const visible = all.filter((row) => row.style.display !== "none");
+      if (label !== "applications") visible.forEach((row) => {
+        const projectId = row.dataset.projectId;
+        const apps = dashboardApplications.filter((app) => app.project_id === projectId && within(app.created_at));
+        const chats = dashboardConversations.filter((chat) => chat.project_id === projectId && within(chat.created_at));
+        const values = [apps.length, apps.filter((app) => app.status === "interested").length, apps.filter((app) => app.status === "working_together").length, apps.filter((app) => app.status === "rejected").length, chats.length];
+        values.forEach((value, index) => { const metric = row.cells[index + 2]?.querySelector(".metric"); if (metric) metric.textContent = String(value); });
+        const responseButton = row.querySelector("[data-applicants]"); if (responseButton) responseButton.textContent = `View responses (${apps.length})`;
+      });
       const empty = $(emptySelector); if (empty) empty.style.display = visible.length ? "none" : "block";
       const summary = $(summarySelector);
       if (summary && label === "applications") summary.textContent = `${visible.length} application${visible.length === 1 ? "" : "s"} sent in this date range`;
       else if (summary) {
         const totals = [2,3,4,5,6].map((index) => visible.reduce((sum, row) => sum + Number(row.cells[index]?.querySelector(".metric")?.textContent || 0), 0));
-        summary.textContent = `${visible.length} ${label} · ${totals[0]} responses · ${totals[1]} interested · ${totals[2]} working together · ${totals[3]} passed · ${totals[4]} chats`;
+      summary.textContent = `${visible.length} ${label} · ${totals[0]} responses · ${totals[1]} interested · ${totals[2]} working together · ${totals[3]} passed · ${totals[4]} chats in this date range`;
       }
     }
   }
@@ -195,13 +209,15 @@
     const { data: memberRows, error: memberError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
     if (memberError) throw memberError;
     const chatIds = (memberRows || []).map((x) => x.conversation_id);
-    const chatResult = chatIds.length ? await supabase.from("conversations").select("id,project_id").in("id", chatIds).in("project_id", allProjectIds) : { data: [], error: null };
+    const chatResult = chatIds.length ? await supabase.from("conversations").select("id,project_id,created_at").in("id", chatIds).in("project_id", allProjectIds) : { data: [], error: null };
     if (chatResult.error) throw chatResult.error;
     const memberIds = chatIds.length ? await supabase.from("conversation_members").select("conversation_id,user_id").in("conversation_id", chatIds) : { data: [], error: null };
     if (memberIds.error) throw memberIds.error;
     const memberMap = (memberIds.data || []).reduce((map, row) => { (map[row.conversation_id] ||= []).push(row.user_id); return map; }, {});
     const chats = (chatResult.data || []).map((c) => ({ ...c, memberIds: memberMap[c.id] || [] }));
-    renderOwned(own || [], [...(incomingResult.data || []), ...(outgoing || [])], chats);
+    dashboardApplications = [...new Map([...(incomingResult.data || []), ...(outgoing || [])].map((app) => [app.id, app])).values()];
+    dashboardConversations = chats;
+    renderOwned(own || [], dashboardApplications, chats);
   }
 
   try {
@@ -214,7 +230,7 @@
     const { data: profile, error: profileError } = await supabase.from("profiles").select("display_name,company_name,account_type").eq("id", user.id).maybeSingle();
     if (profileError) throw profileError;
     const name = profile?.display_name || profile?.company_name || "Member";
-    const type = profile?.account_type || "creator";
+    const type = profile?.account_type || "creator"; accountType = type;
     const header = $(".collabry-account > span"); if (header) header.textContent = `${name} · ${type === "creator" ? "Creator" : type[0].toUpperCase() + type.slice(1)}`;
     const picker = $("#role"); if (picker) { picker.value = type; picker.disabled = true; }
     const title = $("#page-title"); if (title) title.textContent = type === "creator" ? "Creator project dashboard" : type === "agency" ? "Agency project dashboard" : "Brand project dashboard";
@@ -228,6 +244,7 @@
     document.body.classList.add("bmc-dashboard-ready");
   } catch (error) {
     console.error("Live dashboard could not load:", error);
+    ["#range-summary", "#creator-range-summary", "#agency-projects-summary"].forEach((selector) => { const node = $(selector); if (node) node.textContent = "Live data could not be loaded. Refresh or check your connection."; });
     toast(error.message || "Live dashboard data could not be loaded.");
     document.body.classList.add("bmc-dashboard-ready");
   }

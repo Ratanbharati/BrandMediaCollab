@@ -60,7 +60,7 @@ Only delete accounts made for testing or accounts whose deletion has been author
 
 - **Projects:** review recent project records, owners, owner account types, categories, statuses, and dates.
 - **Applications:** review project, applicant, account type, status, application note, and received date. These are application notes, not private chat transcripts.
-- **Support:** review submitted support requests and the member who sent each one.
+- **Support:** review submitted support requests and the member who sent each one. Change each request to **Open**, **In progress**, or **Resolved**; the status is saved and recorded in the audit log.
 - **Audit log:** review recorded admin actions, the affected record, and action details.
 
 Use the **Refresh data** button or wait for the periodic refresh when checking new activity.
@@ -68,7 +68,7 @@ Use the **Refresh data** button or wait for the periodic refresh when checking n
 ## Privacy and limits
 
 - Private conversation message bodies are not shown in the admin console. Only the overview conversation count is shown.
-- The current console does not edit projects/applications, grant admin roles, reset user passwords, resolve support requests, export data, or suspend accounts.
+- The current console does not edit projects/applications, grant admin roles, reset user passwords, export data, or suspend accounts.
 - Social-network authorization/follower syncing and Google Calendar integrations are separate unfinished product integrations.
 - Admin activity is audited. Keep the owner login private, sign out on shared computers, and do not expose the service-role key.
 

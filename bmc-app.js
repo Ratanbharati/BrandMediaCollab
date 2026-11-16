@@ -85,7 +85,7 @@
           if (priorError) throw priorError;
           const message = note.value.trim() || `Hi, I’m interested in “${project.project_name}”. Let’s discuss it here.`;
           const save = prior
-            ? await supabase.from("applications").update({ message, updated_at: new Date().toISOString() }).eq("id", prior.id)
+            ? await supabase.from("applications").update({ status: prior.status === "withdrawn" ? "interested" : prior.status, message, updated_at: new Date().toISOString() }).eq("id", prior.id)
             : await supabase.from("applications").insert({ project_id: projectId, applicant_id: user.id, status: "interested", message });
           if (save.error) throw save.error;
           const conversationId = await getOrCreateProjectChat(supabase, projectId, project.owner_id, user, message);
@@ -115,6 +115,15 @@
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
     const label = type === "brand" ? "Brand" : type === "agency" ? "Agency" : "Creator";
     headerName.textContent = `${name} · ${label}`;
+    if (location.pathname.endsWith("/project-form.html") && !new URLSearchParams(location.search).has("id")) {
+      const kind = $("#kind");
+      if (kind) {
+        kind.value = type === "creator" ? "creator" : "brand";
+        const brandOption = kind.querySelector('option[value="brand"]');
+        if (type === "creator") brandOption?.remove();
+        else if (type === "agency" && brandOption) brandOption.textContent = "Agency campaign";
+      }
+    }
     if (type === "agency" && location.pathname.endsWith("/project-form.html")) {
       const kind = $("#kind"); if (kind?.querySelector('option[value="brand"]')) kind.querySelector('option[value="brand"]').textContent = "Agency campaign";
       if (!new URLSearchParams(location.search).has("id")) {
@@ -275,14 +284,13 @@
     document.title = `${profile.display_name || "Profile"} — Stagerang`;
   }
   function projectPayload(user, accountType) {
-    const kind = $("#kind").value;
     const budget = [...document.querySelectorAll(".delivery")].map((row) => ({
       deliverable: row.querySelector(".deliverable").value,
       amount_range: row.querySelector(".amount").value.trim(),
     })).filter((x) => x.amount_range);
     return {
       owner_id: user.id, owner_type: accountType,
-      project_type: kind === "creator" ? "creator_idea" : "brand_campaign",
+      project_type: accountType === "creator" ? "creator_idea" : "brand_campaign",
       project_name: $("#name").value.trim(), category: $("#category").value,
       location: $("#location").value.trim() || null,
       requirements: $("#requirements").value.trim(),
@@ -321,6 +329,8 @@
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: p, error } = await supabase.from("projects").select("*").eq("id", id).eq("owner_id", user.id).single();
     if (error) throw error;
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("account_type").eq("id", user.id).single();
+    if (profileError) throw profileError;
     const values = {
       "#name": p.project_name, "#category": p.category, "#location": p.location,
       "#requirements": p.requirements, "#applicationDeadline": p.application_deadline,
@@ -330,7 +340,7 @@
       "#reshare": p.reshare_permissions, "#status": p.status,
     };
     Object.entries(values).forEach(([selector, value]) => { const el = $(selector); if (el && value) el.value = value; });
-    $("#kind").value = p.project_type === "creator_idea" ? "creator" : "brand";
+    $("#kind").value = profile.account_type === "creator" ? "creator" : "brand";
     document.querySelectorAll(".delivery").forEach((row, index) => {
       const item = (p.budget_by_deliverable || [])[index]; if (!item) return;
       row.querySelector(".deliverable").value = item.deliverable || "Other";
@@ -341,13 +351,15 @@
   async function loadMyProjects() {
     const host = $("#list"); if (!host) return;
     const supabase = await client(); const user = await signedIn(supabase);
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("account_type").eq("id", user.id).single();
+    if (profileError) throw profileError;
     const { data, error } = await supabase.from("projects").select("*").eq("owner_id", user.id).order("created_at", { ascending: false });
     if (error) throw error;
     host.innerHTML = "";
     $("#empty").hidden = data.length > 0;
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "card project";
-      const projectLabel = p.owner_type === "agency" ? "Agency project" : p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand campaign";
+      const projectLabel = profile.account_type === "agency" ? "Agency project" : profile.account_type === "creator" ? "Creator collaboration idea" : "Brand campaign";
       row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
       host.append(row);
     });

@@ -91,7 +91,14 @@
 
   async function loadSupport() {
     const data = await api("/api/admin/data?resource=support"), body = $("#support-body"); body.replaceChildren();
-    (data.requests || []).forEach((item) => rowFor(body, [item.subject, item.profile?.display_name || item.profile?.company_name || "Member", item.status, item.description, date(item.created_at)]));
+    (data.requests || []).forEach((item) => {
+      const row = document.createElement("tr"); td(row, item.subject); td(row, item.profile?.display_name || item.profile?.company_name || "Member");
+      const statusCell = document.createElement("td"), status = document.createElement("select");
+      [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"]].forEach(([value, label]) => { const option = document.createElement("option"); option.value = value; option.textContent = label; status.append(option); });
+      status.value = item.status; status.setAttribute("aria-label", `Support status for ${item.subject}`);
+      status.addEventListener("change", async () => { status.disabled = true; try { await api("/api/admin/data", { method: "PATCH", body: JSON.stringify({ id: item.id, status: status.value }) }); toast("Support status updated."); await loadOverview(); } catch (error) { toast(error.message); status.value = item.status; } finally { status.disabled = false; } });
+      statusCell.append(status); row.append(statusCell); td(row, item.description); td(row, date(item.created_at)); body.append(row);
+    });
     if (!body.children.length) { const row = document.createElement("tr"); const cell = td(row, "No support requests found."); cell.colSpan = 5; body.append(row); }
   }
   async function loadAudit() {
