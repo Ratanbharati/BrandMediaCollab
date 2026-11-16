@@ -101,8 +101,18 @@
     document.body.classList.add("bmc-projects-ready"); renderFilters();
   }
   function wire() {
-    document.querySelectorAll(".segmented [data-kind]").forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind)));
-    document.querySelectorAll(".side-link[data-status]").forEach((b) => { b.onclick = (event) => { event.preventDefault(); if (b.dataset.status === "collab") { setKind("creator"); setScope("discover"); } else if (b.dataset.status === "agency") { setKind("agency"); setScope("discover"); } else if (b.dataset.status === "discover") { setKind("brand"); setScope("discover"); } else if (["applied", "saved"].includes(b.dataset.status)) setScope(b.dataset.status); }; });
+    // projects.html contains legacy page handlers. Handle these controls during
+    // capture, then stop those old handlers from applying a second visual-only filter.
+    document.querySelectorAll(".segmented [data-kind]").forEach((b) => b.addEventListener("click", (event) => {
+      event.preventDefault(); event.stopImmediatePropagation(); setKind(b.dataset.kind);
+    }, true));
+    document.querySelectorAll(".side-link[data-status]").forEach((b) => b.addEventListener("click", (event) => {
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (b.dataset.status === "collab") { setKind("creator"); setScope("discover"); }
+      else if (b.dataset.status === "agency") { setKind("agency"); setScope("discover"); }
+      else if (b.dataset.status === "discover") { setKind("brand"); setScope("discover"); }
+      else if (["applied", "saved"].includes(b.dataset.status)) setScope(b.dataset.status);
+    }, true));
     ["q", "cat", "tier", "platform", "location"].forEach((id) => $("#" + id).addEventListener(id === "q" ? "input" : "change", renderFilters));
     $("#clear").onclick = () => { ["q", "cat", "tier", "platform", "location"].forEach((id, i) => $("#" + id).value = i ? "all" : ""); renderFilters(); };
     host.addEventListener("click", async (event) => {
