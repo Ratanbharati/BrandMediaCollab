@@ -420,7 +420,7 @@
       if (ownersError) throw ownersError; owners = data || [];
     }
     const byId = Object.fromEntries(owners.map((p) => [p.id, p]));
-    const kindOf = (p) => p.owner_type === "agency" || byId[p.owner_id]?.account_type === "agency" ? "agency" : p.owner_type === "creator" || byId[p.owner_id]?.account_type === "creator" || p.project_type === "creator_idea" ? "creator" : "brand";
+    const kindOf = (p) => p.project_type === "creator_idea" ? "creator" : p.owner_type === "agency" || byId[p.owner_id]?.account_type === "agency" ? "agency" : p.owner_type === "creator" || byId[p.owner_id]?.account_type === "creator" ? "creator" : "brand";
     const feedKinds = projects.map(kindOf);
     let live = $("#bmc-live-posts");
     const center = $(".center-col");
@@ -513,7 +513,7 @@
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "panel project item";
       const owner = (profiles || []).find((item) => item.id === p.owner_id);
-      row.dataset.kind = p.owner_type === "agency" || owner?.account_type === "agency" ? "agency" : p.owner_type === "creator" || owner?.account_type === "creator" || p.project_type === "creator_idea" ? "ideas" : "projects";
+      row.dataset.kind = p.project_type === "creator_idea" ? "ideas" : p.owner_type === "agency" || owner?.account_type === "agency" ? "agency" : p.owner_type === "creator" || owner?.account_type === "creator" ? "ideas" : "projects";
       row.dataset.category = p.category; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
       row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
       const kindLabel = row.dataset.kind === "agency" ? "Agency project" : row.dataset.kind === "ideas" ? "Creator idea" : "Brand project";
