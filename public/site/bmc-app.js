@@ -19,6 +19,18 @@
     if (error || !user) throw new Error("Please log in first, then try again.");
     return user;
   }
+  async function loadAccountHeader() {
+    const headerName = $(".collabry-account > span");
+    if (!headerName) return;
+    const supabase = await client();
+    const user = await signedIn(supabase);
+    const { data: profile, error } = await supabase.from("profiles").select("display_name,company_name,account_type").eq("id", user.id).maybeSingle();
+    if (error) throw error;
+    const name = profile?.display_name || profile?.company_name || user.user_metadata?.display_name || user.email?.split("@")[0] || "Member";
+    const type = profile?.account_type || user.user_metadata?.account_type || "creator";
+    const label = type === "brand" ? "Brand" : type === "agency" ? "Agency" : "Creator";
+    headerName.textContent = `${name} · ${label}`;
+  }
   async function authSubmit(event) {
     event.preventDefault(); event.stopImmediatePropagation();
     const form = event.currentTarget;
@@ -244,6 +256,9 @@
     if (!profile) { location.href = "profile-setup.html"; return; }
     const name = profile.display_name || profile.company_name || "Member";
     window.bmcAccountType = profile.account_type;
+    const accountLabel = profile.account_type === "brand" ? "Brand" : profile.account_type === "agency" ? "Agency" : "Creator";
+    const navAccount = $(".collabry-account > span");
+    if (navAccount) navAccount.textContent = `${name} · ${accountLabel}`;
     const person = $(".identity .person");
     if (person) {
       const h = person.querySelector("h3"); if (h) h.textContent = name;
@@ -326,6 +341,7 @@
   }
   function init() {
     const path = location.pathname;
+    if (!path.endsWith("/index.html") && path !== "/" && !path.endsWith("/logout.html")) loadAccountHeader().catch(() => {});
     if (path.endsWith("/index.html") || path === "/") $("#auth-form")?.addEventListener("submit", authSubmit, true);
     if (path.endsWith("/profile-setup.html")) document.addEventListener("click", profileClick, true);
     if (path.endsWith("/profile-setup.html")) loadProfileSetup().catch((error) => toast(error.message));

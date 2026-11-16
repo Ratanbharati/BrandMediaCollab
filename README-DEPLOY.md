@@ -1,9 +1,27 @@
-# Stagerang — Supabase connection
+# Stagerang — deployment and remaining setup
 
-This project is a Next.js site that displays the interface from `/public/site`.
-Connected Supabase features: signup/login, profile basics, profile photo upload, own-project create/edit/delete/list, live open-project feed, project discovery, and one-at-a-time interest applications. First-time profile completion opens the account's profile; later logins open the feed. Demo cards are removed from the live feed and project directory.
+This is the full Next.js project. It serves the static site pages from `/public/site` and exposes the Supabase public configuration through `/api/supabase-config`.
 
-Still to connect before treating the whole platform as operational: conversations/messages and group outreach, meetings and calendar reminders, email invitations, social-provider follower syncing, richer dashboards, profile portfolio/social links, and admin tools. The current UI for those areas may still be a prototype. Do not invite real users based on those unfinished areas.
+## Connected features in this package
+
+- Email/password signup and login through Supabase Auth.
+- Per-user profiles, profile editing, profile photo upload, and private contact record.
+- Create, edit, list, and delete your own projects.
+- Shared open-project feed and project discovery backed by Supabase.
+- Express interest in an open project and view applications for your projects.
+- Dashboard project/application counts backed by the signed-in user's rows.
+- Individual messages stored in Supabase for accepted collaborations; conversation list refreshes periodically.
+
+## Still not complete
+
+- Group chats and bulk campaign outreach.
+- In-app accept/reject workflow UI for project applications (status changes may need admin/SQL until that UI is added).
+- Read receipts/unread indicators and realtime messaging (messages refresh by polling).
+- Calendar integration, invitations, and automated reminders.
+- Social OAuth and follower-count syncing.
+- Complete admin dashboard and production hardening/security review.
+
+This remains a study project/prototype. Do not treat unfinished features as implemented just because an old screen mockup displays them.
 
 ## Supabase setup
 
@@ -21,9 +39,17 @@ Add these under the Vercel project → **Environment Variables**. Select Product
 
 Redeploy after changing environment variables or the GitHub source. Do not add a Supabase secret/service-role key to this frontend project.
 
-## Uploading the project to GitHub
+## Uploading this package to the connected GitHub repository
 
-Extract this ZIP on your computer. Upload its contents into the GitHub app directory configured as Vercel's Root Directory (for this account's existing repository upload, that directory is `brand-media-collab-supabase-ready`). Inside that directory, `app`, `public`, `supabase`, and `package.json` must sit directly together. Do not create a second nested `brand-media-collab-supabase-ready` directory. Commit the changes to `main`; Vercel should deploy from the connected repository.
+Vercel's Root Directory must be empty because this package's `app`, `public`, `supabase`, and `package.json` are at the repository root.
+
+1. Extract this ZIP on your computer.
+2. In `Ratanbharati/BrandMediaCollab` on GitHub, use **Add file → Upload files**.
+3. Upload/replace the package contents at the repository root. The repository root should directly contain `app`, `public`, `supabase`, `package.json`, `tsconfig.json`, and `README-DEPLOY.md`—do not upload a containing folder as a new nested directory.
+4. Commit the changes to `main`.
+5. In Vercel, wait for the `main` deployment to become **Ready** and **Production**. Check the deployment commit hash matches the new GitHub commit.
+
+See `UPLOAD-GUIDE.md` for the plain-language, screenshot-oriented sequence and the settings to verify after upload.
 
 ## First account and admin access
 
