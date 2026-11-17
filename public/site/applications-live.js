@@ -8,7 +8,7 @@
     const supabase = await window.bmcSupabaseReady;
     if (!supabase) throw new Error(window.bmcSupabaseError || "Could not connect to Supabase.");
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) { location.href = "index.html"; return; }
+    if (authError || !user) { location.href = "/site/index.html"; return; }
     list.querySelectorAll(".application").forEach((node) => node.remove());
     const { data: apps, error } = await supabase.from("applications").select("id,project_id,applicant_id,status,message,created_at").eq("applicant_id", user.id).order("created_at", { ascending: false });
     if (error) throw error;
@@ -49,7 +49,7 @@
             if (addError) throw addError;
             conversationId = chat.id;
           }
-          location.href = `messages.html?conversation=${encodeURIComponent(conversationId)}`;
+          location.href = `/site/messages.html?conversation=${encodeURIComponent(conversationId)}`;
         } catch (chatError) { toast(chatError.message || "Could not open the project chat."); }
       };
       card.querySelector("[data-withdraw]")?.addEventListener("click", async () => {

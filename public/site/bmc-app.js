@@ -92,7 +92,7 @@
           dialog.remove();
           if (button) { button.textContent = "Interest sent ✓"; button.disabled = true; }
           toast("Interest sent. Your private project chat is ready in Messages.");
-          if (location.pathname.endsWith("/messages.html")) location.href = `messages.html?conversation=${encodeURIComponent(conversationId)}`;
+          if (location.pathname.endsWith("/messages.html")) location.href = `/site/messages.html?conversation=${encodeURIComponent(conversationId)}`;
           resolve(true);
         } catch (error) { send.disabled = false; toast(error.message || "Could not send interest."); }
       };
@@ -149,11 +149,11 @@
           toast("Account created. Check your email to confirm it, then log in to finish your profile.");
           return;
         }
-        location.href = "profile-setup.html";
+        location.href = "/site/profile-setup.html";
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        location.href = "feed.html";
+        location.href = "/site/feed.html";
       }
     } catch (error) { toast(error.message || "Account request failed."); }
     finally { button.disabled = false; }
@@ -190,7 +190,7 @@
     if (contactError) throw contactError;
     if (complete) {
       sessionStorage.removeItem("bmc_signup_type"); sessionStorage.removeItem("bmc_signup_name"); sessionStorage.removeItem("bmc_edit_account_type");
-      location.href = "my-profile.html";
+      location.href = "/site/my-profile.html";
     } else toast("Profile saved to your account.");
   }
   function profileClick(event) {
@@ -230,7 +230,7 @@
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (error) throw error;
     const editingProfile = new URLSearchParams(location.search).get("edit") === "1";
-    if (editingProfile && !profile) { location.replace("profile-setup.html"); return; }
+    if (editingProfile && !profile) { location.replace("/site/profile-setup.html"); return; }
     const accountType = editingProfile ? profile.account_type : profile?.account_type || sessionStorage.getItem("bmc_signup_type") || user.user_metadata?.account_type || "creator";
     sessionStorage.setItem("bmc_signup_type", accountType);
     if (editingProfile) sessionStorage.setItem("bmc_edit_account_type", accountType);
@@ -266,12 +266,12 @@
     const supabase = await client(); const params = new URLSearchParams(location.search);
     const current = await supabase.auth.getUser();
     const targetId = params.get("user") || current.data.user?.id;
-    if (!targetId) { location.href = "index.html"; return; }
+    if (!targetId) { location.href = "/site/index.html"; return; }
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", targetId).single();
     if (error) throw error;
     const root = $("#dynamic-profile"); if (!root) return;
     const isOwner = current.data.user?.id === targetId;
-    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener">${esc(profile.website_url)}</a>` : ""}<div class="tags">${(profile.content_categories || []).map((x) => `<span>${esc(x)}</span>`).join("")}</div>${isOwner ? '<a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>' : ""}</div></section>`;
+    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener">${esc(profile.website_url)}</a>` : ""}<div class="tags">${(profile.content_categories || []).map((x) => `<span>${esc(x)}</span>`).join("")}</div>${isOwner ? '<a class="edit" href="/site/profile-setup.html?edit=1">Edit my profile</a>' : ""}</div></section>`;
     document.title = `${profile.display_name || "Profile"} — Stagerang`;
   }
   function projectPayload(user, accountType) {
@@ -312,7 +312,7 @@
         ? await supabase.from("projects").update(data).eq("id", id).eq("owner_id", user.id).select().single()
         : await supabase.from("projects").insert(data).select().single();
       if (result.error) throw result.error;
-      location.href = "my-projects.html";
+      location.href = "/site/my-projects.html";
     } catch (error) { toast(error.message || "Project could not be saved."); }
     finally { button.disabled = false; }
   }
@@ -348,7 +348,7 @@
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "card project";
       const projectLabel = p.owner_type === "agency" ? "Agency project" : p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand campaign";
-      row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
+      row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="/site/project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
       host.append(row);
     });
     host.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", async () => {
@@ -364,7 +364,7 @@
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error: pError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (pError) throw pError;
-    if (!profile) { location.href = "profile-setup.html"; return; }
+    if (!profile) { location.href = "/site/profile-setup.html"; return; }
     const name = profile.display_name || profile.company_name || "Member";
     window.bmcAccountType = profile.account_type;
     const accountLabel = profile.account_type === "brand" ? "Brand" : profile.account_type === "agency" ? "Agency" : "Creator";
@@ -375,12 +375,12 @@
       const h = person.querySelector("h3"); if (h) h.textContent = name;
       // The HTML template still contains a link to the old sample creator profile.
       // Route the signed-in member's identity card to their live Supabase profile.
-      const identityLink = person.querySelector("a"); if (identityLink) identityLink.href = "my-profile.html";
+      const identityLink = person.querySelector("a"); if (identityLink) identityLink.href = "/site/my-profile.html";
       const bio = person.querySelector("p"); if (bio) bio.textContent = profile.account_type === "brand" ? "Brand account" : profile.account_type === "agency" ? "Agency account" : "Creator account";
       const loc = person.querySelector(".loc"); if (loc) loc.textContent = profile.location || "Open to collaborations";
       const portrait = person.querySelector(".portrait"); if (portrait) portrait.innerHTML = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(name.slice(0, 1).toUpperCase());
     }
-    const profileLink = $("#my-profile-link"); if (profileLink) profileLink.href = "my-profile.html";
+    const profileLink = $("#my-profile-link"); if (profileLink) profileLink.href = "/site/my-profile.html";
     const profileMenu = $(".profile-menu"); if (profileMenu) {
       const switcher = profileMenu.querySelector("select"); if (switcher) switcher.remove();
       const label = profileMenu.querySelector(".person-label"); if (label) label.textContent = `${name} · ${profile.account_type}`;
@@ -392,7 +392,7 @@
     const side = $(".right-col");
     if (side && !$("#bmc-feed-activity")) {
       const activity = document.createElement("section"); activity.id = "bmc-feed-activity"; activity.className = "panel";
-      activity.innerHTML = '<h3 style="padding:14px 15px 8px;margin:0">Your activity</h3><div id="bmc-feed-stats" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading your activity…</div><div style="padding:0 15px 12px"><a href="dashboard.html" style="font-size:11px;color:#54763f">Open dashboard →</a></div><h3 style="padding:12px 15px 8px;margin:0;border-top:1px solid #efeee8">Notifications</h3><div id="bmc-feed-notifications" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading notifications…</div>';
+      activity.innerHTML = '<h3 style="padding:14px 15px 8px;margin:0">Your activity</h3><div id="bmc-feed-stats" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading your activity…</div><div style="padding:0 15px 12px"><a href="/site/dashboard.html" style="font-size:11px;color:#54763f">Open dashboard →</a></div><h3 style="padding:12px 15px 8px;margin:0;border-top:1px solid #efeee8">Notifications</h3><div id="bmc-feed-notifications" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading notifications…</div>';
       side.prepend(activity);
     }
     const feedTip = $(".right-col .tip p");
@@ -407,9 +407,9 @@
         if (primary) primary.textContent = "Share a collaboration idea with brands...";
         if (idea) idea.textContent = "Post an idea";
       }
-      if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
-      if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
-      const addWork = $("#add-work"); if (addWork && !addWork.dataset.feedBound) { addWork.dataset.feedBound = "true"; addWork.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "profile-setup.html?edit=1"; }, true); }
+      if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `/site/project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
+      if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `/site/project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
+      const addWork = $("#add-work"); if (addWork && !addWork.dataset.feedBound) { addWork.dataset.feedBound = "true"; addWork.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "/site/profile-setup.html?edit=1"; }, true); }
     }
     const { data: projects, error } = await supabase.from("projects").select("*").eq("status", "Open").order("created_at", { ascending: false });
     if (error) throw error;
@@ -447,7 +447,7 @@
       const type = kind === "agency" ? "Agency project" : kind === "creator" ? "Creator idea" : "Brand project";
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const canApply = user.id !== p.owner_id;
-      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions">${canApply ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
+      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="/site/my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions">${canApply ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
     }).join("");
     live.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
       const card = button.closest(".post");
@@ -517,7 +517,7 @@
       row.dataset.category = p.category; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
       row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
       const kindLabel = row.dataset.kind === "agency" ? "Agency project" : row.dataset.kind === "ideas" ? "Creator idea" : "Brand project";
-      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${kindLabel} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested ↗</button>`}</div></div>`;
+      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${kindLabel} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested ↗</button>`}</div></div>`;
       host.insertBefore(row, empty || null);
     });
     host.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
@@ -544,9 +544,9 @@
     }
     if (path.endsWith("/my-projects.html")) loadMyProjects().catch((error) => toast(error.message || "Log in to see your projects."));
     if (path.endsWith("/my-profile.html")) renderMyProfile().catch((error) => toast(error.message || "Could not load this profile."));
-    if (path.endsWith("/feed.html")) openProjectsForFeed().catch(() => { location.href = "index.html"; });
-    if (path.endsWith("/projects.html")) openProjectsDirectory().catch(() => { location.href = "index.html"; });
-    if (path.endsWith("/logout.html")) client().then((supabase) => supabase.auth.signOut()).finally(() => { location.href = "index.html"; });
+    if (path.endsWith("/feed.html")) openProjectsForFeed().catch(() => { location.href = "/site/index.html"; });
+    if (path.endsWith("/projects.html")) openProjectsDirectory().catch(() => { location.href = "/site/index.html"; });
+    if (path.endsWith("/logout.html")) client().then((supabase) => supabase.auth.signOut()).finally(() => { location.href = "/site/index.html"; });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
