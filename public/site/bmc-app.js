@@ -525,7 +525,7 @@
       const filter = window.bmcNotificationFilter || "all";
       const visible = (data || []).filter((item) => filter === "all" || (filter === "unread" ? !item.read_at : Boolean(item.read_at)));
       notifications.innerHTML = visible.length ? visible.map((item) => {
-        const href = item.conversation_id ? "messages.html?conversation=" + encodeURIComponent(item.conversation_id) : item.project_id ? "project-details.html?id=" + encodeURIComponent(item.project_id) : "dashboard.html";
+        const href = item.conversation_id ? "messages.html?conversation=" + encodeURIComponent(item.conversation_id) : item.project_id ? "dashboard.html" : "dashboard.html";
         return '<a href="' + href + '" data-notification-id="' + esc(item.id) + '" data-read="' + Boolean(item.read_at) + '" style="position:relative;display:block;padding:9px 12px 9px 22px;border-top:1px solid #efeee8;border-radius:8px;text-decoration:none;color:inherit;' + (item.read_at ? "" : "background:#f1f7ee;font-weight:700") + '">' + (item.read_at ? "" : '<i aria-label="Unread" style="position:absolute;left:7px;top:15px;width:7px;height:7px;border-radius:50%;background:#4d9bd5"></i>') + '<b>' + esc(item.title) + '</b><br><span style="font-size:10px;color:#788078;font-weight:400">' + esc(item.body) + ' · ' + new Date(item.created_at).toLocaleDateString() + '</span></a>';
       }).join("") : '<div style="padding:14px;text-align:center;color:#788078">' + (filter === "unread" ? "You’re all caught up." : filter === "read" ? "No read notifications yet." : "No new activity yet.") + '</div>';
       notifications.querySelectorAll("[data-notification-id]").forEach((link) => link.addEventListener("click", async (event) => {
