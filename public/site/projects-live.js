@@ -52,10 +52,17 @@
     if (values.includes(previous)) select.value = previous;
   }
   function renderFilterChoices() {
-    populateSelect("#cat", "All categories", filterValues(projects, "category"));
-    populateSelect("#tier", "Any creator tier", filterValues(projects, "creator_tiers"));
-    populateSelect("#platform", "Any platform", filterValues(projects, "platforms"));
-    populateSelect("#location", "Any location", filterValues(projects, "location"));
+    const available = projects.filter((project) => {
+      if (projectKind(project) !== activeKind) return false;
+      if (scope === "owned") return project.owner_id === user.id;
+      if (scope === "applied") return applications.some((item) => item.project_id === project.id && item.status !== "withdrawn");
+      if (scope === "saved") return saved.has(project.id);
+      return project.owner_id !== user.id && String(project.status).toLowerCase() === "open";
+    });
+    populateSelect("#cat", "All categories", filterValues(available, "category"));
+    populateSelect("#tier", "Any creator tier", filterValues(available, "creator_tiers"));
+    populateSelect("#platform", "Any platform", filterValues(available, "platforms"));
+    populateSelect("#location", "Any location", filterValues(available, "location"));
   }
   function projectMatches(project) {
     const query = $("#q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -80,6 +87,7 @@
   }
   function renderFilters() {
     if (!user) return;
+    renderFilterChoices();
     const visible = projects.filter(projectMatches);
     host.querySelectorAll(".item").forEach((row) => row.remove());
     visible.forEach((project) => host.insertBefore(buildCard(project), empty));
