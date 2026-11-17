@@ -422,7 +422,9 @@
     const side = $(".right-col");
     if (side && !$("#bmc-feed-activity")) {
       const activity = document.createElement("section"); activity.id = "bmc-feed-activity"; activity.className = "panel";
-      activity.innerHTML = '<h3 style="padding:14px 15px 8px;margin:0">Your activity</h3><div id="bmc-feed-stats" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading your activity…</div><div style="padding:0 15px 12px"><a href="dashboard.html" style="font-size:11px;color:#54763f">Open dashboard →</a></div><h3 style="padding:12px 15px 8px;margin:0;border-top:1px solid #efeee8">Notifications</h3><div id="bmc-feed-notifications" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading notifications…</div>';
+      activity.innerHTML = '<h3 style="padding:14px 15px 8px;margin:0">Your activity</h3><div id="bmc-feed-stats" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading your activity…</div><div style="padding:0 15px 12px"><a href="dashboard.html" style="font-size:11px;color:#54763f">Open dashboard →</a></div><div style="display:flex;align-items:center;justify-content:space-between;padding:12px 15px 8px;border-top:1px solid #efeee8"><h3 style="margin:0">Notifications <span data-feed-notification-count hidden style="display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:10px;background:#e8f2e2;color:#376444;font-size:10px"></span></h3><button type="button" id="bmc-feed-mark-all" style="border:0;background:transparent;color:#35764f;font-size:10px;font-weight:700">Mark all read</button></div><div id="bmc-feed-notification-filters" role="group" aria-label="Filter notifications" style="display:flex;gap:4px;padding:0 12px 8px"><button type="button" data-notification-filter="all" aria-pressed="true">All</button><button type="button" data-notification-filter="unread" aria-pressed="false">Unread</button><button type="button" data-notification-filter="read" aria-pressed="false">Read</button></div><div id="bmc-feed-notifications" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading notifications…</div>';
+      activity.querySelectorAll("[data-notification-filter]").forEach((button) => button.addEventListener("click", () => { window.bmcNotificationFilter = button.dataset.notificationFilter; activity.querySelectorAll("[data-notification-filter]").forEach((item) => item.setAttribute("aria-pressed", String(item === button))); refreshFeedActivity(supabase, user).catch(() => {}); }));
+      activity.querySelector("#bmc-feed-mark-all").addEventListener("click", async () => { const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null); if (error) return toast(error.message || "Could not update notifications."); await refreshFeedActivity(supabase, user); toast("All notifications marked as read."); });
       side.prepend(activity);
     }
     const feedTip = $(".right-col .tip p");
@@ -513,14 +515,26 @@
     const ids = (own.data || []).map((row) => row.id); let receivedCount = 0;
     if (ids.length) { const received = await supabase.from("applications").select("id", { count: "exact", head: true }).in("project_id", ids).neq("status", "withdrawn"); if (received.error) throw received.error; receivedCount = received.count || 0; }
     if (stats) stats.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><span><b>${postCount || 0}</b><br>Projects/ideas posted</span><span><b>${sentCount || 0}</b><br>Interests sent</span><span><b>${receivedCount}</b><br>Interests received</span><span><b>${window.bmcUnreadMessages || 0}</b><br>Unread messages</span></div>`;
-    const { data, error } = await supabase.from("notifications").select("id,title,body,type,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(6);
-    if (error) { if (notifications) notifications.textContent = "Run the activity-notifications SQL update to enable alerts."; return; }
+    const { data, error } = await supabase.from("notifications").select("id,title,body,type,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25);
+    if (error) { if (notifications) notifications.textContent = "Notifications could not be loaded. Please try again."; return; }
+    const unreadResult = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null);
+    const unreadCount = unreadResult.error ? (data || []).filter((item) => !item.read_at).length : unreadResult.count || 0;
+    const countNode = document.querySelector("[data-feed-notification-count]");
+    if (countNode) { countNode.textContent = unreadCount > 99 ? "99+" : String(unreadCount); countNode.hidden = unreadCount === 0; countNode.setAttribute("aria-label", unreadCount + " unread notifications"); }
     if (notifications) {
-      notifications.innerHTML = data?.length ? data.map((item) => `<a href="${item.conversation_id ? `messages.html?conversation=${encodeURIComponent(item.conversation_id)}` : "dashboard.html"}" data-notification-id="${esc(item.id)}" style="display:block;padding:9px 0;border-top:1px solid #efeee8;text-decoration:none;color:inherit;${item.read_at ? "" : "font-weight:700"}"><b>${esc(item.title)}</b><br><span style="font-size:10px;color:#788078">${esc(item.body)} · ${new Date(item.created_at).toLocaleDateString()}</span></a>`).join("") : "No new activity yet.";
+      const filter = window.bmcNotificationFilter || "all";
+      const visible = (data || []).filter((item) => filter === "all" || (filter === "unread" ? !item.read_at : Boolean(item.read_at)));
+      notifications.innerHTML = visible.length ? visible.map((item) => {
+        const href = item.conversation_id ? "messages.html?conversation=" + encodeURIComponent(item.conversation_id) : item.project_id ? "project-details.html?id=" + encodeURIComponent(item.project_id) : "dashboard.html";
+        return '<a href="' + href + '" data-notification-id="' + esc(item.id) + '" data-read="' + Boolean(item.read_at) + '" style="position:relative;display:block;padding:9px 12px 9px 22px;border-top:1px solid #efeee8;border-radius:8px;text-decoration:none;color:inherit;' + (item.read_at ? "" : "background:#f1f7ee;font-weight:700") + '">' + (item.read_at ? "" : '<i aria-label="Unread" style="position:absolute;left:7px;top:15px;width:7px;height:7px;border-radius:50%;background:#4d9bd5"></i>') + '<b>' + esc(item.title) + '</b><br><span style="font-size:10px;color:#788078;font-weight:400">' + esc(item.body) + ' · ' + new Date(item.created_at).toLocaleDateString() + '</span></a>';
+      }).join("") : '<div style="padding:14px;text-align:center;color:#788078">' + (filter === "unread" ? "You’re all caught up." : filter === "read" ? "No read notifications yet." : "No new activity yet.") + '</div>';
       notifications.querySelectorAll("[data-notification-id]").forEach((link) => link.addEventListener("click", async (event) => {
         event.preventDefault();
-        await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", link.dataset.notificationId);
-        await refreshMessageBadge(); location.href = link.href;
+        if (link.dataset.read !== "true") {
+          const { error: markError } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", link.dataset.notificationId).eq("user_id", user.id);
+          if (markError) return toast(markError.message || "Could not mark the notification as read.");
+        }
+        await refreshMessageBadge(); await refreshFeedActivity(supabase, user); location.href = link.href;
       }));
     }
     window.bmcRefreshMessageBadge?.();
