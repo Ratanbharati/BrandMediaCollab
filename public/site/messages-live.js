@@ -100,6 +100,7 @@
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, refreshThreads)
       .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, refreshThreads)
       .subscribe((status) => { realtimeConnected = status === "SUBSCRIBED"; });
+    window.addEventListener("pagehide", () => { if (realtimeChannel) supabase.removeChannel(realtimeChannel); realtimeChannel = null; if (poller) clearInterval(poller); if (activityTimer) clearInterval(activityTimer); }, { once: true });
   }
   async function selectConversation(item) {
     activeId = item.id;
