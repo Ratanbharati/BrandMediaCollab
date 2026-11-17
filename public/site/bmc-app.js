@@ -358,6 +358,35 @@
       loadMyProjects().catch((e) => toast(e.message));
     }));
   }
+  function subscribeFeedRealtime(supabase, user) {
+    if (window.bmcFeedRealtimeChannel) return;
+    let projectRefresh, activityRefresh;
+    const refreshProjects = () => { clearTimeout(projectRefresh); projectRefresh = setTimeout(() => openProjectsForFeed().catch((error) => console.error("Live feed refresh failed:", error)), 250); };
+    const refreshActivity = () => { clearTimeout(activityRefresh); activityRefresh = setTimeout(async () => { try { await refreshFeedActivity(supabase, user); await refreshMessageBadge(); } catch (error) { console.error("Live activity refresh failed:", error); } }, 250); };
+    const announce = (title, body) => {
+      toast(body || title || "You have new activity.");
+      if (document.hidden && "Notification" in window && Notification.permission === "granted") new Notification(title || "Stagerang", { body: body || "You have new activity." });
+    };
+    window.bmcFeedRealtimeConnected = false;
+    window.bmcFeedRealtimeChannel = supabase.channel("creator-dashboard-" + user.id)
+      .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, refreshProjects)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refreshProjects)
+      .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, refreshActivity)
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, refreshActivity)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: "user_id=eq." + user.id }, (payload) => {
+        refreshActivity();
+        if (payload.eventType === "INSERT" && payload.new?.type !== "new_message") announce(payload.new?.title, payload.new?.body);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+        refreshActivity();
+        if (payload.new?.sender_id !== user.id) announce("New project message", "A new message arrived in your collaboration inbox.");
+      })
+      .subscribe((status) => { window.bmcFeedRealtimeConnected = status === "SUBSCRIBED"; });
+    window.addEventListener("pagehide", () => {
+      if (window.bmcFeedRealtimeChannel) supabase.removeChannel(window.bmcFeedRealtimeChannel);
+      window.bmcFeedRealtimeChannel = null;
+    }, { once: true });
+  }
   async function openProjectsForFeed() {
     const selectedKind = window.bmcSelectedFeedKind || "brand";
     document.querySelectorAll(".center-col .post, #bmc-live-posts, #bmc-feed-tabs").forEach((node) => node.remove());
@@ -365,6 +394,7 @@
     const { data: profile, error: pError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (pError) throw pError;
     if (!profile) { location.href = "profile-setup.html"; return; }
+    subscribeFeedRealtime(supabase, user);
     const name = profile.display_name || profile.company_name || "Member";
     window.bmcAccountType = profile.account_type;
     const accountLabel = profile.account_type === "brand" ? "Brand" : profile.account_type === "agency" ? "Agency" : "Creator";
@@ -439,7 +469,7 @@
         window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind; applyFeedVisibility();
       });
     }
-    if (!projects.length) { live.innerHTML = ""; live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedActivityTimer) window.bmcFeedActivityTimer = window.setInterval(() => refreshFeedActivity(supabase, user).catch(() => {}), 20000); if (!window.bmcFeedProjectTimer) window.bmcFeedProjectTimer = window.setInterval(() => openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)), 30000); return; }
+    if (!projects.length) { live.innerHTML = ""; live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedActivityTimer) window.bmcFeedActivityTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected && !document.hidden) refreshFeedActivity(supabase, user).catch(() => {}); }, 30000); if (!window.bmcFeedProjectTimer) window.bmcFeedProjectTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected && !document.hidden) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 45000); return; }
     ["brand", "creator", "agency"].forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
     live.innerHTML = projects.map((p) => {
       const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
