@@ -3,7 +3,7 @@
   const $ = (selector) => document.querySelector(selector);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const toast = (message) => { const node = $("#toast"); if (node) { node.textContent = message; node.classList.add("show"); setTimeout(() => node.classList.remove("show"), 2800); } };
-  let supabase, user, activeId = null, poller = null;
+  let supabase, user, activeId = null, poller = null, realtimeChannel = null, realtimeConnected = false;
   let activityTimer = null;
   const conversationNode = $("#conversation");
   const threadNode = $("#thread-list");
@@ -85,6 +85,23 @@
     else data.forEach(appendMessage);
     conversationNode.scrollTop = conversationNode.scrollHeight;
   }
+  function connectRealtime() {
+    if (realtimeChannel || !supabase || !user) return;
+    const refreshThreads = () => { renderThreads().catch((error) => console.error("Conversation list refresh failed:", error)); refreshActivity().catch(() => {}); };
+    realtimeChannel = supabase.channel(`messages-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
+        const message = payload.new || payload.old || {};
+        if (payload.eventType === "INSERT" && message.sender_id !== user.id && document.hidden && "Notification" in window && Notification.permission === "granted") new Notification("New project message", { body: "A new message arrived in your collaboration inbox." });
+        if (payload.eventType === "INSERT" && message.sender_id !== user.id && (!activeId || message.conversation_id !== activeId)) toast("New message in your collaboration inbox.");
+        if (activeId && message.conversation_id === activeId) loadMessages(activeId).catch((error) => console.error("Live message refresh failed:", error));
+        refreshThreads(); window.bmcRefreshMessageBadge?.();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => { window.bmcRefreshMessageBadge?.(); refreshActivity().catch(() => {}); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, refreshThreads)
+      .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, refreshThreads)
+      .subscribe((status) => { realtimeConnected = status === "SUBSCRIBED"; });
+    window.addEventListener("pagehide", () => { if (realtimeChannel) supabase.removeChannel(realtimeChannel); realtimeChannel = null; if (poller) clearInterval(poller); if (activityTimer) clearInterval(activityTimer); }, { once: true });
+  }
   async function selectConversation(item) {
     activeId = item.id;
     $("#chat-name").textContent = item.otherName;
@@ -103,8 +120,7 @@
     window.bmcRefreshMessageBadge?.();
     window.dispatchEvent(new CustomEvent("bmc-notifications-updated"));
     refreshActivity().catch(() => {});
-    if (poller) clearInterval(poller);
-    poller = setInterval(() => { if (activeId === item.id && !document.hidden) loadMessages(item.id).catch(() => {}); }, 5000);
+    if (poller) { clearInterval(poller); poller = null; }
   }
   async function createConversation(projectId, otherId, projectName, otherName) {
     const { data: existing, error: listError } = await supabase.from("conversations").select("id,project_id,created_by").eq("project_id", projectId);
@@ -224,12 +240,12 @@
     const segmented = document.querySelector(".seg"); if (segmented) segmented.remove();
     if (sendButton) sendButton.onclick = null;
     if (input) input.onkeydown = null;
-    document.querySelectorAll(".list-title button").forEach((button) => { button.onclick = null; button.addEventListener("click", () => toast("Chats start after both people accept a project application.")); });
+    document.querySelectorAll(".list-title button").forEach((button) => { button.onclick = null; button.setAttribute("aria-label", "Find a project to start a conversation"); button.title = "Show interest in a project to start a private project conversation"; button.addEventListener("click", () => { location.href = "projects.html"; }); });
     $("#thread-search")?.addEventListener("input", (event) => { const query = event.target.value.toLowerCase(); threadNode.querySelectorAll(".thread").forEach((node) => node.classList.toggle("hidden", !node.textContent.toLowerCase().includes(query))); });
     $("#back")?.addEventListener("click", () => $("#messages").classList.remove("show-chat"));
     sendButton?.addEventListener("click", sendMessage);
     input?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
-    await refreshActivity(); activityTimer = setInterval(() => refreshActivity().catch((e) => { console.error("Project snapshot refresh failed:", e); $("#bmc-activity-context").textContent = `Could not refresh project counts: ${e.message || "Supabase error"}`; }), 20000);
+    await refreshActivity(); connectRealtime(); activityTimer = setInterval(() => { if (!realtimeConnected) { refreshActivity().catch((e) => { console.error("Project snapshot refresh failed:", e); $("#bmc-activity-context").textContent = `Could not refresh project counts: ${e.message || "Supabase error"}`; }); if (activeId && !document.hidden) loadMessages(activeId).catch(() => {}); renderThreads().catch(() => {}); } }, 30000);
     await renderThreads();
     if (!activeId) {
       $("#chat-name").textContent = "No conversation selected"; $("#chat-name").removeAttribute("href");
@@ -250,3 +266,4 @@
     document.body.classList.add("bmc-messages-ready");
   }
 })();
+
