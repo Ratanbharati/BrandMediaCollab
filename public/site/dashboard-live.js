@@ -77,7 +77,7 @@
       const profile = profileById[app.applicant_id] || {}; const name = profile.display_name || profile.company_name || "Member";
       return `<article style="border-top:1px solid #e5e8df;padding:14px 0;display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,2fr) auto;gap:12px;align-items:center"><div><b>${esc(name)}</b><div>${esc(profile.account_type || "Member")} · ${new Date(app.created_at).toLocaleDateString()}</div></div><div>${esc(app.message || "No note included")}</div><div style="display:flex;gap:6px;flex-wrap:wrap"><select data-status="${esc(app.id)}"><option value="interested">Interested</option><option value="working_together">Work together</option><option value="rejected">Pass</option></select><button data-chat="${esc(app.id)}">Open chat</button></div></article>`;
     }).join("") : '<p>No one has expressed interest in this post yet.</p>';
-    items.forEach((app) => { const select = $(`[data-status="${CSS.escape(app.id)}"]`); if (select) { select.value = app.status; select.onchange = async () => { const { error } = await supabase.from("applications").update({ status: select.value, updated_at: new Date().toISOString() }).eq("id", app.id); if (error) toast(error.message); else { app.status = select.value; toast("Application status updated."); } }; } const button = $(`[data-chat="${CSS.escape(app.id)}"]`); if (button) button.onclick = async () => { try { const id = await ensureChat(projectId, app.applicant_id); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } }; });
+    items.forEach((app) => { const select = $(`[data-status="${CSS.escape(app.id)}"]`); if (select) { select.value = app.status; select.onchange = async () => { const { error } = await supabase.from("applications").update({ status: select.value, updated_at: new Date().toISOString() }).eq("id", app.id); if (error) toast(error.message); else { app.status = select.value; toast("Application status updated."); } }; } const button = $(`[data-chat="${CSS.escape(app.id)}"]`); if (button) button.onclick = async () => { try { const id = await ensureChat(projectId, app.applicant_id); location.href = `/site/messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } }; });
   }
 
   async function bulkMessage(projectId) {
@@ -125,7 +125,7 @@
       body.querySelectorAll("[data-applicants]").forEach((button) => button.onclick = () => openApplicants(button.dataset.applicants));
       body.querySelectorAll("[data-bulk]").forEach((button) => button.onclick = () => bulkMessage(button.dataset.bulk));
     });
-    if (sentBody) sentBody.querySelectorAll("[data-open-chat]").forEach((button) => button.onclick = async () => { try { const id = await ensureChat(button.closest("tr").querySelector("[data-open-chat]").dataset.openChat, button.dataset.other); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } });
+    if (sentBody) sentBody.querySelectorAll("[data-open-chat]").forEach((button) => button.onclick = async () => { try { const id = await ensureChat(button.closest("tr").querySelector("[data-open-chat]").dataset.openChat, button.dataset.other); location.href = `/site/messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } });
     const setEmpty = (id, list, text) => { const el = $(id); if (el) { el.textContent = text; el.style.display = list.length ? "none" : "block"; } };
     setEmpty("#empty", brandPosts, "No brand projects have been posted yet.");
     setEmpty("#creator-ideas-empty", creatorPosts, "No creator ideas have been posted yet.");
@@ -169,7 +169,7 @@
     host.innerHTML = data?.length ? data.map((n) => `<button data-notification="${esc(n.id)}" data-conversation="${esc(n.conversation_id || "")}" data-project="${esc(n.project_id || "")}" style="text-align:left;border:1px solid #e5e8df;border-radius:9px;background:${n.read_at ? "white" : "#f0f6e9"};padding:10px 12px"><b>${esc(n.title)}</b><div>${esc(n.body)}</div><small>${new Date(n.created_at).toLocaleString()}</small></button>`).join("") : "<span>No new activity yet.</span>";
     host.querySelectorAll("[data-notification]").forEach((button) => button.onclick = async () => {
       const id = button.dataset.notification; await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id);
-      if (button.dataset.conversation) location.href = `messages.html?conversation=${encodeURIComponent(button.dataset.conversation)}`;
+      if (button.dataset.conversation) location.href = `/site/messages.html?conversation=${encodeURIComponent(button.dataset.conversation)}`;
       else if (button.dataset.project) { const project = projectById[button.dataset.project]; if (project) openApplicants(project.id); }
       button.style.background = "white";
     });
@@ -209,7 +209,7 @@
     supabase = await window.bmcSupabaseReady;
     if (!supabase) throw new Error(window.bmcSupabaseError || "Could not connect to Supabase.");
     const { data: { user: current }, error: authError } = await supabase.auth.getUser();
-    if (authError || !current) { location.href = "index.html"; return; }
+    if (authError || !current) { location.href = "/site/index.html"; return; }
     user = current;
     const { data: profile, error: profileError } = await supabase.from("profiles").select("display_name,company_name,account_type").eq("id", user.id).maybeSingle();
     if (profileError) throw profileError;
@@ -218,7 +218,7 @@
     const header = $(".collabry-account > span"); if (header) header.textContent = `${name} · ${type === "creator" ? "Creator" : type[0].toUpperCase() + type.slice(1)}`;
     const picker = $("#role"); if (picker) { picker.value = type; picker.disabled = true; }
     const title = $("#page-title"); if (title) title.textContent = type === "creator" ? "Creator project dashboard" : type === "agency" ? "Agency project dashboard" : "Brand project dashboard";
-    const create = $("#create-project"); if (create) create.onclick = () => { location.href = `project-form.html?kind=${type === "creator" ? "creator" : "brand"}`; };
+    const create = $("#create-project"); if (create) create.onclick = () => { location.href = `/site/project-form.html?kind=${type === "creator" ? "creator" : "brand"}`; };
     $("#apply-date")?.addEventListener("click", () => setTimeout(syncDashboardDates, 0));
     $("#date-from")?.addEventListener("change", () => document.querySelector('[data-preset="custom"]')?.classList.add("active"));
     $("#date-to")?.addEventListener("change", () => document.querySelector('[data-preset="custom"]')?.classList.add("active"));

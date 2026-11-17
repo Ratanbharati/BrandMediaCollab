@@ -88,7 +88,7 @@
   async function selectConversation(item) {
     activeId = item.id;
     $("#chat-name").textContent = item.otherName;
-    $("#chat-name").href = `my-profile.html?user=${encodeURIComponent(item.otherId)}`;
+    $("#chat-name").href = `/site/my-profile.html?user=${encodeURIComponent(item.otherId)}`;
     $("#chat-title").textContent = item.projectName;
     $("#context-title").textContent = item.projectName;
     $("#chat-avatar").textContent = item.otherName.slice(0, 2).toUpperCase();
@@ -216,7 +216,7 @@
     supabase = await window.bmcSupabaseReady;
     if (!supabase) throw new Error(window.bmcSupabaseError || "Could not connect to Supabase.");
     const { data: { user: current }, error } = await supabase.auth.getUser();
-    if (error || !current) { location.href = "index.html"; return; }
+    if (error || !current) { location.href = "/site/index.html"; return; }
     user = current;
     // Remove static demo counters, threads, and mock message composer behavior.
     $(".campaign-box")?.remove(); ensureActivityPanel(); $("#bulk-modal")?.remove(); $("#meeting-modal")?.remove(); $("#schedule")?.remove(); $("#meet-inline")?.remove();
