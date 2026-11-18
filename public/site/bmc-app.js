@@ -336,7 +336,13 @@
     const orgTags = orgDetails?.querySelector(".tags");
     if (orgTags) {
       const field = orgTags.closest(".field"); const label = field?.querySelector("label");
-      if (label) label.textContent = accountType === "agency" ? "Industry specialisations" : "What do you want to create?";
+      const brandOptions = ["Reels & short video", "Stories", "Video integrations", "Events", "Long-term ambassadorship", "Other"];
+      const agencyOptions = ["Food & beverage / FMCG", "Fashion, beauty & lifestyle", "Technology & electronics", "Travel & hospitality", "Health & fitness", "Other"];
+      const updateOrgSpecialisations = (kind) => {
+        if (label) label.textContent = kind === "agency" ? "Industry specialisations" : "What do you want to create?";
+        [...orgTags.querySelectorAll(".tag")].forEach((tag, index) => { tag.textContent = (kind === "agency" ? agencyOptions : brandOptions)[index] || "Other"; });
+      };
+      updateOrgSpecialisations(accountType);
       let serviceField = $(".agency-services-field");
       if (!serviceField) {
         serviceField = document.createElement("div"); serviceField.className = "field agency-services-field hidden";
@@ -347,7 +353,7 @@
       serviceField.classList.toggle("hidden", accountType !== "agency");
       typeButton?.parentElement?.querySelectorAll("[data-type]").forEach((button) => button.addEventListener("click", () => {
         serviceField.classList.toggle("hidden", button.dataset.type !== "agency");
-        if (label) label.textContent = button.dataset.type === "agency" ? "Industry specialisations" : "What do you want to create?";
+        updateOrgSpecialisations(button.dataset.type);
       }));
     }
     const availabilitySelect = $("#availability");
