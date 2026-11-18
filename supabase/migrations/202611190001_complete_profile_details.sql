@@ -61,7 +61,7 @@ begin
   from public.private_contacts c
   where c.user_id = new.id;
 
-  if private_phone is null or private_phone !~ '^\+[1-9][0-9]{7,14}$' then
+  if private_phone is null or private_phone !~ '^[+][1-9][0-9]{7,14}$' then
     raise exception 'A valid private mobile number is required to complete onboarding.'
       using errcode = '23514';
   end if;
@@ -83,7 +83,7 @@ security invoker
 set search_path = public, pg_temp
 as $$
 begin
-  if new.phone is not null and new.phone !~ '^\+[1-9][0-9]{7,14}$' then
+  if new.phone is not null and new.phone !~ '^[+][1-9][0-9]{7,14}$' then
     raise exception 'Mobile number must use international format, such as +919876543210.'
       using errcode = '23514';
   end if;
