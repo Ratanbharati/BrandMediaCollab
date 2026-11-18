@@ -14,6 +14,15 @@
     if (node) { node.textContent = message; node.classList.add("show"); }
     else alert(message);
   }
+  function profileFieldError(selector, message) {
+    const control = $(selector); const field = control?.closest(".field");
+    if (field) {
+      field.querySelector(".field-error")?.remove();
+      const error = document.createElement("small"); error.className = "field-error"; error.setAttribute("role", "alert"); error.textContent = message;
+      field.append(error); control.setAttribute("aria-invalid", "true"); control.focus();
+    }
+    throw new Error(message);
+  }
   async function refreshMessageBadge() {
     try {
       const supabase = await client(); const user = await signedIn(supabase);
@@ -175,8 +184,25 @@
       ? sessionStorage.getItem("bmc_edit_account_type") || $("[data-type].selected")?.dataset.type || "creator"
       : sessionStorage.getItem("bmc_signup_type") || $("[data-type].selected")?.dataset.type || "creator";
     const isOrg = accountType === "brand" || accountType === "agency";
+    const markComplete = complete || editingProfile;
     const displayName = (isOrg ? $("#company")?.value : $("#display-name")?.value)?.trim() || sessionStorage.getItem("bmc_signup_name") || "";
-    const contentCategories = [...document.querySelectorAll(".tag.selected")].map((x) => x.textContent.trim()).filter(Boolean);
+    const creatorTagGroups = [...document.querySelectorAll(".creator-only .tags")];
+    const orgTagGroups = [...document.querySelectorAll(".brand-only .tags")];
+    const selectedTags = (group) => [...(group?.querySelectorAll(".tag.selected") || [])].map((tag) => tag.textContent.trim()).filter(Boolean);
+    const contentCategories = accountType === "creator" ? selectedTags(creatorTagGroups[0]) : [];
+    const collaborationCategories = accountType === "creator" ? selectedTags(creatorTagGroups[1]) : accountType === "brand" ? selectedTags(orgTagGroups[0]) : [];
+    const agencyServices = accountType === "agency" ? selectedTags($(".agency-services-field .tags")) : [];
+    const agencySpecialisations = accountType === "agency" ? selectedTags(orgTagGroups[0]) : [];
+    const phone = $("#phone")?.value?.trim() || "";
+    const countryCode = $("#phone-country")?.value || "+91";
+    const normalizedPhone = phone.replace(/[\s()-]/g, "");
+    const fullPhone = normalizedPhone.startsWith("+") ? normalizedPhone : `${countryCode}${normalizedPhone.replace(/^0+/, "")}`;
+    if (phone && !/^\+[1-9]\d{7,14}$/.test(fullPhone)) profileFieldError("#phone", "Enter a valid mobile number with country code.");
+    if (markComplete && !phone) profileFieldError("#phone", "Mobile number is required to complete your profile.");
+    const required = isOrg
+      ? [["#company", "Company name"], ["#category", "Industry / category"], ["#company-bio", "About the company"], ["#manager", "Project manager name"], ...(accountType === "agency" ? [["#agency-type", "Agency type"]] : [])]
+      : [["#display-name", "Display name"], ["#location", "Location"], ["#bio", "Bio"]];
+    if (markComplete) for (const [selector, label] of required) if (!$(selector)?.value?.trim()) profileFieldError(selector, `${label} is required.`);
     const availabilitySelect = !isOrg ? $("#availability") : null;
     const availabilityStatus = availabilitySelect?.value || null;
     const availabilityDate = availabilityStatus === "Available from a date" ? $("#availability-date")?.value || null : null;
@@ -185,43 +211,87 @@
       const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       if (!availabilityDate || availabilityDate < today) throw new Error("Choose a future date for your availability.");
     }
+    const languages = !isOrg ? [...($("#language")?.selectedOptions || [])].map((option) => option.value === "Other" ? $("#language-other")?.value.trim() || "Other" : option.value) : [];
     const payload = {
       id: user.id, account_type: accountType, display_name: displayName,
       avatar_url: window.bmcAvatarUrl || window.bmcExistingAvatarUrl || null,
       company_name: isOrg ? displayName : null,
       agency_type: accountType === "agency" ? $("#agency-type")?.value || null : null,
+      manager_name: isOrg ? $("#manager")?.value.trim() || null : null,
+      manager_title: isOrg ? $("#manager-title")?.value.trim() || null : null,
       bio: (isOrg ? $("#company-bio")?.value : $("#bio")?.value)?.trim() || "",
-      category: $(isOrg ? "#category" : "#category")?.value || null,
+      category: $("#category")?.value || null,
       location: $(isOrg ? "#market" : "#location")?.value?.trim() || null,
       website_url: (isOrg ? $("#company-site")?.value : $("#website")?.value)?.trim() || null,
       content_categories: contentCategories,
+      collaboration_categories: collaborationCategories,
+      services: agencyServices,
+      specialisations: agencySpecialisations,
+      portfolio_links: [...document.querySelectorAll(".portfolio-item[data-url]")].map((item) => item.dataset.url),
+      languages,
+      onboarding_completed: markComplete,
       is_discoverable: true,
       updated_at: new Date().toISOString(),
     };
+    const website = payload.website_url;
+    if (website) { try { const parsed = new URL(website); if (!/^https?:$/.test(parsed.protocol)) throw new Error(); } catch (_) { profileFieldError(isOrg ? "#company-site" : "#website", "Enter a valid website URL starting with http:// or https://."); } }
     if (availabilitySelect) {
       payload.availability_status = availabilityStatus;
       payload.availability_date = availabilityDate;
     }
+    const contact = { user_id: user.id, email: user.email || null, phone: phone ? fullPhone : null };
+    const { error: contactError } = await supabase.from("private_contacts").upsert(contact);
+    if (contactError) throw contactError;
     const { error } = await supabase.from("profiles").upsert(payload);
     if (error) throw error;
     const { error: metadataError } = await supabase.auth.updateUser({ data: { display_name: displayName, account_type: accountType } });
     if (metadataError) throw metadataError;
-    const contact = { user_id: user.id, email: user.email || null, phone: $("#phone")?.value?.trim() || null };
-    const { error: contactError } = await supabase.from("private_contacts").upsert(contact);
-    if (contactError) throw contactError;
+    const removedSocialIds = window.bmcRemovedSocialIds || [];
+    if (removedSocialIds.length) {
+      const { error: socialRemoveError } = await supabase.from("social_accounts").delete().eq("user_id", user.id).in("id", removedSocialIds);
+      if (socialRemoveError) throw socialRemoveError;
+      window.bmcRemovedSocialIds = [];
+    }
+    const socialRows = [...document.querySelectorAll(`${isOrg ? ".brand-only" : ".creator-only"} .connected[data-platform]`)].map((row) => ({
+      user_id: user.id, platform: row.dataset.platform, profile_url: row.querySelector(".social-url")?.value.trim() || "",
+    })).filter((row) => row.profile_url);
+    for (const row of socialRows) {
+      let parsed; try { parsed = new URL(row.profile_url); } catch (_) { throw new Error(`Enter a valid ${row.platform} profile URL.`); }
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error(`Enter a valid ${row.platform} profile URL.`);
+    }
+    if (socialRows.length) {
+      const { error: socialSaveError } = await supabase.from("social_accounts").upsert(socialRows, { onConflict: "user_id,platform,profile_url" });
+      if (socialSaveError) throw socialSaveError;
+    }
     if (complete) {
       sessionStorage.removeItem("bmc_signup_type"); sessionStorage.removeItem("bmc_signup_name"); sessionStorage.removeItem("bmc_edit_account_type");
       location.href = "my-profile.html";
     } else toast("Profile saved to your account.");
   }
   function profileClick(event) {
+    const socialAction = event.target.closest(".connected .connect");
+    if (socialAction) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      const input = socialAction.closest(".connected")?.querySelector(".social-url");
+      input?.focus(); toast("Add a public profile URL, then save your profile. Social verification is not connected yet."); return;
+    }
     if (event.target.closest(".upload")) {
       event.preventDefault(); event.stopImmediatePropagation(); chooseAvatar(event.target.closest(".upload")); return;
+    }
+    if (event.target.closest(".add-link")) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      const wrap = event.target.closest(".portfolio"), input = wrap?.querySelector(".work-link"), list = wrap?.querySelector(".portfolio-list"), value = input?.value.trim();
+      if (!value || !list) return;
+      let parsed; try { parsed = new URL(value); } catch (_) { toast("Enter a complete link beginning with https://."); return; }
+      if (!/^https?:$/.test(parsed.protocol)) { toast("Use a public http or https link."); return; }
+      const item = document.createElement("span"); item.className = "portfolio-item"; item.dataset.url = parsed.href; item.textContent = `${parsed.hostname.replace(/^www\./, "")} · featured`;
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "Remove featured work"); remove.addEventListener("click", () => item.remove()); item.append(remove); list.append(item); input.value = ""; return;
     }
     const button = event.target.closest(".save, #continue");
     if (!button) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    saveProfile(button.id === "continue").catch((error) => toast(error.message || "Profile could not be saved."));
+    button.disabled = true;
+    saveProfile(button.id === "continue").catch((error) => toast(error.message || "Profile could not be saved.")).finally(() => { button.disabled = false; });
   }
   async function chooseAvatar(button) {
     let input = $("#bmc-avatar-file");
@@ -257,7 +327,36 @@
     if (editingProfile) sessionStorage.setItem("bmc_edit_account_type", accountType);
     if (user.user_metadata?.display_name && !sessionStorage.getItem("bmc_signup_name")) sessionStorage.setItem("bmc_signup_name", user.user_metadata.display_name);
     const typeButton = $(`[data-type="${accountType === "creator" ? "influencer" : accountType}"]`); if (typeButton) typeButton.click();
+    const orgDetails = $(".brand-only .card-title h3")?.closest(".card");
+    const orgTags = orgDetails?.querySelector(".tags");
+    if (orgTags) {
+      const field = orgTags.closest(".field"); const label = field?.querySelector("label");
+      if (label) label.textContent = accountType === "agency" ? "Industry specialisations" : "What do you want to create?";
+      let serviceField = $(".agency-services-field");
+      if (!serviceField) {
+        serviceField = document.createElement("div"); serviceField.className = "field agency-services-field hidden";
+        serviceField.innerHTML = '<label>Services offered</label><div class="tags"><button type="button" class="tag">Influencer campaign management</button><button type="button" class="tag">Talent management</button><button type="button" class="tag">Content production</button><button type="button" class="tag">Brand strategy</button><button type="button" class="tag">Paid media</button><button type="button" class="tag">PR & communications</button><button type="button" class="tag">Event marketing</button><button type="button" class="tag">Other</button></div>';
+        field?.after(serviceField);
+        serviceField.querySelectorAll(".tag").forEach((tag) => tag.addEventListener("click", () => tag.classList.toggle("selected")));
+      }
+      serviceField.classList.toggle("hidden", accountType !== "agency");
+      typeButton?.parentElement?.querySelectorAll("[data-type]").forEach((button) => button.addEventListener("click", () => {
+        serviceField.classList.toggle("hidden", button.dataset.type !== "agency");
+        if (label) label.textContent = button.dataset.type === "agency" ? "Industry specialisations" : "What do you want to create?";
+      }));
+    }
     const availabilitySelect = $("#availability");
+    const languageSelect = $("#language");
+    if (languageSelect) {
+      let otherField = $("#language-other-field");
+      if (!otherField) {
+        otherField = document.createElement("div"); otherField.id = "language-other-field"; otherField.className = "field";
+        otherField.innerHTML = '<label for="language-other">Add another language</label><input id="language-other" maxlength="60" placeholder="Type a language">';
+        languageSelect.closest(".field")?.append(otherField);
+      }
+      const updateOther = () => { otherField.hidden = ![...languageSelect.selectedOptions].some((option) => option.value === "Other"); };
+      languageSelect.addEventListener("change", updateOther); updateOther();
+    }
     if (availabilitySelect) {
       if (profile?.availability_status) availabilitySelect.value = profile.availability_status;
       let dateField = $("#availability-date-field");
@@ -285,22 +384,93 @@
       const save = $("#continue"); if (save) save.textContent = "Save profile changes";
       const draft = $(".save"); if (draft) draft.textContent = "Save changes";
     }
-    if (!profile) return;
+    const updateProfileCompletion = initProfileCompletion(accountType);
+    const [{ data: contact, error: contactError }, { data: socials, error: socialError }] = await Promise.all([
+      supabase.from("private_contacts").select("phone").eq("user_id", user.id).maybeSingle(),
+      supabase.from("social_accounts").select("id,platform,profile_url,follower_count").eq("user_id", user.id),
+    ]);
+    if (contactError) throw contactError;
+    if (socialError) throw socialError;
+    const phoneInput = $("#phone"); if (phoneInput && contact?.phone) {
+      const callingCode = [...($("#phone-country")?.options || [])].map((option) => option.value).sort((a, b) => b.length - a.length).find((code) => contact.phone.startsWith(code));
+      if (callingCode) { if ($("#phone-country")) $("#phone-country").value = callingCode; phoneInput.value = contact.phone.slice(callingCode.length); }
+      else phoneInput.value = contact.phone;
+    }
+    document.querySelectorAll(".connected").forEach((row) => {
+      const platform = row.querySelector(".social-meta b")?.textContent.trim() || "Other";
+      row.dataset.platform = platform;
+      const input = document.createElement("input"); input.className = "social-url"; input.type = "url"; input.inputMode = "url"; input.placeholder = `https://${platform.toLowerCase()}.com/your-profile`; input.setAttribute("aria-label", `${platform} public profile URL`);
+      row.querySelector(".social-meta")?.append(input);
+      const action = row.querySelector(".connect");
+      if (action) { action.textContent = "Add public link"; action.addEventListener("click", () => { input.focus(); toast("Add a public profile URL, then save your profile."); }); }
+      const remove = document.createElement("button"); remove.type = "button"; remove.className = "social-remove"; remove.textContent = "Remove"; remove.setAttribute("aria-label", `Remove ${platform} link`); row.append(remove);
+      remove.addEventListener("click", () => {
+        if (row.dataset.socialId) (window.bmcRemovedSocialIds ||= []).push(row.dataset.socialId);
+        input.value = ""; row.classList.remove("linked");
+      });
+    });
+    (socials || []).forEach((account) => {
+      const row = [...document.querySelectorAll(".connected[data-platform]")].find((element) => element.dataset.platform.toLowerCase() === account.platform.toLowerCase());
+      if (!row) return;
+      row.dataset.socialId = account.id;
+      const input = row.querySelector(".social-url"); if (input) input.value = account.profile_url;
+      const status = row.querySelector(".status"); if (status) status.textContent = "Public link saved";
+      row.classList.add("linked");
+    });
+    if (!profile) { updateProfileCompletion(); return; }
     const values = {
       "#display-name": profile.display_name, "#company": profile.company_name,
       "#agency-type": profile.agency_type, "#bio": profile.bio, "#company-bio": profile.bio,
       "#category": profile.category, "#location": profile.location, "#market": profile.location,
       "#website": profile.website_url, "#company-site": profile.website_url,
+      "#manager": profile.manager_name, "#manager-title": profile.manager_title,
+      "#language": profile.languages,
     };
     Object.entries(values).forEach(([selector, value]) => { const el = $(selector); if (el && value) el.value = value; });
+    if (Array.isArray(profile.languages)) [...($("#language")?.options || [])].forEach((option) => { option.selected = profile.languages.includes(option.value); });
+    const otherLanguage = (profile.languages || []).find((language) => language !== "English" && language !== "Hindi" && language !== "Marathi" && language !== "Kannada" && language !== "Tamil" && language !== "Telugu" && language !== "Bengali" && language !== "Gujarati" && language !== "Malayalam" && language !== "Punjabi");
+    if (otherLanguage && $("#language-other")) { $("#language")?.querySelector('option[value="Other"]') && ($("#language").querySelector('option[value="Other"]').selected = true); $("#language-other").value = otherLanguage === "Other" ? "" : otherLanguage; $("#language-other-field").hidden = false; }
     if (profile.avatar_url) {
       window.bmcExistingAvatarUrl = profile.avatar_url;
       const preview = $(".profile-pic .pic"); if (preview) preview.innerHTML = `<img src="${esc(profile.avatar_url)}" alt="Current profile photo" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
     }
-    document.querySelectorAll(".tag").forEach((tag) => {
-      if ((profile.content_categories || []).includes(tag.textContent.trim())) tag.classList.add("selected");
+    [...document.querySelectorAll(".creator-only .tags")].forEach((group, index) => {
+      const values = index === 0 ? profile.content_categories || [] : profile.collaboration_categories || [];
+      group.querySelectorAll(".tag").forEach((tag) => tag.classList.toggle("selected", values.includes(tag.textContent.trim())));
     });
+    [...document.querySelectorAll(".brand-only .tags")].forEach((group) => {
+      const values = profile.account_type === "agency" ? profile.specialisations || [] : profile.collaboration_categories || [];
+      group.querySelectorAll(".tag").forEach((tag) => tag.classList.toggle("selected", values.includes(tag.textContent.trim())));
+    });
+    $(".agency-services-field .tags")?.querySelectorAll(".tag").forEach((tag) => tag.classList.toggle("selected", (profile.services || []).includes(tag.textContent.trim())));
+    const workList = $(".portfolio-list");
+    if (workList && Array.isArray(profile.portfolio_links)) profile.portfolio_links.forEach((url) => {
+      let parsed; try { parsed = new URL(url); } catch (_) { return; }
+      const item = document.createElement("span"); item.className = "portfolio-item"; item.dataset.url = parsed.href; item.textContent = `${parsed.hostname.replace(/^www\./, "")} · featured`;
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "Remove featured work"); remove.addEventListener("click", () => item.remove()); item.append(remove); workList.append(item);
+    });
+    const accountTypeSaved = profile.account_type;
+    const hiddenCategories = profile.content_categories || [];
+    if (accountTypeSaved !== "creator") {
+      document.querySelectorAll(".brand-only .tag").forEach((tag) => {
+        if (hiddenCategories.includes(tag.textContent.trim())) tag.classList.add("selected");
+      });
+    }
+    updateProfileCompletion();
     if (editingProfile) document.documentElement.classList.remove("bmc-profile-loading");
+  }
+  function initProfileCompletion(accountType) {
+    const progress = $(".progress div"); if (!progress) return;
+    const required = accountType === "creator" ? ["#phone", "#display-name", "#location", "#bio"] : ["#phone", "#company", "#category", "#company-bio", "#manager", ...(accountType === "agency" ? ["#agency-type"] : [])];
+    const update = () => {
+      const completeCount = required.filter((selector) => !!$(selector)?.value?.trim()).length;
+      const percent = Math.round(completeCount / required.length * 100);
+      progress.style.width = `${percent}%`; progress.setAttribute("role", "progressbar"); progress.setAttribute("aria-valuemin", "0"); progress.setAttribute("aria-valuemax", "100"); progress.setAttribute("aria-valuenow", String(percent));
+      const label = $(".step-label"); if (label) label.textContent = `PROFILE COMPLETION · ${percent}%`;
+    };
+    required.forEach((selector) => { const input = $(selector); input?.addEventListener("input", () => { input.removeAttribute("aria-invalid"); input.closest(".field")?.querySelector(".field-error")?.remove(); update(); }); input?.addEventListener("change", update); });
+    update();
+    return update;
   }
   async function renderMyProfile() {
     const supabase = await client(); const params = new URLSearchParams(location.search);
@@ -309,9 +479,12 @@
     if (!targetId) { location.href = "index.html"; return; }
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", targetId).single();
     if (error) throw error;
+    const { data: socialAccounts, error: socialError } = await supabase.from("social_accounts").select("platform,profile_url").eq("user_id", targetId).order("platform");
+    if (socialError) throw socialError;
     const root = $("#dynamic-profile"); if (!root) return;
     const isOwner = current.data.user?.id === targetId;
-    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener">${esc(profile.website_url)}</a>` : ""}<div class="tags">${(profile.content_categories || []).map((x) => `<span>${esc(x)}</span>`).join("")}</div>${isOwner ? '<a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>' : ""}</div></section>`;
+    const publicTags = [...(profile.content_categories || []), ...(profile.collaboration_categories || []), ...(profile.languages || []), ...(profile.services || []), ...(profile.specialisations || [])];
+    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.manager_name ? `<p>Contact: ${esc(profile.manager_name)}${profile.manager_title ? ` · ${esc(profile.manager_title)}` : ""}</p>` : ""}${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener noreferrer">${esc(profile.website_url)}</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div><div class="public-social-links">${(socialAccounts || []).map((account) => `<a href="${esc(account.profile_url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>`).join("")}${(profile.portfolio_links || []).map((url) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Featured work</a>`).join("")}</div>${isOwner ? '<a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>' : ""}</div></section>`;
     document.title = `${profile.display_name || "Profile"} — Stagerang`;
   }
   function projectPayload(user, accountType) {
