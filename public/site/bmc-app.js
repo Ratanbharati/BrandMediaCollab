@@ -294,6 +294,7 @@
     saveProfile(button.id === "continue").catch((error) => toast(error.message || "Profile could not be saved.")).finally(() => { button.disabled = false; });
   }
   async function chooseAvatar(button) {
+    window.bmcProfileAvatarTarget = button.closest(".profile-pic")?.querySelector(".pic") || null;
     let input = $("#bmc-avatar-file");
     if (!input) {
       input = document.createElement("input"); input.id = "bmc-avatar-file"; input.type = "file";
@@ -309,7 +310,7 @@
           if (error) throw error;
           const { data } = supabase.storage.from("avatars").getPublicUrl(path);
           window.bmcAvatarUrl = data.publicUrl;
-          let preview = $(".profile-pic .pic"); if (preview) preview.innerHTML = `<img src="${esc(data.publicUrl)}" alt="Profile photo preview" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
+          let preview = window.bmcProfileAvatarTarget; if (preview) preview.innerHTML = `<img src="${esc(data.publicUrl)}" alt="Profile photo preview" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
           toast("Photo uploaded. Save your profile to keep it.");
         } catch (error) { toast(error.message || "Photo upload failed."); }
       });
@@ -432,7 +433,7 @@
     if (otherLanguage && $("#language-other")) { $("#language")?.querySelector('option[value="Other"]') && ($("#language").querySelector('option[value="Other"]').selected = true); $("#language-other").value = otherLanguage === "Other" ? "" : otherLanguage; $("#language-other-field").hidden = false; }
     if (profile.avatar_url) {
       window.bmcExistingAvatarUrl = profile.avatar_url;
-      const preview = $(".profile-pic .pic"); if (preview) preview.innerHTML = `<img src="${esc(profile.avatar_url)}" alt="Current profile photo" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
+      document.querySelectorAll(".profile-pic .pic").forEach((preview) => { preview.innerHTML = `<img src="${esc(profile.avatar_url)}" alt="Current profile image" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`; });
     }
     [...document.querySelectorAll(".creator-only .tags")].forEach((group, index) => {
       const values = index === 0 ? profile.content_categories || [] : profile.collaboration_categories || [];
