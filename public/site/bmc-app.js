@@ -328,6 +328,10 @@
     if (editingProfile) sessionStorage.setItem("bmc_edit_account_type", accountType);
     if (user.user_metadata?.display_name && !sessionStorage.getItem("bmc_signup_name")) sessionStorage.setItem("bmc_signup_name", user.user_metadata.display_name);
     const typeButton = $(`[data-type="${accountType === "creator" ? "influencer" : accountType}"]`); if (typeButton) typeButton.click();
+    if (!editingProfile) {
+      const switcher = $(".account-switch");
+      if (switcher) { const label = document.createElement("p"); label.className = "profile-edit-type"; label.textContent = `Setting up your ${accountType === "creator" ? "Creator" : accountType[0].toUpperCase() + accountType.slice(1)} profile`; switcher.before(label); switcher.hidden = true; }
+    }
     const orgDetails = $(".brand-only .card-title h3")?.closest(".card");
     const orgTags = orgDetails?.querySelector(".tags");
     if (orgTags) {
