@@ -16,7 +16,7 @@ create or replace function public.is_platform_admin()
 returns boolean
 language sql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
   select app_private.is_platform_admin();
