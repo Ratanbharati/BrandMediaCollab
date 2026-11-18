@@ -85,14 +85,14 @@
           if (priorError) throw priorError;
           const message = note.value.trim() || `Hi, I’m interested in “${project.project_name}”. Let’s discuss it here.`;
           const save = prior
-            ? await supabase.from("applications").update({ message, updated_at: new Date().toISOString() }).eq("id", prior.id)
+            ? await supabase.from("applications").update({ status: prior.status === "withdrawn" ? "interested" : prior.status, message, updated_at: new Date().toISOString() }).eq("id", prior.id)
             : await supabase.from("applications").insert({ project_id: projectId, applicant_id: user.id, status: "interested", message });
           if (save.error) throw save.error;
           const conversationId = await getOrCreateProjectChat(supabase, projectId, project.owner_id, user, message);
           dialog.remove();
           if (button) { button.textContent = "Interest sent ✓"; button.disabled = true; }
           toast("Interest sent. Your private project chat is ready in Messages.");
-          if (location.pathname.endsWith("/messages.html")) location.href = `/site/messages.html?conversation=${encodeURIComponent(conversationId)}`;
+          if (location.pathname.endsWith("/messages.html")) location.href = `messages.html?conversation=${encodeURIComponent(conversationId)}`;
           resolve(true);
         } catch (error) { send.disabled = false; toast(error.message || "Could not send interest."); }
       };
@@ -115,6 +115,15 @@
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
     const label = type === "brand" ? "Brand" : type === "agency" ? "Agency" : "Creator";
     headerName.textContent = `${name} · ${label}`;
+    if (location.pathname.endsWith("/project-form.html") && !new URLSearchParams(location.search).has("id")) {
+      const kind = $("#kind");
+      if (kind) {
+        kind.value = type === "creator" ? "creator" : "brand";
+        const brandOption = kind.querySelector('option[value="brand"]');
+        if (type === "creator") brandOption?.remove();
+        else if (type === "agency" && brandOption) brandOption.textContent = "Agency campaign";
+      }
+    }
     if (type === "agency" && location.pathname.endsWith("/project-form.html")) {
       const kind = $("#kind"); if (kind?.querySelector('option[value="brand"]')) kind.querySelector('option[value="brand"]').textContent = "Agency campaign";
       if (!new URLSearchParams(location.search).has("id")) {
@@ -149,11 +158,11 @@
           toast("Account created. Check your email to confirm it, then log in to finish your profile.");
           return;
         }
-        location.href = "/site/profile-setup.html";
+        location.href = "profile-setup.html";
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        location.href = "/site/feed.html";
+        location.href = "feed.html";
       }
     } catch (error) { toast(error.message || "Account request failed."); }
     finally { button.disabled = false; }
@@ -168,6 +177,14 @@
     const isOrg = accountType === "brand" || accountType === "agency";
     const displayName = (isOrg ? $("#company")?.value : $("#display-name")?.value)?.trim() || sessionStorage.getItem("bmc_signup_name") || "";
     const contentCategories = [...document.querySelectorAll(".tag.selected")].map((x) => x.textContent.trim()).filter(Boolean);
+    const availabilitySelect = !isOrg ? $("#availability") : null;
+    const availabilityStatus = availabilitySelect?.value || null;
+    const availabilityDate = availabilityStatus === "Available from a date" ? $("#availability-date")?.value || null : null;
+    if (availabilityStatus === "Available from a date") {
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      if (!availabilityDate || availabilityDate < today) throw new Error("Choose a future date for your availability.");
+    }
     const payload = {
       id: user.id, account_type: accountType, display_name: displayName,
       avatar_url: window.bmcAvatarUrl || window.bmcExistingAvatarUrl || null,
@@ -181,6 +198,10 @@
       is_discoverable: true,
       updated_at: new Date().toISOString(),
     };
+    if (availabilitySelect) {
+      payload.availability_status = availabilityStatus;
+      payload.availability_date = availabilityDate;
+    }
     const { error } = await supabase.from("profiles").upsert(payload);
     if (error) throw error;
     const { error: metadataError } = await supabase.auth.updateUser({ data: { display_name: displayName, account_type: accountType } });
@@ -190,7 +211,7 @@
     if (contactError) throw contactError;
     if (complete) {
       sessionStorage.removeItem("bmc_signup_type"); sessionStorage.removeItem("bmc_signup_name"); sessionStorage.removeItem("bmc_edit_account_type");
-      location.href = "/site/my-profile.html";
+      location.href = "my-profile.html";
     } else toast("Profile saved to your account.");
   }
   function profileClick(event) {
@@ -230,12 +251,31 @@
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (error) throw error;
     const editingProfile = new URLSearchParams(location.search).get("edit") === "1";
-    if (editingProfile && !profile) { location.replace("/site/profile-setup.html"); return; }
+    if (editingProfile && !profile) { location.replace("profile-setup.html"); return; }
     const accountType = editingProfile ? profile.account_type : profile?.account_type || sessionStorage.getItem("bmc_signup_type") || user.user_metadata?.account_type || "creator";
     sessionStorage.setItem("bmc_signup_type", accountType);
     if (editingProfile) sessionStorage.setItem("bmc_edit_account_type", accountType);
     if (user.user_metadata?.display_name && !sessionStorage.getItem("bmc_signup_name")) sessionStorage.setItem("bmc_signup_name", user.user_metadata.display_name);
     const typeButton = $(`[data-type="${accountType === "creator" ? "influencer" : accountType}"]`); if (typeButton) typeButton.click();
+    const availabilitySelect = $("#availability");
+    if (availabilitySelect) {
+      if (profile?.availability_status) availabilitySelect.value = profile.availability_status;
+      let dateField = $("#availability-date-field");
+      if (!dateField) {
+        dateField = document.createElement("div"); dateField.id = "availability-date-field"; dateField.className = "field";
+        dateField.innerHTML = '<label for="availability-date">Available from</label><input id="availability-date" type="date">';
+        availabilitySelect.closest(".field")?.after(dateField);
+      }
+      const dateInput = $("#availability-date");
+      if (dateInput) {
+        const now = new Date();
+        dateInput.value = profile?.availability_date || "";
+        dateInput.min = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      }
+      const syncAvailabilityDate = () => { if (dateField) dateField.hidden = availabilitySelect.value !== "Available from a date"; };
+      availabilitySelect.addEventListener("change", syncAvailabilityDate);
+      syncAvailabilityDate();
+    }
     if (editingProfile) {
       const switcher = $(".account-switch");
       if (switcher) { const label = document.createElement("p"); label.className = "profile-edit-type"; label.textContent = `Editing your ${accountType === "creator" ? "Creator" : accountType[0].toUpperCase() + accountType.slice(1)} profile`; switcher.before(label); switcher.hidden = true; }
@@ -266,23 +306,22 @@
     const supabase = await client(); const params = new URLSearchParams(location.search);
     const current = await supabase.auth.getUser();
     const targetId = params.get("user") || current.data.user?.id;
-    if (!targetId) { location.href = "/site/index.html"; return; }
+    if (!targetId) { location.href = "index.html"; return; }
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", targetId).single();
     if (error) throw error;
     const root = $("#dynamic-profile"); if (!root) return;
     const isOwner = current.data.user?.id === targetId;
-    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener">${esc(profile.website_url)}</a>` : ""}<div class="tags">${(profile.content_categories || []).map((x) => `<span>${esc(x)}</span>`).join("")}</div>${isOwner ? '<a class="edit" href="/site/profile-setup.html?edit=1">Edit my profile</a>' : ""}</div></section>`;
+    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener">${esc(profile.website_url)}</a>` : ""}<div class="tags">${(profile.content_categories || []).map((x) => `<span>${esc(x)}</span>`).join("")}</div>${isOwner ? '<a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>' : ""}</div></section>`;
     document.title = `${profile.display_name || "Profile"} — Stagerang`;
   }
   function projectPayload(user, accountType) {
-    const kind = $("#kind").value;
     const budget = [...document.querySelectorAll(".delivery")].map((row) => ({
       deliverable: row.querySelector(".deliverable").value,
       amount_range: row.querySelector(".amount").value.trim(),
     })).filter((x) => x.amount_range);
     return {
       owner_id: user.id, owner_type: accountType,
-      project_type: kind === "creator" ? "creator_idea" : "brand_campaign",
+      project_type: accountType === "creator" ? "creator_idea" : "brand_campaign",
       project_name: $("#name").value.trim(), category: $("#category").value,
       location: $("#location").value.trim() || null,
       requirements: $("#requirements").value.trim(),
@@ -312,7 +351,7 @@
         ? await supabase.from("projects").update(data).eq("id", id).eq("owner_id", user.id).select().single()
         : await supabase.from("projects").insert(data).select().single();
       if (result.error) throw result.error;
-      location.href = "/site/my-projects.html";
+      location.href = "my-projects.html";
     } catch (error) { toast(error.message || "Project could not be saved."); }
     finally { button.disabled = false; }
   }
@@ -321,6 +360,8 @@
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: p, error } = await supabase.from("projects").select("*").eq("id", id).eq("owner_id", user.id).single();
     if (error) throw error;
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("account_type").eq("id", user.id).single();
+    if (profileError) throw profileError;
     const values = {
       "#name": p.project_name, "#category": p.category, "#location": p.location,
       "#requirements": p.requirements, "#applicationDeadline": p.application_deadline,
@@ -330,7 +371,7 @@
       "#reshare": p.reshare_permissions, "#status": p.status,
     };
     Object.entries(values).forEach(([selector, value]) => { const el = $(selector); if (el && value) el.value = value; });
-    $("#kind").value = p.project_type === "creator_idea" ? "creator" : "brand";
+    $("#kind").value = profile.account_type === "creator" ? "creator" : "brand";
     document.querySelectorAll(".delivery").forEach((row, index) => {
       const item = (p.budget_by_deliverable || [])[index]; if (!item) return;
       row.querySelector(".deliverable").value = item.deliverable || "Other";
@@ -341,14 +382,16 @@
   async function loadMyProjects() {
     const host = $("#list"); if (!host) return;
     const supabase = await client(); const user = await signedIn(supabase);
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("account_type").eq("id", user.id).single();
+    if (profileError) throw profileError;
     const { data, error } = await supabase.from("projects").select("*").eq("owner_id", user.id).order("created_at", { ascending: false });
     if (error) throw error;
     host.innerHTML = "";
     $("#empty").hidden = data.length > 0;
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "card project";
-      const projectLabel = p.owner_type === "agency" ? "Agency project" : p.project_type === "creator_idea" ? "Creator collaboration idea" : "Brand campaign";
-      row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="/site/project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
+      const projectLabel = profile.account_type === "agency" ? "Agency project" : profile.account_type === "creator" ? "Creator collaboration idea" : "Brand campaign";
+      row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
       host.append(row);
     });
     host.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", async () => {
@@ -358,13 +401,40 @@
       loadMyProjects().catch((e) => toast(e.message));
     }));
   }
+  function subscribeFeedRealtime(supabase, user) {
+    if (window.bmcFeedRealtimeChannel) return;
+    let projectRefresh, activityRefresh;
+    const refreshProjects = () => { clearTimeout(projectRefresh); projectRefresh = setTimeout(() => openProjectsForFeed().catch((error) => console.error("Live feed refresh failed:", error)), 250); };
+    const refreshActivity = () => { clearTimeout(activityRefresh); activityRefresh = setTimeout(async () => { try { await refreshFeedActivity(supabase, user); await refreshMessageBadge(); } catch (error) { console.error("Live activity refresh failed:", error); } }, 250); };
+    const announce = (title, body) => {
+      toast(body || title || "You have new activity.");
+      if (document.hidden && "Notification" in window && Notification.permission === "granted") new Notification(title || "Stagerang", { body: body || "You have new activity." });
+    };
+    window.bmcFeedRealtimeConnected = false;
+    window.bmcFeedRealtimeChannel = supabase.channel(`creator-dashboard-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, refreshProjects)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refreshProjects)
+      .on("postgres_changes", { event: "*", schema: "public", table: "saved_projects" }, refreshProjects)
+      .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, refreshActivity)
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, refreshActivity)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, (payload) => {
+        refreshActivity();
+        if (payload.eventType === "INSERT" && payload.new?.type !== "new_message") announce(payload.new?.title, payload.new?.body);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+        if (payload.new?.sender_id !== user.id) announce("New project message", "A new message arrived in your collaboration inbox.");
+        refreshActivity();
+      })
+      .subscribe((status) => { window.bmcFeedRealtimeConnected = status === "SUBSCRIBED"; });
+  }
   async function openProjectsForFeed() {
     const selectedKind = window.bmcSelectedFeedKind || "brand";
-    document.querySelectorAll(".center-col .post, #bmc-live-posts, #bmc-feed-tabs").forEach((node) => node.remove());
+    document.querySelectorAll(".center-col > .post").forEach((node) => node.remove());
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error: pError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (pError) throw pError;
-    if (!profile) { location.href = "/site/profile-setup.html"; return; }
+    if (!profile) { location.href = "profile-setup.html"; return; }
+    if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user);
     const name = profile.display_name || profile.company_name || "Member";
     window.bmcAccountType = profile.account_type;
     const accountLabel = profile.account_type === "brand" ? "Brand" : profile.account_type === "agency" ? "Agency" : "Creator";
@@ -375,25 +445,57 @@
       const h = person.querySelector("h3"); if (h) h.textContent = name;
       // The HTML template still contains a link to the old sample creator profile.
       // Route the signed-in member's identity card to their live Supabase profile.
-      const identityLink = person.querySelector("a"); if (identityLink) identityLink.href = "/site/my-profile.html";
+      const identityLink = person.querySelector("a"); if (identityLink) identityLink.href = "my-profile.html";
       const bio = person.querySelector("p"); if (bio) bio.textContent = profile.account_type === "brand" ? "Brand account" : profile.account_type === "agency" ? "Agency account" : "Creator account";
       const loc = person.querySelector(".loc"); if (loc) loc.textContent = profile.location || "Open to collaborations";
       const portrait = person.querySelector(".portrait"); if (portrait) portrait.innerHTML = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(name.slice(0, 1).toUpperCase());
     }
-    const profileLink = $("#my-profile-link"); if (profileLink) profileLink.href = "/site/my-profile.html";
+    const profileType = profile.account_type || "creator";
+    const roleStat = $(".identity .stats .stat:nth-child(3)");
+    if (roleStat) {
+      const label = roleStat.querySelector("span"), value = roleStat.querySelector("b");
+      if (label) label.textContent = profileType === "creator" ? "Creator tier" : "Account type";
+      if (value) value.textContent = profileType === "creator" ? profile.follower_tier || "Not set" : accountLabel;
+    }
+    const completionFields = profileType === "creator"
+      ? [profile.display_name, profile.bio, profile.category, profile.location, profile.avatar_url, profile.website_url, profile.follower_tier, (profile.content_categories || []).length > 0]
+      : [profile.display_name || profile.company_name, profile.bio, profile.category, profile.location, profile.avatar_url, profile.website_url, profileType === "agency" ? profile.agency_type : true];
+    const completion = Math.round(completionFields.filter(Boolean).length / completionFields.length * 100);
+    const completionValue = $(".profile-complete .complete-row b"), completionBar = $(".profile-complete .progress div"), profileStrength = $(".identity .stats .stat:nth-child(2) b");
+    if (completionValue) completionValue.textContent = `${completion}%`;
+    if (completionBar) completionBar.style.width = `${completion}%`;
+    if (profileStrength) profileStrength.textContent = completion >= 75 ? "Good" : completion >= 45 ? "Building" : "Getting started";
+    const profileLink = $("#my-profile-link"); if (profileLink) profileLink.href = "my-profile.html";
     const profileMenu = $(".profile-menu"); if (profileMenu) {
       const switcher = profileMenu.querySelector("select"); if (switcher) switcher.remove();
       const label = profileMenu.querySelector(".person-label"); if (label) label.textContent = `${name} · ${profile.account_type}`;
     }
     const metricPanel = [...document.querySelectorAll(".left-col .panel")].find((panel) => panel.textContent.includes("Your social stats"));
-    if (metricPanel) metricPanel.innerHTML = '<div class="side-title">Social accounts</div><div class="trend"><b>Connect profiles from your profile setup</b><span>Follower syncing will appear here after platform authorization is configured.</span></div>';
+    if (metricPanel) {
+      const { data: socialRows, error: socialError } = await supabase.from("social_accounts").select("id,platform,profile_url,follower_count,engagement_rate,last_synced_at").eq("user_id", user.id).order("platform");
+      metricPanel.innerHTML = `<div class="side-title">Social accounts</div>${socialError ? '<div class="trend"><b>Social account metrics unavailable</b><span>Reconnect your profile to refresh these stats.</span></div>' : socialRows?.length ? socialRows.map((account) => `<div class="trend"><b>${account.profile_url ? `<a href="${esc(account.profile_url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>` : esc(account.platform)}${account.follower_count != null ? ` · ${Number(account.follower_count).toLocaleString()} followers` : ""}</b><span>${account.engagement_rate != null ? `${Number(account.engagement_rate).toLocaleString()}% engagement · ` : ""}${account.last_synced_at ? `Updated ${new Date(account.last_synced_at).toLocaleDateString()}` : "Connected"}</span></div>`).join("") : '<div class="trend"><b>No social accounts connected</b><span>Connect a profile to show verified audience metrics.</span></div>'}`;
+    }
     $(".right-col .profile-prompt")?.remove();
     $(".right-col .upcoming")?.remove();
     const side = $(".right-col");
     if (side && !$("#bmc-feed-activity")) {
       const activity = document.createElement("section"); activity.id = "bmc-feed-activity"; activity.className = "panel";
-      activity.innerHTML = '<h3 style="padding:14px 15px 8px;margin:0">Your activity</h3><div id="bmc-feed-stats" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading your activity…</div><div style="padding:0 15px 12px"><a href="/site/dashboard.html" style="font-size:11px;color:#54763f">Open dashboard →</a></div><h3 style="padding:12px 15px 8px;margin:0;border-top:1px solid #efeee8">Notifications</h3><div id="bmc-feed-notifications" style="padding:0 15px 12px;font-size:11px;color:#69746a">Loading notifications…</div>';
+      activity.innerHTML = '<h3>Your activity</h3><div id="bmc-feed-stats">Loading your activity…</div><div class="activity-link"><a href="dashboard.html">Open dashboard →</a></div>';
       side.prepend(activity);
+    }
+    if (side && !$("#bmc-feed-notification-center")) {
+      const notifications = document.createElement("section"); notifications.id = "bmc-feed-notification-center"; notifications.className = "panel";
+      notifications.innerHTML = '<h3>Notifications <span class="notification-count" data-notification-count hidden></span></h3><div id="bmc-notification-toolbar"><div id="bmc-notification-filters" role="group" aria-label="Filter notifications"><button type="button" data-notification-filter="all" aria-pressed="true">All</button><button type="button" data-notification-filter="unread" aria-pressed="false">Unread</button><button type="button" data-notification-filter="read" aria-pressed="false">Read</button></div><button type="button" id="bmc-mark-notifications-read">Mark all read</button></div><div id="bmc-feed-notifications">Loading notifications…</div>';
+      side.insertBefore(notifications, side.querySelector(".tip"));
+      notifications.querySelectorAll("[data-notification-filter]").forEach((button) => button.addEventListener("click", () => {
+        window.bmcNotificationFilter = button.dataset.notificationFilter;
+        notifications.querySelectorAll("[data-notification-filter]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+        window.bmcRenderFeedNotifications?.();
+      }));
+      notifications.querySelector("#bmc-mark-notifications-read").addEventListener("click", async () => {
+        try { const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null); if (error) throw error; await refreshFeedActivity(supabase, user); toast("All notifications marked as read."); }
+        catch (error) { toast(error.message || "Could not update notifications."); }
+      });
     }
     const feedTip = $(".right-col .tip p");
     if (feedTip) feedTip.textContent = "When you send interest, add a note and a private one-to-one project chat opens for both people. You can manage the application status from your dashboard.";
@@ -407,9 +509,20 @@
         if (primary) primary.textContent = "Share a collaboration idea with brands...";
         if (idea) idea.textContent = "Post an idea";
       }
-      if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `/site/project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
-      if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `/site/project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
-      const addWork = $("#add-work"); if (addWork && !addWork.dataset.feedBound) { addWork.dataset.feedBound = "true"; addWork.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "/site/profile-setup.html?edit=1"; }, true); }
+      if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
+      if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
+      const addWork = $("#add-work");
+      if (addWork) {
+        addWork.innerHTML = '<span>▣</span><span>View my profile</span>';
+        if (!addWork.dataset.feedBound) { addWork.dataset.feedBound = "true"; addWork.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "my-profile.html"; }, true); }
+      }
+      const availability = $("#set-availability");
+      if (availability) {
+        availability.hidden = false;
+        availability.innerHTML = profileType === "creator" ? '<span>◷</span>Set availability' : '<span>▣</span>Edit profile';
+        availability.setAttribute("aria-label", profileType === "creator" ? "Set your availability" : "Edit your profile");
+        if (!availability.dataset.feedBound) { availability.dataset.feedBound = "true"; availability.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = profileType === "creator" ? "profile-setup.html?edit=1#availability" : "profile-setup.html?edit=1"; }, true); }
+      }
     }
     const { data: projects, error } = await supabase.from("projects").select("*").eq("status", "Open").order("created_at", { ascending: false });
     if (error) throw error;
@@ -419,8 +532,18 @@
       const { data, error: ownersError } = await supabase.from("profiles").select("id,display_name,company_name,account_type,avatar_url").in("id", ownerIds);
       if (ownersError) throw ownersError; owners = data || [];
     }
+    const { data: savedRows, error: savedError } = await supabase.from("saved_projects").select("project_id").eq("user_id", user.id);
+    if (savedError) throw savedError;
+    const savedIds = new Set((savedRows || []).map((row) => row.project_id));
     const byId = Object.fromEntries(owners.map((p) => [p.id, p]));
-    const kindOf = (p) => p.project_type === "creator_idea" ? "creator" : p.owner_type === "agency" || byId[p.owner_id]?.account_type === "agency" ? "agency" : p.owner_type === "creator" || byId[p.owner_id]?.account_type === "creator" ? "creator" : "brand";
+    const kindOf = (p) => {
+      const projectType = String(p.project_type || "").trim().toLowerCase();
+      const ownerType = p.owner_type || byId[p.owner_id]?.account_type;
+      if (projectType === "creator_idea") return "creator";
+      if (projectType === "brand_campaign") return ownerType === "agency" ? "agency" : "brand";
+      if (["brand", "creator", "agency"].includes(ownerType)) return ownerType;
+      return "brand";
+    };
     const feedKinds = projects.map(kindOf);
     let live = $("#bmc-live-posts");
     const center = $(".center-col");
@@ -439,7 +562,7 @@
         window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind; applyFeedVisibility();
       });
     }
-    if (!projects.length) { live.innerHTML = ""; live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedActivityTimer) window.bmcFeedActivityTimer = window.setInterval(() => refreshFeedActivity(supabase, user).catch(() => {}), 20000); if (!window.bmcFeedProjectTimer) window.bmcFeedProjectTimer = window.setInterval(() => openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)), 30000); return; }
+    if (!projects.length) { live.innerHTML = ""; ["brand", "creator", "agency"].forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = "0"; }); live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user); if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000); return; }
     ["brand", "creator", "agency"].forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
     live.innerHTML = projects.map((p) => {
       const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
@@ -447,17 +570,41 @@
       const type = kind === "agency" ? "Agency project" : kind === "creator" ? "Creator idea" : "Brand project";
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const canApply = user.id !== p.owner_id;
-      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="/site/my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><h2 class="project-title">${esc(p.project_name)}</h2><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions">${canApply ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
+      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions"><button class="btn view-project-details" type="button">View details</button>${canApply ? `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button><button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
     }).join("");
     live.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
       const card = button.closest(".post");
       submitInterest(button.dataset.apply, card?.querySelector(".project-title")?.textContent || "Project", button).catch((error) => toast(error.message));
     }));
+    live.querySelectorAll("[data-save-project]").forEach((button) => button.addEventListener("click", async () => {
+      const id = button.dataset.saveProject; button.disabled = true;
+      try {
+        if (savedIds.has(id)) { const { error: removeError } = await supabase.from("saved_projects").delete().eq("user_id", user.id).eq("project_id", id); if (removeError) throw removeError; savedIds.delete(id); }
+        else { const { error: saveError } = await supabase.from("saved_projects").insert({ user_id: user.id, project_id: id }); if (saveError) throw saveError; savedIds.add(id); }
+        button.textContent = savedIds.has(id) ? "♥ Saved" : "♡ Save"; button.setAttribute("aria-pressed", String(savedIds.has(id))); button.classList.toggle("active", savedIds.has(id));
+        toast(savedIds.has(id) ? "Opportunity saved." : "Opportunity removed from saved items.");
+      } catch (error) { toast(error.message || "Could not update saved opportunities."); }
+      finally { button.disabled = false; }
+    }));
+    live.querySelectorAll(".project-details-trigger").forEach((button) => button.addEventListener("click", () => button.closest(".post")?.querySelector(".view-project-details")?.click()));
+    live.querySelectorAll(".view-project-details").forEach((button) => button.addEventListener("click", () => {
+      const card = button.closest(".post"), dialog = document.createElement("dialog"); dialog.className = "dashboard-project-dialog";
+      dialog.setAttribute("aria-label", `Project details: ${card.querySelector(".project-title")?.textContent || "Opportunity"}`);
+      const sheet = document.createElement("div"); sheet.className = "dashboard-project-sheet";
+      const close = document.createElement("button"); close.className = "dashboard-project-close"; close.type = "button"; close.textContent = "×"; close.setAttribute("aria-label", "Close project details");
+      const detail = card.cloneNode(true); detail.classList.remove("card"); detail.querySelector(".post-bottom")?.remove(); sheet.append(close, detail);
+      const actions = document.createElement("div"); actions.className = "dashboard-project-actions";
+      const save = card.querySelector("[data-save-project]"); const apply = card.querySelector("[data-apply]"); const edit = card.querySelector('a[href^="project-form.html"]');
+      if (save) { const saveCopy = save.cloneNode(true); saveCopy.addEventListener("click", () => { save.click(); dialog.close(); }); actions.append(saveCopy); }
+      if (apply) { const applyCopy = apply.cloneNode(true); applyCopy.addEventListener("click", () => { dialog.close(); apply.click(); }); actions.append(applyCopy); }
+      if (edit) { const editCopy = edit.cloneNode(true); editCopy.textContent = "Edit project"; actions.append(editCopy); }
+      sheet.append(actions); dialog.append(sheet); document.body.append(dialog); dialog.showModal(); close.addEventListener("click", () => dialog.close()); dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); }); dialog.addEventListener("close", () => dialog.remove());
+    }));
     live.dataset.kind = $("#bmc-feed-tabs .active")?.dataset.feedKind || selectedKind;
     applyFeedVisibility();
     await refreshFeedActivity(supabase, user);
-    if (!window.bmcFeedActivityTimer) window.bmcFeedActivityTimer = window.setInterval(() => refreshFeedActivity(supabase, user).catch(() => {}), 20000);
-    if (!window.bmcFeedProjectTimer) window.bmcFeedProjectTimer = window.setInterval(() => openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)), 30000);
+    if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user);
+    if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000);
     document.body.classList.add("bmc-data-ready");
     window.bmcRefreshMessageBadge?.();
   }
@@ -465,7 +612,10 @@
     const host = $("#bmc-live-posts"); if (!host) return;
     const kind = host.dataset.kind || "brand";
     const search = (window.bmcFeedSearch || "").trim().toLowerCase();
-    host.querySelectorAll(".post[data-kind]").forEach((card) => { card.hidden = card.dataset.kind !== kind || Boolean(search && !card.dataset.search.includes(search)); });
+    host.querySelectorAll(".post[data-kind]").forEach((card) => {
+      const visible = card.dataset.kind === kind && (!search || card.dataset.search.includes(search));
+      card.hidden = !visible; card.style.display = visible ? "" : "none";
+    });
     let empty = $("#bmc-feed-kind-empty");
     if (!empty) { empty = document.createElement("div"); empty.id = "bmc-feed-kind-empty"; empty.className = "panel empty"; host.append(empty); }
     const visible = [...host.querySelectorAll(".post[data-kind]")].some((card) => !card.hidden);
@@ -482,16 +632,36 @@
     if (own.error) throw own.error;
     const ids = (own.data || []).map((row) => row.id); let receivedCount = 0;
     if (ids.length) { const received = await supabase.from("applications").select("id", { count: "exact", head: true }).in("project_id", ids).neq("status", "withdrawn"); if (received.error) throw received.error; receivedCount = received.count || 0; }
+    await refreshMessageBadge();
     if (stats) stats.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><span><b>${postCount || 0}</b><br>Projects/ideas posted</span><span><b>${sentCount || 0}</b><br>Interests sent</span><span><b>${receivedCount}</b><br>Interests received</span><span><b>${window.bmcUnreadMessages || 0}</b><br>Unread messages</span></div>`;
-    const { data, error } = await supabase.from("notifications").select("id,title,body,type,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(6);
-    if (error) { if (notifications) notifications.textContent = "Run the activity-notifications SQL update to enable alerts."; return; }
+    const { data, error } = await supabase.from("notifications").select("id,title,body,type,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25);
+    if (error) { if (notifications) notifications.textContent = "Notifications could not be loaded. Please try again."; return; }
+    const unreadResult = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null);
+    const unread = unreadResult.error ? (data || []).filter((item) => !item.read_at).length : unreadResult.count || 0;
+    const countNode = document.querySelector("[data-notification-count]");
+    if (countNode) { countNode.textContent = unread > 99 ? "99+" : String(unread); countNode.hidden = unread === 0; countNode.setAttribute("aria-label", `${unread} unread notifications`); }
     if (notifications) {
-      notifications.innerHTML = data?.length ? data.map((item) => `<a href="${item.conversation_id ? `messages.html?conversation=${encodeURIComponent(item.conversation_id)}` : "dashboard.html"}" data-notification-id="${esc(item.id)}" style="display:block;padding:9px 0;border-top:1px solid #efeee8;text-decoration:none;color:inherit;${item.read_at ? "" : "font-weight:700"}"><b>${esc(item.title)}</b><br><span style="font-size:10px;color:#788078">${esc(item.body)} · ${new Date(item.created_at).toLocaleDateString()}</span></a>`).join("") : "No new activity yet.";
-      notifications.querySelectorAll("[data-notification-id]").forEach((link) => link.addEventListener("click", async (event) => {
-        event.preventDefault();
-        await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", link.dataset.notificationId);
-        await refreshMessageBadge(); location.href = link.href;
-      }));
+      const icons = { new_message: "✉", application_received: "↗", application_status: "✓" };
+      window.bmcRenderFeedNotifications = () => {
+        const filter = window.bmcNotificationFilter || "all";
+        const visible = (data || []).filter((item) => filter === "all" || (filter === "unread" ? !item.read_at : Boolean(item.read_at)));
+        notifications.innerHTML = visible.length ? visible.map((item) => {
+          const href = item.conversation_id
+            ? `messages.html?conversation=${encodeURIComponent(item.conversation_id)}`
+            : item.type === "application_received" && item.project_id
+              ? `dashboard.html?project=${encodeURIComponent(item.project_id)}${item.application_id ? `&application=${encodeURIComponent(item.application_id)}` : ""}`
+              : item.type === "application_status" && item.application_id
+                ? `applications.html?application=${encodeURIComponent(item.application_id)}`
+                : item.project_id ? `projects.html?project=${encodeURIComponent(item.project_id)}` : "dashboard.html";
+          return `<a class="bmc-notification" href="${href}" data-notification-id="${esc(item.id)}" data-read="${Boolean(item.read_at)}" data-unread="${!item.read_at}" data-icon="${icons[item.type] || "•"}"><b>${esc(item.title)}</b><span>${esc(item.body)}</span><time datetime="${esc(item.created_at)}">${new Date(item.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time></a>`;
+        }).join("") : `<div class="bmc-empty">${filter === "unread" ? "You’re all caught up." : filter === "read" ? "No read notifications yet." : "No new activity yet."}</div>`;
+        notifications.querySelectorAll("[data-notification-id]").forEach((link) => link.addEventListener("click", async (event) => {
+          event.preventDefault();
+          if (link.dataset.read !== "true") { const { error: updateError } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", link.dataset.notificationId).eq("user_id", user.id); if (updateError) return toast(updateError.message); }
+          await refreshMessageBadge(); location.href = link.href;
+        }));
+      };
+      window.bmcRenderFeedNotifications();
     }
     window.bmcRefreshMessageBadge?.();
   }
@@ -513,11 +683,14 @@
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "panel project item";
       const owner = (profiles || []).find((item) => item.id === p.owner_id);
-      row.dataset.kind = p.project_type === "creator_idea" ? "ideas" : p.owner_type === "agency" || owner?.account_type === "agency" ? "agency" : p.owner_type === "creator" || owner?.account_type === "creator" ? "ideas" : "projects";
+      const projectType = String(p.project_type || "").trim().toLowerCase();
+      const ownerType = p.owner_type || owner?.account_type;
+      const kind = projectType === "creator_idea" ? "creator" : projectType === "brand_campaign" ? (ownerType === "agency" ? "agency" : "brand") : ownerType;
+      row.dataset.kind = kind === "agency" ? "agency" : kind === "creator" ? "ideas" : "projects";
       row.dataset.category = p.category; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
       row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
       const kindLabel = row.dataset.kind === "agency" ? "Agency project" : row.dataset.kind === "ideas" ? "Creator idea" : "Brand project";
-      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${kindLabel} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested ↗</button>`}</div></div>`;
+      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${kindLabel} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested ↗</button>`}</div></div>`;
       host.insertBefore(row, empty || null);
     });
     host.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
@@ -544,9 +717,11 @@
     }
     if (path.endsWith("/my-projects.html")) loadMyProjects().catch((error) => toast(error.message || "Log in to see your projects."));
     if (path.endsWith("/my-profile.html")) renderMyProfile().catch((error) => toast(error.message || "Could not load this profile."));
-    if (path.endsWith("/feed.html")) openProjectsForFeed().catch(() => { location.href = "/site/index.html"; });
-    if (path.endsWith("/projects.html")) openProjectsDirectory().catch(() => { location.href = "/site/index.html"; });
-    if (path.endsWith("/logout.html")) client().then((supabase) => supabase.auth.signOut()).finally(() => { location.href = "/site/index.html"; });
+    if (path.endsWith("/feed.html")) openProjectsForFeed().catch(() => { location.href = "index.html"; });
+    if (path.endsWith("/projects.html")) openProjectsDirectory().catch(() => { location.href = "index.html"; });
+    if (path.endsWith("/logout.html")) client().then((supabase) => supabase.auth.signOut()).finally(() => { location.href = "index.html"; });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
+
+
