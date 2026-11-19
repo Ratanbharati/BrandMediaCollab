@@ -45,9 +45,12 @@
     };
     const creatorPanel = makePanel("creator-ideas-panel", "Creator ideas", "creator-ideas-summary", "creator-ideas-body", "creator-ideas-empty", "Interested brands");
     const agencyPanel = makePanel("agency-projects-panel", "Agency projects", "agency-projects-summary", "agency-projects-body", "agency-projects-empty", "Interested creators");
-    if (postsPanel && sentPanel) { postsPanel.after(creatorPanel); creatorPanel.after(agencyPanel); }
+    const celebrityPanel = makePanel("celebrity-projects-panel", "Celebrity projects", "celebrity-projects-summary", "celebrity-projects-body", "celebrity-projects-empty", "Interested partners");
+    const eventPanel = makePanel("event-projects-panel", "Event projects", "event-projects-summary", "event-projects-body", "event-projects-empty", "Interested partners");
+    const mediaPanel = makePanel("media-projects-panel", "Media projects", "media-projects-summary", "media-projects-body", "media-projects-empty", "Interested partners");
+    if (postsPanel && sentPanel) { postsPanel.after(creatorPanel); creatorPanel.after(agencyPanel); agencyPanel.after(celebrityPanel); celebrityPanel.after(eventPanel); eventPanel.after(mediaPanel); }
     const rolePicker = $("#role"); if (rolePicker) rolePicker.hidden = true;
-    const insight = $(".insight"); if (insight) insight.innerHTML = '<b>How it works:</b> Brand projects, Creator ideas, and Agency projects are separated by the account that posted them. “Applications sent” is your interest in other people’s posts. Each conversation is private and one-to-one. A bulk update sends the same message separately to each interested person.';
+    const insight = $(".insight"); if (insight) insight.innerHTML = '<b>How it works:</b> Brand projects, Creator ideas, Agency projects, Celebrity projects, Event projects, and Media projects are separated by the account that posted them. “Applications sent” is your interest in other people’s posts. Each conversation is private and one-to-one. A bulk update sends the same message separately to each interested person.';
   }
 
   async function ensureChat(projectId, otherId, message) {
@@ -74,7 +77,7 @@
     return chat.id;
   }
 
-  function openApplicants(projectId) {
+  function openApplicants(projectId, focusApplicationId = "") {
     const project = projectById[projectId]; if (!project) return;
     let modal = $("#applicant-modal");
     if (!modal) {
@@ -87,9 +90,16 @@
     const items = project.applications || [];
     $("#applicant-list").innerHTML = items.length ? items.map((app) => {
       const profile = profileById[app.applicant_id] || {}; const name = profile.display_name || profile.company_name || "Member";
-      return `<article style="border-top:1px solid #e5e8df;padding:14px 0;display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,2fr) auto;gap:12px;align-items:center"><div><b>${esc(name)}</b><div>${esc(profile.account_type || "Member")} · ${new Date(app.created_at).toLocaleDateString()}</div></div><div>${esc(app.message || "No note included")}</div><div style="display:flex;gap:6px;flex-wrap:wrap"><select data-status="${esc(app.id)}"><option value="interested">Interested</option><option value="working_together">Work together</option><option value="rejected">Pass</option></select><button data-chat="${esc(app.id)}">Open chat</button></div></article>`;
+      return `<article data-application-id="${esc(app.id)}" style="border-top:1px solid #e5e8df;padding:14px 0;display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,2fr) auto;gap:12px;align-items:center"><div><b>${esc(name)}</b><div>${esc(profile.account_type || "Member")} · ${new Date(app.created_at).toLocaleDateString()}</div></div><div>${esc(app.message || "No note included")}</div><div style="display:flex;gap:6px;flex-wrap:wrap"><select data-status="${esc(app.id)}"><option value="interested">Interested</option><option value="working_together">Work together</option><option value="rejected">Pass</option></select><button data-chat="${esc(app.id)}">Open chat</button></div></article>`;
     }).join("") : '<p>No one has expressed interest in this post yet.</p>';
     items.forEach((app) => { const select = $(`[data-status="${CSS.escape(app.id)}"]`); if (select) { select.value = app.status; select.onchange = async () => { const { error } = await supabase.from("applications").update({ status: select.value, updated_at: new Date().toISOString() }).eq("id", app.id); if (error) toast(error.message); else { app.status = select.value; toast("Application status updated."); await refreshDashboardData(); await renderNotifications(); } }; } const button = $(`[data-chat="${CSS.escape(app.id)}"]`); if (button) button.onclick = async () => { try { const id = await ensureChat(projectId, app.applicant_id); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message); } }; });
+    const focusedApplication = focusApplicationId && modal.querySelector(`[data-application-id="${CSS.escape(focusApplicationId)}"]`);
+    if (focusedApplication) {
+      focusedApplication.style.outline = "2px solid #91ba68";
+      focusedApplication.style.outlineOffset = "3px";
+      focusedApplication.scrollIntoView({ block: "center", behavior: "smooth" });
+      focusedApplication.querySelector("select")?.focus({ preventScroll: true });
+    }
   }
 
   async function bulkMessage(projectId) {
@@ -112,7 +122,7 @@
   }
 
   function renderOwned(owned, applications, conversations) {
-    const ownBody = $("#table-body"); const creatorIdeaBody = $("#creator-ideas-body"); const agencyBody = $("#agency-projects-body"); const sentBody = $("#creator-table-body");
+    const ownBody = $("#table-body"); const creatorIdeaBody = $("#creator-ideas-body"); const agencyBody = $("#agency-projects-body"); const celebrityBody = $("#celebrity-projects-body"); const eventBody = $("#event-projects-body"); const mediaBody = $("#media-projects-body"); const sentBody = $("#creator-table-body");
     const ownedIds = new Set(owned.map((p) => p.id));
     const forProject = Object.fromEntries(owned.map((project) => [project.id, applications.filter((app) => app.project_id === project.id)]));
     for (const project of owned) project.applications = forProject[project.id] || [];
@@ -121,15 +131,21 @@
     const brandPosts = owned.filter((p) => kindOf(p) === "brand");
     const creatorPosts = owned.filter((p) => kindOf(p) === "creator");
     const agencyPosts = owned.filter((p) => kindOf(p) === "agency");
+    const celebrityPosts = owned.filter((p) => kindOf(p) === "celebrity");
+    const eventPosts = owned.filter((p) => kindOf(p) === "event");
+    const mediaPosts = owned.filter((p) => kindOf(p) === "media");
     const renderProjectRows = (posts) => posts.map((p) => {
       const rows = forProject[p.id] || []; const interested = rows.filter((x) => x.status === "interested").length;
       const together = rows.filter((x) => x.status === "working_together").length; const rejected = rows.filter((x) => x.status === "rejected").length;
-      const label = kindOf(p) === "agency" ? "Agency project" : kindOf(p) === "creator" ? "Creator idea" : "Brand project";
+      const label = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kindOf(p)];
       return `<tr class="data-row" data-role="${esc(kindOf(p))}" data-project-id="${esc(p.id)}" data-date="${esc((p.created_at || "").slice(0,10))}" data-project="${esc(p.project_name)}" data-recipients="${interested}"><td class="project-cell"><b>${esc(p.project_name)}</b><span>${label} · ${esc(p.category)}</span></td><td>${esc(p.status)}</td><td><span class="metric">${rows.length}</span></td><td><span class="metric">${interested}</span></td><td><span class="metric">${together}</span></td><td><span class="metric">${rejected}</span></td><td><span class="metric">${chatCounts[p.id] || 0}</span></td><td><div class="row-actions"><button class="action" data-applicants="${esc(p.id)}">View responses (${rows.length})</button><button class="action primary-action" data-bulk="${esc(p.id)}">Message interested</button></div></td></tr>`;
     }).join("");
     if (ownBody) ownBody.innerHTML = renderProjectRows(brandPosts);
     if (creatorIdeaBody) creatorIdeaBody.innerHTML = renderProjectRows(creatorPosts);
     if (agencyBody) agencyBody.innerHTML = renderProjectRows(agencyPosts);
+    if (celebrityBody) celebrityBody.innerHTML = renderProjectRows(celebrityPosts);
+    if (eventBody) eventBody.innerHTML = renderProjectRows(eventPosts);
+    if (mediaBody) mediaBody.innerHTML = renderProjectRows(mediaPosts);
     const externalApps = applications.filter((app) => !ownedIds.has(app.project_id));
     if (sentBody) sentBody.innerHTML = externalApps.map((app) => {
       const project = projectById[app.project_id] || {}; const owner = profileById[project.owner_id] || {};
@@ -137,7 +153,7 @@
       const chat = conversations.find((c) => c.project_id === app.project_id && c.memberIds?.includes(project.owner_id));
       return `<tr class="data-row" data-role="applications" data-date="${esc((app.created_at || "").slice(0,10))}" data-project="${esc(project.project_name || "Project")}"><td class="project-cell"><b>${esc(project.project_name || "Project")}</b><span>${esc(project.category || "")}</span></td><td>${esc(name)}</td><td>${esc(app.status)}</td><td>${esc(app.message || "—")}</td><td>${new Date(app.created_at).toLocaleDateString()}</td><td colspan="2">${chat ? "Private chat ready" : "No chat yet"}</td><td><button class="action primary-action" data-open-chat="${esc(app.project_id)}" data-other="${esc(project.owner_id || "")}">Open chat</button></td></tr>`;
     }).join("");
-    [ownBody, creatorIdeaBody, agencyBody].filter(Boolean).forEach((body) => {
+    [ownBody, creatorIdeaBody, agencyBody, celebrityBody, eventBody, mediaBody].filter(Boolean).forEach((body) => {
       body.querySelectorAll("[data-applicants]").forEach((button) => button.onclick = () => openApplicants(button.dataset.applicants));
       body.querySelectorAll("[data-bulk]").forEach((button) => button.onclick = () => bulkMessage(button.dataset.bulk));
     });
@@ -146,11 +162,15 @@
     setEmpty("#empty", brandPosts, "No brand projects have been posted yet.");
     setEmpty("#creator-ideas-empty", creatorPosts, "No creator ideas have been posted yet.");
     setEmpty("#agency-projects-empty", agencyPosts, "No agency projects have been posted yet.");
+    setEmpty("#celebrity-projects-empty", celebrityPosts, "No celebrity projects have been posted yet.");
+    setEmpty("#event-projects-empty", eventPosts, "No event projects have been posted yet.");
+    setEmpty("#media-projects-empty", mediaPosts, "No media projects have been posted yet.");
     const sentEmpty = $("#creator-empty"); if (sentEmpty) sentEmpty.style.display = externalApps.length ? "none" : "block";
     const summary = (rows) => `${rows.length} post${rows.length === 1 ? "" : "s"} · ${rows.reduce((n,p) => n + (forProject[p.id] || []).length, 0)} responses received`;
     const brandSummary = $("#range-summary"); if (brandSummary) brandSummary.textContent = summary(brandPosts);
     const creatorSummary = $("#creator-ideas-summary"); if (creatorSummary) creatorSummary.textContent = summary(creatorPosts);
     const agencySummary = $("#agency-projects-summary"); if (agencySummary) agencySummary.textContent = summary(agencyPosts);
+    for (const [id, rows] of [["#celebrity-projects-summary", celebrityPosts], ["#event-projects-summary", eventPosts], ["#media-projects-summary", mediaPosts]]) { const node = $(id); if (node) node.textContent = summary(rows); }
     const sentSummary = $("#creator-range-summary"); if (sentSummary) sentSummary.textContent = `${externalApps.length} application${externalApps.length === 1 ? "" : "s"} sent to other members’ posts`;
     syncDashboardDates();
   }
@@ -162,6 +182,9 @@
       ["#table-body", "#empty", "#range-summary", "projects"],
       ["#creator-ideas-body", "#creator-ideas-empty", "#creator-ideas-summary", "ideas"],
       ["#agency-projects-body", "#agency-projects-empty", "#agency-projects-summary", "projects"],
+      ["#celebrity-projects-body", "#celebrity-projects-empty", "#celebrity-projects-summary", "projects"],
+      ["#event-projects-body", "#event-projects-empty", "#event-projects-summary", "projects"],
+      ["#media-projects-body", "#media-projects-empty", "#media-projects-summary", "projects"],
       ["#creator-table-body", "#creator-empty", "#creator-range-summary", "applications"]
     ];
     for (const [bodySelector, emptySelector, summarySelector, label] of groups) {
@@ -196,7 +219,7 @@
     const badge = document.querySelector("[data-dashboard-notification-count]");
     if (badge) { badge.textContent = unread > 99 ? "99+" : String(unread); badge.hidden = unread === 0; badge.setAttribute("aria-label", `${unread} unread notifications`); }
     const visible = (data || []).filter((item) => notificationFilter === "all" || (notificationFilter === "unread" ? !item.read_at : Boolean(item.read_at)));
-    host.innerHTML = visible.length ? visible.map((n) => `<button data-notification="${esc(n.id)}" data-read="${Boolean(n.read_at)}" data-conversation="${esc(n.conversation_id || "")}" data-project="${esc(n.project_id || "")}" style="position:relative;text-align:left;border:1px solid ${n.read_at ? "#e5e8df" : "#e3eddc"};border-radius:9px;background:${n.read_at ? "white" : "#f0f6e9"};padding:10px 12px 10px 27px"><i aria-hidden="true" style="position:absolute;left:11px;top:15px;width:7px;height:7px;border-radius:50%;background:${n.read_at ? "transparent" : "#4d9bd5"}"></i><b>${esc(n.title)}</b><div>${esc(n.body)}</div><small>${new Date(n.created_at).toLocaleString()}</small></button>`).join("") : `<span>${notificationFilter === "unread" ? "You’re all caught up." : notificationFilter === "read" ? "No read notifications yet." : "No new activity yet."}</span>`;
+    host.innerHTML = visible.length ? visible.map((n) => `<button data-notification="${esc(n.id)}" data-type="${esc(n.type)}" data-read="${Boolean(n.read_at)}" data-application="${esc(n.application_id || "")}" data-conversation="${esc(n.conversation_id || "")}" data-project="${esc(n.project_id || "")}" style="position:relative;text-align:left;border:1px solid ${n.read_at ? "#e5e8df" : "#e3eddc"};border-radius:9px;background:${n.read_at ? "white" : "#f0f6e9"};padding:10px 12px 10px 27px"><i aria-hidden="true" style="position:absolute;left:11px;top:15px;width:7px;height:7px;border-radius:50%;background:${n.read_at ? "transparent" : "#4d9bd5"}"></i><b>${esc(n.title)}</b><div>${esc(n.body)}</div><small>${new Date(n.created_at).toLocaleString()}</small></button>`).join("") : `<span>${notificationFilter === "unread" ? "You’re all caught up." : notificationFilter === "read" ? "No read notifications yet." : "No new activity yet."}</span>`;
     host.querySelectorAll("[data-notification]").forEach((button) => button.onclick = async () => {
       const id = button.dataset.notification;
       if (button.dataset.read !== "true") {
@@ -205,7 +228,9 @@
       }
       await renderNotifications(); window.bmcRefreshMessageBadge?.();
       if (button.dataset.conversation) location.href = `messages.html?conversation=${encodeURIComponent(button.dataset.conversation)}`;
-      else if (button.dataset.project) { const project = projectById[button.dataset.project]; if (project) openApplicants(project.id); }
+      else if (button.dataset.type === "application_status" && button.dataset.application) location.href = `applications.html?application=${encodeURIComponent(button.dataset.application)}`;
+      else if (button.dataset.type === "application_received" && button.dataset.project) { const project = projectById[button.dataset.project]; if (project) openApplicants(project.id, button.dataset.application); }
+      else if (button.dataset.project) location.href = `projects.html?project=${encodeURIComponent(button.dataset.project)}`;
     });
   }
 
@@ -282,6 +307,9 @@
     $("#date-to")?.addEventListener("change", () => document.querySelector('[data-preset="custom"]')?.classList.add("active"));
     await refreshDashboardData();
     await renderNotifications();
+    const params = new URLSearchParams(location.search);
+    const targetProject = params.get("project");
+    if (targetProject && projectById[targetProject]) openApplicants(targetProject, params.get("application") || "");
     connectDashboardRealtime();
     window.bmcRefreshMessageBadge?.();
     setInterval(() => { if (!dashboardRealtimeConnected && !document.hidden) { refreshDashboardData().catch(() => {}); renderNotifications().catch(() => {}); window.bmcRefreshMessageBadge?.(); } }, 30000);

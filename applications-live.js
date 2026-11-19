@@ -75,6 +75,7 @@
     const statusKey = app.status === "working_together" ? "matched" : app.status === "rejected" ? "passed" : app.status === "withdrawn" ? "withdrawn" : "pending";
     const card = document.createElement("article");
     card.className = "card application";
+    card.dataset.applicationId = app.id;
     card.dataset.status = app.status;
     card.innerHTML = `<div class="topline"><div class="symbol">${esc((owner.display_name || owner.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="meta"><b><a class="row-link" href="my-profile.html?user=${encodeURIComponent(project.owner_id || "")}">${esc(owner.display_name || owner.company_name || "Project owner")}</a></b><span>Applied ${new Date(app.created_at).toLocaleDateString()} · ${esc(project.category || "Project")}</span></div><span class="status ${statusKey === "matched" ? "match" : statusKey === "passed" || statusKey === "withdrawn" ? "pass" : ""}">${statusKey === "pending" ? "Awaiting response" : statusKey === "matched" ? "Working together" : statusKey === "withdrawn" ? "Withdrawn" : "Not selected"}</span></div><h2><a class="row-link" href="projects.html?project=${encodeURIComponent(project.id || "")}">${esc(project.project_name || "Project")}</a></h2><p>${esc(app.message || "No note was added.")}</p><div class="actions">${app.status !== "withdrawn" ? '<button class="btn dark" type="button" data-open-chat>Open private project chat ↗</button>' : ""}${app.status === "interested" ? '<button class="btn" type="button" data-withdraw>Withdraw interest</button>' : ""}</div>`;
     openChatButton(card, project, app);
@@ -114,6 +115,17 @@
     list.replaceChildren();
     rows.forEach((app) => renderApplication(app, byProject[app.project_id] || {}, byOwner[byProject[app.project_id]?.owner_id] || {}));
     showFilteredRows();
+    const applicationId = new URLSearchParams(location.search).get("application");
+    if (applicationId) {
+      const target = list.querySelector(`[data-application-id="${CSS.escape(applicationId)}"]`);
+      if (target) {
+        target.style.outline = "2px solid #91ba68";
+        target.style.outlineOffset = "3px";
+        target.tabIndex = -1;
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+        target.focus({ preventScroll: true });
+      }
+    }
   }
 
   async function refresh() {

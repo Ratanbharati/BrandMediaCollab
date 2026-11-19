@@ -1,11 +1,11 @@
 # Stagerang account journeys and UI acceptance checklist
 
-This document describes what a member should click, what the page should show, and what data should persist. Use it to review the deployed website with separate test accounts for Creator, Brand, and Agency. A passing screen means the real account data changed in Supabase and is still visible after sign-out/sign-in; a toast or a temporary browser-only change is not enough.
+This document describes what a member should click, what the page should show, and what data should persist. Use separate test accounts for Creator, Brand, Agency, Celebrity, Event, and Media. A passing screen means the real account data changed in Supabase and is still visible after sign-out/sign-in; a toast or a temporary browser-only change is not enough.
 
 ```mermaid
 flowchart TD
     A[Landing page] --> B[Join now or Log in]
-    B --> C[Choose Creator, Brand, or Agency]
+    B --> C[Choose Creator, Brand, Agency, Celebrity, Event, or Media]
     C --> D[Confirm email]
     D --> E[Complete matching profile]
     E --> F[Home: role-specific feed and activity]
@@ -29,7 +29,7 @@ flowchart TD
 ## Shared start: new account and every later login
 
 1. Open `https://www.stagerang.com`. The landing page shows **Log in** and **Join now**.
-2. Click **Join now**. Choose one account type: **Creator / Influencer**, **Brand**, or **Agency**. Enter name, email, and password, then submit.
+2. Click **Join now**. Choose one account type: **Creator**, **Brand**, **Agency**, **Celebrity**, **Event**, or **Media**. Enter name, email, and password, then submit.
 3. Confirm the email using the link delivered to that address. The confirmation link returns to Stagerang profile setup.
 4. Complete and save the profile. The selected account type and account owner must be saved to the signed-in user’s record.
 5. Continue to Home. The header should show the same account name and correct type.
@@ -64,17 +64,24 @@ flowchart TD
 5. **Collaborate:** open a conversation for the selected campaign and Creator. Replies persist in that conversation. Send campaign updates individually to interested members; confirm the activity is connected to the correct Agency project.
 6. **Dashboard:** Agency projects are their own table, separate from Brand projects, Creator ideas, and applications sent. Date filters update rows and counts consistently.
 
+## Celebrity, Event, and Media journeys
+
+1. **Profile:** choose the matching role at signup. Complete its role-specific profile fields (talent/profession for Celebrity; event specialisation and audience for Event; media categories and audience for Media), then save.
+2. **Post:** create a project while signed into that account. The saved account type determines the project category: Celebrity project, Event project, or Media project.
+3. **Verify:** confirm the item appears only under its matching category in Home, Projects, and Dashboard. Use the six-role filters in Explore and Messages to find the matching profiles and conversations.
+4. **Test collaboration:** express interest from another account, confirm the application and private conversation point to the correct project, and verify the activity remains after signing out and back in.
+
 ## Shared navigation and expected behavior
 
-- **Home:** the signed-in member’s own identity/profile card, current live posts grouped by the owner’s saved account type, and relevant recent activity. Brand projects show only Brand-owned posts, Creator ideas only Creator-owned posts, and Agency projects only Agency-owned posts.
-- **Projects:** the same strict separation applies to all three tabs. Selecting one tab must hide cards belonging to the other two types; counts must match the live Open posts in that selected category. Search/filter affects the current tab; **My applications**, **Saved projects**, and **My projects** show only the signed-in account’s records.
-- **Dashboard:** separate tables for Brand projects, Creator ideas, Agency projects, and applications sent. Each displayed count is derived from actual records, not sample totals.
+- **Home:** the signed-in member’s own identity/profile card, current live posts grouped by the owner’s saved account type, and relevant recent activity. Each of the six project types appears only under its matching category.
+- **Projects:** strict separation applies to all six tabs. Selecting one tab must hide cards belonging to the other types; counts must match live Open posts in the selected category. Search and filters affect the current tab; **My applications**, **Saved projects**, and **My projects** show only the signed-in account’s records.
+- **Dashboard:** separate sections cover Brand projects, Creator ideas, Agency projects, Celebrity projects, Event projects, Media projects, and applications sent. Counts must come from actual records, not sample totals.
 - **Messages:** each conversation names the other member and linked project/idea. Sending and receiving messages persists. New unread messages update the message badge and project activity count.
 - **Profile privacy:** public profile details are visible as intended, while email, phone, and private contact data remain private unless the member chooses to share them.
 
 ## Acceptance run before calling a role complete
 
-Use one test account for each role and keep a small expected-results list. For every role: create/sign in; save its profile; post one item; confirm it appears in its matching tab; select each of the other two tabs and confirm the card disappears; confirm the three tab counts match their Open posts; use another role to show interest with a note; confirm both accounts see the matching application; open the correct private conversation; exchange a message; verify unread state and dashboard/activity counts; sign out and back in; confirm all records persist and stay associated with the right accounts. Repeat once for a Creator idea and once for an Agency campaign.
+Use one test account for each role and keep a small expected-results list. For every role: create/sign in; save its profile; post one item; confirm it appears in its matching tab; select each of the other five tabs and confirm the card disappears; confirm the six tab counts match their Open posts; use another role to show interest with a note; confirm both accounts see the matching application; open the correct private conversation; exchange a message; verify unread state and dashboard/activity counts; sign out and back in; confirm all records persist and stay associated with the right accounts.
 
 If a button only shows a sample card, preview toast, or browser-only change, record it as not connected and do not count it as complete. Share the exact page, click, expected result, and actual result when reporting a failure.
 
