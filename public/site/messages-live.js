@@ -74,7 +74,7 @@
     conversationNode.innerHTML = `<div class="system-note">${esc(message)}</div>`;
   }
   function showEmptyChat() {
-    conversationNode.innerHTML = '<section class="empty-chat-state"><span class="empty-chat-icon" aria-hidden="true">✉</span><h2>Your collaborations start here.</h2><p>Connect with brands, creators, and agencies to discuss projects and turn opportunities into collaborations.</p><a class="empty-chat-cta" href="projects.html">Explore projects</a></section>';
+    conversationNode.innerHTML = '<section class="empty-chat-state"><span class="empty-chat-icon" aria-hidden="true">✉</span><h2>Your collaborations start here.</h2><p>Connect with brands, creators, and agencies to discuss projects and turn opportunities into collaborations.</p><a class="empty-chat-cta" href="explore.html">Explore profiles</a> <a class="empty-chat-cta" href="projects.html">Explore projects</a></section>';
   }
   function appendMessage(message) {
     const row = document.createElement("div");
@@ -113,6 +113,8 @@
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => { window.bmcRefreshMessageBadge?.(); refreshActivity().catch(() => {}); })
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, refreshThreads)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "conversation_members", filter: `user_id=eq.${user.id}` }, refreshThreads)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profile_connections", filter: `requester_id=eq.${user.id}` }, refreshThreads)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profile_connections", filter: `recipient_id=eq.${user.id}` }, refreshThreads)
       .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, refreshThreads)
       .subscribe((status) => { realtimeConnected = status === "SUBSCRIBED"; });
   }
@@ -122,13 +124,17 @@
     $("#chat-name").href = `my-profile.html?user=${encodeURIComponent(item.otherId)}`;
     $("#chat-title").textContent = item.accountType ? item.projectName + " · " + item.accountType.replaceAll("_", " ") : item.projectName;
     $("#context-title").textContent = item.projectName;
-    if ($("#context-subtitle")) $("#context-subtitle").textContent = item.projectType ? item.projectType.replaceAll("_", " ") + " · Private project chat" : "Private project chat";
+    if ($("#context-subtitle")) $("#context-subtitle").textContent = item.isDirect ? "Connected on Stagerang · Private conversation" : item.projectType ? item.projectType.replaceAll("_", " ") + " · Private project chat" : "Private project chat";
     $("#chat-avatar").textContent = item.otherName.slice(0, 2).toUpperCase();
     $("#messages").classList.add("show-chat");
     $(".compose").style.display = "";
     $(".chat-head").style.display = "";
     $(".context").style.display = "";
-    $("#chat-project-link")?.setAttribute("href", "projects.html?project=" + encodeURIComponent(item.projectId || ""));
+    const contextLink = $("#chat-project-link");
+    if (contextLink) {
+      contextLink.href = item.isDirect ? `my-profile.html?user=${encodeURIComponent(item.otherId)}` : "projects.html?project=" + encodeURIComponent(item.projectId || "");
+      contextLink.textContent = item.isDirect ? "View profile ↗" : "View project ↗";
+    }
     [...threadNode.querySelectorAll(".thread")].forEach((node) => node.classList.toggle("active", node.dataset.id === item.id));
     await loadMessages(item.id);
     await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).eq("type", "new_message").eq("conversation_id", item.id).is("read_at", null);
@@ -139,19 +145,23 @@
     if (poller) { clearInterval(poller); poller = null; }
   }
   async function createConversation(projectId, otherId, projectName, otherName) {
-    const { data: existing, error: listError } = await supabase.from("conversations").select("id,project_id,created_by").eq("project_id", projectId);
+    let query = supabase.from("conversations").select("id,project_id,created_by");
+    query = projectId ? query.eq("project_id", projectId) : query.is("project_id", null);
+    const { data: existing, error: listError } = await query;
     if (listError) throw listError;
     for (const conv of existing || []) {
       const { data: members } = await supabase.from("conversation_members").select("user_id").eq("conversation_id", conv.id);
       if ((members || []).some((m) => m.user_id === otherId) && (members || []).some((m) => m.user_id === user.id)) {
-        return selectConversation({ id: conv.id, projectId, projectName, otherId, otherName, accountType: eligibleCollabs.find((item) => item.otherId === otherId && item.projectId === projectId)?.accountType || "", avatarUrl: eligibleCollabs.find((item) => item.otherId === otherId && item.projectId === projectId)?.avatarUrl || "" });
+        const eligible = eligibleCollabs.find((item) => item.otherId === otherId && item.projectId === projectId);
+        return selectConversation({ id: conv.id, projectId, isDirect: !projectId, projectName: projectName || "Direct connection", otherId, otherName, accountType: eligible?.accountType || "", avatarUrl: eligible?.avatarUrl || "" });
       }
     }
     const { data: conv, error: createError } = await supabase.from("conversations").insert({ project_id: projectId, created_by: user.id, is_group: false }).select("id").single();
     if (createError) throw createError;
     const { error: membersError } = await supabase.from("conversation_members").insert([{ conversation_id: conv.id, user_id: user.id }, { conversation_id: conv.id, user_id: otherId }]);
     if (membersError) throw membersError;
-    const item = { id: conv.id, projectId, projectName, otherId, otherName, accountType: eligibleCollabs.find((collab) => collab.otherId === otherId && collab.projectId === projectId)?.accountType || "", avatarUrl: eligibleCollabs.find((collab) => collab.otherId === otherId && collab.projectId === projectId)?.avatarUrl || "" };
+    const eligible = eligibleCollabs.find((collab) => collab.otherId === otherId && collab.projectId === projectId);
+    const item = { id: conv.id, projectId, isDirect: !projectId, projectName: projectName || "Direct connection", otherId, otherName, accountType: eligible?.accountType || "", avatarUrl: eligible?.avatarUrl || "" };
     await selectConversation(item);
     await renderThreads();
   }
@@ -166,7 +176,7 @@
       if (error) throw error;
       conversations = data || [];
     }
-    if (!conversations.length) threadNode.innerHTML = '<div class="list-empty-state"><b>No conversations yet</b><span>Accepted collaborations will appear here. You can also explore projects to find a match.</span><a href="projects.html">Explore projects ↗</a></div>';
+    if (!conversations.length) threadNode.innerHTML = '<div class="list-empty-state"><b>No conversations yet</b><span>Connect with someone or accept a project collaboration to start a private chat.</span><a href="explore.html">Explore profiles ↗</a></div>';
     const projectIds = [...new Set(conversations.map((c) => c.project_id).filter(Boolean))];
     const { data: members } = ids.length ? await supabase.from("conversation_members").select("conversation_id,user_id").in("conversation_id", ids) : { data: [] };
     const otherIds = [...new Set((members || []).map((m) => m.user_id).filter((id) => id !== user.id))];
@@ -191,7 +201,7 @@
       const p = profileById[otherId] || {};
       const latest = latestByConversation.get(conv.id);
       const project = projectById[conv.project_id] || {};
-      const item = { id: conv.id, projectId: conv.project_id, projectName: project.project_name || "Collaboration chat", projectType: project.project_type || "", otherId, otherName: p.display_name || p.company_name || "Member", accountType: p.account_type || "", avatarUrl: p.avatar_url || "", latest, unread: unreadByConversation.get(conv.id) || 0, activityAt: latest?.created_at || conv.created_at };
+      const item = { id: conv.id, projectId: conv.project_id, isDirect: !conv.project_id, projectName: project.project_name || (conv.project_id ? "Collaboration chat" : "Direct connection"), projectType: project.project_type || "", otherId, otherName: p.display_name || p.company_name || "Member", accountType: p.account_type || "", avatarUrl: p.avatar_url || "", latest, unread: unreadByConversation.get(conv.id) || 0, activityAt: latest?.created_at || conv.created_at };
       items.push(item);
     }
     items.sort((a, b) => new Date(b.activityAt) - new Date(a.activityAt));
@@ -210,6 +220,16 @@
     await renderAcceptedPartners(conversations, members || []);
     applyThreadFilters();
     renderStartChoices();
+    const requestedProfile = new URLSearchParams(location.search).get("profile");
+    if (!activeId && requestedProfile) {
+      const direct = eligibleCollabs.find((item) => item.direct && item.otherId === requestedProfile);
+      const existingDirect = items.find((item) => item.isDirect && item.otherId === requestedProfile);
+      const params = new URLSearchParams(location.search); params.delete("profile");
+      history.replaceState({}, "", `${location.pathname}${params.size ? `?${params}` : ""}`);
+      if (existingDirect) await selectConversation(existingDirect);
+      else if (direct) await createConversation(null, direct.otherId, "Direct connection", direct.otherName);
+      else toast("Accept a connection request before starting a direct message.");
+    }
   }
   async function renderAcceptedPartners(conversations, members) {
     const { data: owned, error: ownError } = await supabase.from("projects").select("id,project_name,owner_id").eq("owner_id", user.id);
@@ -232,6 +252,12 @@
       ...(owned || []).flatMap((project) => received.filter((app) => app.project_id === project.id).map((app) => ({ projectId: project.id, projectName: project.project_name, otherId: app.applicant_id }))),
       ...(appliedProjects || []).map((project) => ({ projectId: project.id, projectName: project.project_name, otherId: project.owner_id })),
     ];
+    const { data: acceptedConnections, error: connectionError } = await supabase.from("profile_connections").select("requester_id,recipient_id").eq("status", "accepted").or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`);
+    if (connectionError) throw connectionError;
+    for (const connection of acceptedConnections || []) {
+      const otherId = connection.requester_id === user.id ? connection.recipient_id : connection.requester_id;
+      if (otherId) opportunities.push({ projectId: null, projectName: "Direct connection", otherId, direct: true });
+    }
     const existingPairs = new Set();
     for (const conv of conversations) {
       const pair = (members || []).filter((m) => m.conversation_id === conv.id).map((m) => m.user_id).sort().join(":");
@@ -251,7 +277,7 @@
       eligibleCollabs.push({ ...opportunity, otherName, accountType: person.account_type || "", avatarUrl: person.avatar_url || "" });
       const button = document.createElement("button"); button.className = "thread";
       button.dataset.kind = person.account_type || ""; button.dataset.start = "true";
-      button.innerHTML = '<span class="avatar">' + esc(otherName.slice(0, 2).toUpperCase()) + '</span><span class="thread-info"><span class="thread-top"><b>' + esc(otherName) + '</b></span><span class="subject">' + esc(opportunity.projectName) + '</span><span class="preview">Start project chat</span></span>';
+      button.innerHTML = '<span class="avatar">' + esc(otherName.slice(0, 2).toUpperCase()) + '</span><span class="thread-info"><span class="thread-top"><b>' + esc(otherName) + '</b></span><span class="subject">' + esc(opportunity.projectName) + '</span><span class="preview">' + (opportunity.direct ? "Start direct conversation" : "Start project chat") + '</span></span>';
       button.addEventListener("click", () => createConversation(opportunity.projectId, opportunity.otherId, opportunity.projectName, otherName).catch((error) => toast(error.message)));
       threadNode.append(button);
     }
@@ -275,7 +301,7 @@
     const host = document.querySelector("#start-message-choices"); if (!host) return;
     const query = (document.querySelector("#start-message-search")?.value || "").trim().toLowerCase();
     const matches = eligibleCollabs.filter((item) => (item.otherName + " " + item.projectName).toLowerCase().includes(query));
-    host.innerHTML = matches.length ? matches.map((item, index) => '<button class="start-choice" type="button" data-choice="' + index + '"><span class="avatar">' + esc(item.otherName.slice(0, 2).toUpperCase()) + '</span><span><b>' + esc(item.otherName) + '</b><span>' + esc(item.projectName) + '</span></span></button>').join("") : '<div class="list-empty-state"><b>No eligible collaborators found</b><span>Chats open after a project collaboration is accepted.</span></div>';
+    host.innerHTML = matches.length ? matches.map((item, index) => '<button class="start-choice" type="button" data-choice="' + index + '"><span class="avatar">' + esc(item.otherName.slice(0, 2).toUpperCase()) + '</span><span><b>' + esc(item.otherName) + '</b><span>' + esc(item.projectName) + '</span></span></button>').join("") : '<div class="list-empty-state"><b>No eligible collaborators found</b><span>Direct chats open with accepted connections. Project chats open after a collaboration is accepted.</span></div>';
     host.querySelectorAll("[data-choice]").forEach((button) => button.addEventListener("click", () => {
       const item = matches[Number(button.dataset.choice)]; if (!item) return;
       document.querySelector("#start-message-modal")?.classList.remove("open");

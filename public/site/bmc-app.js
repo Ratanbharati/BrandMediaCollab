@@ -230,7 +230,7 @@
       portfolio_links: [...document.querySelectorAll(".portfolio-item[data-url]")].map((item) => item.dataset.url),
       languages,
       onboarding_completed: markComplete,
-      is_discoverable: true,
+      is_discoverable: $("#discoverable")?.checked ?? false,
       updated_at: new Date().toISOString(),
     };
     const website = payload.website_url;
@@ -438,6 +438,7 @@
       "#language": profile.languages,
     };
     Object.entries(values).forEach(([selector, value]) => { const el = $(selector); if (el && value) el.value = value; });
+    if ($("#discoverable")) $("#discoverable").checked = profile.is_discoverable !== false;
     if (Array.isArray(profile.languages)) [...($("#language")?.options || [])].forEach((option) => { option.selected = profile.languages.includes(option.value); });
     const otherLanguage = (profile.languages || []).find((language) => language !== "English" && language !== "Hindi" && language !== "Marathi" && language !== "Kannada" && language !== "Tamil" && language !== "Telugu" && language !== "Bengali" && language !== "Gujarati" && language !== "Malayalam" && language !== "Punjabi");
     if (otherLanguage && $("#language-other")) { $("#language")?.querySelector('option[value="Other"]') && ($("#language").querySelector('option[value="Other"]').selected = true); $("#language-other").value = otherLanguage === "Other" ? "" : otherLanguage; $("#language-other-field").hidden = false; }
@@ -489,13 +490,22 @@
     const targetId = params.get("user") || current.data.user?.id;
     if (!targetId) { location.href = "index.html"; return; }
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", targetId).single();
-    if (error) throw error;
+      const root = $("#dynamic-profile"); if (!root) return;
+      if (error || !profile || (current.data.user?.id !== targetId && profile.is_discoverable !== true)) {
+        root.innerHTML = `<section class="card profile-unavailable"><div class="profile-body"><span class="role">Profile unavailable</span><h1>This profile isn’t available</h1><p>This member may have turned off Explore visibility or removed their profile.</p><a class="edit" href="explore.html">Back to Explore</a></div></section>`;
+        document.title = "Profile unavailable — Stagerang";
+        return;
+      }
     const { data: socialAccounts, error: socialError } = await supabase.from("social_accounts").select("platform,profile_url").eq("user_id", targetId).order("platform");
     if (socialError) throw socialError;
-    const root = $("#dynamic-profile"); if (!root) return;
     const isOwner = current.data.user?.id === targetId;
     const publicTags = [...(profile.content_categories || []), ...(profile.collaboration_categories || []), ...(profile.languages || []), ...(profile.services || []), ...(profile.specialisations || [])];
-    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="${esc(profile.display_name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || "BMC").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "")}</p>${profile.manager_name ? `<p>Contact: ${esc(profile.manager_name)}${profile.manager_title ? ` · ${esc(profile.manager_title)}` : ""}</p>` : ""}${profile.website_url ? `<a href="${esc(profile.website_url)}" target="_blank" rel="noopener noreferrer">${esc(profile.website_url)}</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div><div class="public-social-links">${(socialAccounts || []).map((account) => `<a href="${esc(account.profile_url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>`).join("")}${(profile.portfolio_links || []).map((url) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Featured work</a>`).join("")}</div>${isOwner ? '<a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>' : ""}</div></section>`;
+    const publicLink = (value) => { try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.href : ""; } catch (_) { return ""; } };
+    const socialLinks = (socialAccounts || []).map((account) => { const url = publicLink(account.profile_url); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>` : ""; }).join("");
+    const portfolioLinks = (profile.portfolio_links || []).map((value) => { const url = publicLink(value); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Featured work</a>` : ""; }).join("");
+    const social = socialLinks || portfolioLinks ? `<div class="public-social-links">${socialLinks}${portfolioLinks}</div>` : "";
+    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || profile.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.agency_type || profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "This member is still completing their public profile.")}</p>${profile.website_url && publicLink(profile.website_url) ? `<a href="${esc(publicLink(profile.website_url))}" target="_blank" rel="noopener noreferrer">${esc(profile.website_url)}</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>${social}${isOwner ? `<p class="profile-discovery-status">${profile.is_discoverable ? "Your profile is visible in Explore." : "Your profile is hidden from Explore."}</p><a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>` : '<div id="profile-connection-actions" class="profile-connection-actions" aria-live="polite"><span>Loading connection options…</span></div>'}</div></section>`;
+    if (!isOwner) await window.bmcConnections?.renderProfileActions(profile.id, false);
     document.title = `${profile.display_name || "Profile"} — Stagerang`;
   }
   function projectPayload(user, accountType) {
@@ -818,20 +828,24 @@
     if (ids.length) { const received = await supabase.from("applications").select("id", { count: "exact", head: true }).in("project_id", ids).neq("status", "withdrawn"); if (received.error) throw received.error; receivedCount = received.count || 0; }
     await refreshMessageBadge();
     if (stats) stats.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><span><b>${postCount || 0}</b><br>Projects/ideas posted</span><span><b>${sentCount || 0}</b><br>Interests sent</span><span><b>${receivedCount}</b><br>Interests received</span><span><b>${window.bmcUnreadMessages || 0}</b><br>Unread messages</span></div>`;
-    const { data, error } = await supabase.from("notifications").select("id,title,body,type,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25);
+    const { data, error } = await supabase.from("notifications").select("id,title,body,type,actor_id,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25);
     if (error) { if (notifications) notifications.textContent = "Notifications could not be loaded. Please try again."; return; }
     const unreadResult = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null);
     const unread = unreadResult.error ? (data || []).filter((item) => !item.read_at).length : unreadResult.count || 0;
     const countNode = document.querySelector("[data-notification-count]");
     if (countNode) { countNode.textContent = unread > 99 ? "99+" : String(unread); countNode.hidden = unread === 0; countNode.setAttribute("aria-label", `${unread} unread notifications`); }
     if (notifications) {
-      const icons = { new_message: "✉", application_received: "↗", application_status: "✓" };
+      const icons = { new_message: "✉", application_received: "↗", application_status: "✓", connection_request: "＋", connection_accepted: "✓", connection_declined: "↗" };
       window.bmcRenderFeedNotifications = () => {
         const filter = window.bmcNotificationFilter || "all";
         const visible = (data || []).filter((item) => filter === "all" || (filter === "unread" ? !item.read_at : Boolean(item.read_at)));
         notifications.innerHTML = visible.length ? visible.map((item) => {
           const href = item.conversation_id
             ? `messages.html?conversation=${encodeURIComponent(item.conversation_id)}`
+            : ["connection_request", "connection_accepted", "connection_declined"].includes(item.type) && item.actor_id
+              ? `my-profile.html?user=${encodeURIComponent(item.actor_id)}`
+              : ["connection_request", "connection_accepted", "connection_declined"].includes(item.type)
+                ? "explore.html"
             : item.type === "application_received" && item.project_id
               ? `dashboard.html?project=${encodeURIComponent(item.project_id)}${item.application_id ? `&application=${encodeURIComponent(item.application_id)}` : ""}`
               : item.type === "application_status" && item.application_id
