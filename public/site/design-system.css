@@ -1,0 +1,127 @@
+/* Stagerang shared design tokens and baseline components. Page layouts and brand color remain page-owned. */
+:root {
+  --sr-ink: #1b2b22;
+  --sr-muted: #788078;
+  --sr-paper: #f6f5f0;
+  --sr-surface: #fffefa;
+  --sr-line: #e9e7df;
+  --sr-green: #b9ee73;
+  --sr-deep: #293d30;
+  --sr-font-body: "DM Sans", Arial, sans-serif;
+  --sr-font-display: "Manrope", "DM Sans", Arial, sans-serif;
+  --sr-text-xs: 0.75rem;
+  --sr-text-sm: 0.875rem;
+  --sr-text-base: 1rem;
+  --sr-text-lg: 1.125rem;
+  --sr-heading-page: clamp(1.75rem, 3vw, 2.5rem);
+  --sr-heading-section: clamp(1.25rem, 2vw, 1.625rem);
+  --sr-heading-card: 1.125rem;
+  --sr-space-1: 0.25rem;
+  --sr-space-2: 0.5rem;
+  --sr-space-3: 0.75rem;
+  --sr-space-4: 1rem;
+  --sr-space-5: 1.25rem;
+  --sr-space-6: 1.5rem;
+  --sr-space-8: 2rem;
+  --sr-radius-control: 0.625rem;
+  --sr-radius-card: 1rem;
+  --sr-focus: 0 0 0 3px rgb(105 153 69 / 28%);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  min-width: 320px;
+  max-width: 100%;
+  overflow-x: clip;
+  font-family: var(--sr-font-body);
+  line-height: 1.5;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--sr-font-display);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  text-wrap: pretty;
+}
+body:not(.sr-hero-page) h1 { font-size: var(--sr-heading-page) !important; }
+body.sr-hero-page h1 { font-size: clamp(2.25rem, 5.5vw, 4.5rem) !important; }
+body h2 { font-size: var(--sr-heading-section) !important; }
+body :is(.card, .panel, .post, .project, .notification, .profile-card) h2 { font-size: var(--sr-heading-card) !important; }
+body h3 { font-size: var(--sr-text-lg) !important; }
+@media (max-width: 720px) {
+  body.sr-hero-page h1 { font-size: clamp(2rem, 10vw, 3.25rem) !important; }
+}
+p { text-wrap: pretty; }
+img, picture, video, canvas, iframe { max-width: 100%; }
+button, input, select, textarea { max-width: 100%; font-family: var(--sr-font-body); }
+button { touch-action: manipulation; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, [tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--sr-focus);
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+select, textarea {
+  border-radius: var(--sr-radius-control);
+}
+textarea { line-height: 1.5; }
+
+/* Shared navigation icon family: crisp 18px outline SVGs with a 1.8px stroke. */
+.sr-nav-icon, .sr-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  line-height: 1;
+}
+.sr-nav-icon svg, .sr-icon svg { display: block; width: 100%; height: 100%; }
+.collabry-nav nav a .sr-nav-icon { font-size: 0; }
+.collabry-nav nav a .sr-nav-icon svg { width: 18px; height: 18px; }
+
+/* Align the shared app navigation without changing each page's content grid. */
+.collabry-nav { font-family: var(--sr-font-body); }
+.collabry-nav nav a { gap: var(--sr-space-1); }
+.collabry-account { font-family: var(--sr-font-body); }
+
+/* Shared component baseline; existing page classes continue to provide their brand variants. */
+button, .button, .btn, .primary, .secondary, .action {
+  font-weight: 600;
+  line-height: 1.25;
+}
+.sr-button {
+  font-family: var(--sr-font-body);
+  font-weight: 600;
+  line-height: 1.25;
+  touch-action: manipulation;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.sr-field { max-width: 100%; min-height: 44px; border-radius: var(--sr-radius-control); font: inherit; }
+.sr-card { min-width: 0; border-radius: var(--sr-radius-card); }
+.sr-empty, .sr-error { line-height: 1.5; overflow-wrap: anywhere; }
+.sr-tab { min-height: 40px; touch-action: manipulation; }
+label { line-height: 1.4; }
+.card, .panel, .notification, .post, .project-card { min-width: 0; }
+.empty, .error, [role="alert"], [role="status"] { line-height: 1.5; }
+.toast, .sr-toast { z-index: 1100; max-width: min(92vw, 34rem); overflow-wrap: anywhere; }
+.modal-back, [role="dialog"] { overscroll-behavior: contain; }
+.table-wrap, .table-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 720px) {
+  body { font-size: 16px; }
+  .collabry-nav nav a { min-height: 44px; }
+  button, .button, .btn, .primary, .secondary, .action { min-height: 40px; }
+  .sr-button, .sr-tab { min-height: 44px; }
+  .sr-field { min-height: 44px; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select, textarea { max-width: 100%; }
+  main, section, article, aside, header, nav, footer { min-width: 0; }
+  .modal, [role="dialog"] { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

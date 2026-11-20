@@ -1,31 +1,35 @@
 # Stagerang owner console setup
 
-The live owner console is served at `/site/admin-dashboard.html`. Sign in there with the owner’s existing verified Stagerang account.
+The owner console is served at `/site/admin-dashboard.html`. It uses the owner’s existing Stagerang Supabase Auth account. Admin authorization is checked by the server against `public.platform_admins`; public signup cannot assign this role.
 
-For the complete owner journey and a post-deployment checklist, see `ADMIN-WORKFLOW.md`.
+This package does not include an owner email, password, or admin membership record. Configure the verified owner's email through a private environment setting and grant membership only through the trusted bootstrap/database procedure described below.
 
-## Vercel environment variables
+## Required Vercel environment variables
 
-In Vercel, open the project’s **Settings → Environment Variables** and add:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only; never add the `NEXT_PUBLIC_` prefix or include the value in frontend files.
+- `STAGERANG_ADMIN_EMAIL=owner@example.com` — replace the placeholder privately with the exact verified owner email; used only for tightly controlled first-owner bootstrap if the admin table is empty.
 
-- `STAGERANG_ADMIN_EMAIL`: `ratnabharati.rb@gmail.com` (the verified owner account email).
-- `SUPABASE_SERVICE_ROLE_KEY`: the Supabase service-role secret for the connected project. Store this as a server-only variable. Never prefix it with `NEXT_PUBLIC_`, put it in a browser file, or send it in chat.
+After changing Vercel environment variables, redeploy the application. This task does not publish or deploy the repository.
 
-Keep the existing `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` variables. Redeploy after adding environment variables.
+## Database migration
 
-## First owner sign-in
+The migrations add moderation/report/verification tables, profile verification and project moderation fields, account suspension gates for database and storage access, minimal admin-only directory/metrics views, and indexes. The package does not assume migrations are applied in any Supabase project. Check that project's migration history and schema, then apply only missing migrations in version order. The Vercel deployment must include the matching API code before using these tables.
 
-If `platform_admins` has no member yet, the first sign-in to the console automatically registers the authenticated, email-verified account whose email exactly matches `STAGERANG_ADMIN_EMAIL`. If an admin already exists, only accounts already in `platform_admins` can use the console. No SQL migration or manual database edit is required.
+## Admin features
 
-## What the console can do
+- Live aggregate counts for six account types, active users in the last 30 days, projects, applications, collaborations, connections, reports, verification, suspensions, support, and audit actions.
+- Server-paginated user directory with search, account type/status filters, profile details, completion percentage, projects count, verification state, and reversible visibility/suspension controls.
+- Project visibility moderation, report review, verification decisions, support status, and an audit log.
+- Profile/project reports and member verification-request forms create records using the signed-in member’s own session and database policies.
+- Private contact fields, credentials, tokens, Auth metadata, and message bodies are not returned to the admin console.
+- Permanent account deletion is intentionally unavailable from this dashboard.
 
-- Show live counts and paged member records, including account email and linked profile details.
-- Search members and hide/show profiles in discovery.
-- Browse live projects, applications, support requests, and admin audit entries.
-- Permanently delete an account only after typing its exact email and confirming a second prompt. The admin cannot delete the account currently being used. User-owned records follow the existing database foreign-key cascade rules.
+## Sign in
 
-Private campaign message bodies are not included in the console. They remain visible only to conversation participants unless a specific support-report review workflow is added.
+1. Open `https://www.stagerang.com/site/admin-dashboard.html` after the new code is uploaded and deployed.
+2. Sign in with the existing owner account. The server checks membership before showing the console data.
+3. If login succeeds but admin access is denied, confirm this account is present in `public.platform_admins` and verify the Vercel server-only environment variables. Do not add a frontend “make admin” action or share the service-role key.
 
-## Recovery
-
-If an admin loses access, the platform owner must restore admin membership through a trusted server/database administration path. Do not add a public “make me admin” button or expose the service-role secret.
+The owner password is not stored in this code bundle. Use the existing account or the Supabase password-recovery flow.

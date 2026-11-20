@@ -1,24 +1,9 @@
-# Upload the Stagerang admin console
+# Phase 3 admin update upload guide
 
-This is an admin-only update. It adds a protected owner console at `/site/admin-dashboard.html` and its server API. It does not add or require a SQL migration.
+1. Upload the contents of the Phase 3 ZIP to the root of the `main` branch in `Ratanbharati/BrandMediaCollab`, preserving `app/api`, `public/site`, and `supabase/migrations` paths.
+2. Confirm Vercel builds the `main` branch and Production deployment is Ready.
+3. Keep `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server-only), and `STAGERANG_ADMIN_EMAIL` configured in Vercel. Set the owner email privately; never commit it or upload the real service-role key to GitHub.
+4. The Phase 3 migrations have already been applied to the connected production Supabase project. If deploying to a different project, apply all four Phase 3 migrations in version order before deployment.
+5. Open `/site/admin-dashboard.html` and sign in with the existing owner account. Admin access is checked by the server; there is no admin signup or hard-coded password.
 
-## Upload to GitHub
-
-Extract the ZIP. Upload the files and folders inside it to the root of `Ratanbharati/BrandMediaCollab` on the `main` branch, keeping the `app/api/admin` and `public/site` folder paths intact. Commit the changes and wait for Vercel’s newest Production deployment to show **Ready**.
-
-## One-time Vercel configuration
-
-Open Vercel → Project → **Settings → Environment Variables**. Add:
-
-- `STAGERANG_ADMIN_EMAIL`: the owner account’s exact verified sign-in email.
-- `SUPABASE_SERVICE_ROLE_KEY`: the connected project’s service-role secret. Keep it server-only; never prefix it with `NEXT_PUBLIC_`.
-
-Keep the existing `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Redeploy after saving the variables.
-
-## Sign in and manage Stagerang
-
-Open `https://www.stagerang.com/site/admin-dashboard.html` and sign in with the verified owner account. If `platform_admins` is empty, the first sign-in automatically adds the configured owner. No SQL needs to be run. After setup, use the website console for routine administration; Supabase is not needed to browse accounts and activity.
-
-The console shows account/profile records, projects, applications, support requests, and admin actions. You can hide/show a profile or permanently delete a test account after typing its exact email and confirming. Deletion removes the Auth account and linked rows according to the existing cascade rules. Do not delete accounts containing real user data. Private message bodies are intentionally excluded.
-
-If the owner is not admitted, check that the deployment has the exact verified owner email configured. If `platform_admins` already has an admin, that existing admin must grant access; the first-owner bootstrap only runs when the table is empty.
+The ZIP contains code and migration files only. It does not contain login credentials and does not push to GitHub or deploy to Vercel.

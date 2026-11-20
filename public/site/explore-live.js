@@ -118,7 +118,7 @@
       else if (state.kind === "outgoing") controls = control("cancel", "Request sent · Cancel", "connect-action secondary");
       else if (state.kind === "unavailable") controls = '<button class="connect-action secondary" type="button" disabled>Unavailable</button>';
       else controls = control("connect", state.kind === "declined" ? "Connect again" : "Connect");
-      controls += `<details class="block-menu"><summary aria-label="More profile actions">···</summary><button type="button" data-action="block">Block profile</button></details>`;
+      controls += `<details class="block-menu"><summary aria-label="More profile actions">···</summary><button type="button" data-action="block">Block profile</button><button type="button" data-action="report">Report profile</button></details>`;
       host.innerHTML = controls;
       host.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", async (event) => {
         event.preventDefault(); event.stopPropagation(); button.disabled = true;
@@ -128,6 +128,17 @@
           else if (button.dataset.action === "decline") await window.bmcConnections.respond(profile.profile_id, "declined");
           else if (button.dataset.action === "cancel") await window.bmcConnections.cancel(profile.profile_id);
           else if (button.dataset.action === "block") await window.bmcConnections.block(profile.profile_id);
+          else if (button.dataset.action === "report") {
+            const reason = prompt("Choose a reason: spam, harassment, impersonation, unsafe_content, fraud, or other", "other") || "";
+            const normalized = reason.trim().toLowerCase();
+            if (!new Set(["spam", "harassment", "impersonation", "unsafe_content", "fraud", "other"]).has(normalized)) throw new Error("Enter one of the listed report reasons.");
+            const description = prompt("Please describe the concern (at least 10 characters):") || "";
+            if (description.trim().length < 10) throw new Error("Add a little more detail before submitting.");
+            const { data: { session } } = await supabase.auth.getSession();
+            const response = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }, body: JSON.stringify({ targetUserId: profile.profile_id, reason: normalized, description }) });
+            const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not submit this report.");
+            toast("Report sent to the moderation team."); return;
+          }
           toast(button.dataset.action === "accept" ? "You’re connected. You can now message each other." : button.dataset.action === "block" ? "Profile blocked. Manage blocked profiles below." : "Connection status updated.");
           renderCards();
         } catch (error) { button.disabled = false; toast(error.message || "Could not update this connection."); }

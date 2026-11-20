@@ -30,16 +30,20 @@
   async function refreshMessageBadge() {
     try {
       const supabase = await client(); const user = await signedIn(supabase);
-      const { count, error } = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("type", "new_message").is("read_at", null);
-      if (error) throw error;
-      const total = count || 0; window.bmcUnreadMessages = total;
-      document.querySelectorAll('a[href$="messages.html"],a[href*="messages.html?"]').forEach((link) => {
-        link.style.position = "relative";
-        let badge = link.querySelector(".bmc-message-badge");
-        if (!badge) { badge = document.createElement("span"); badge.className = "bmc-message-badge"; badge.setAttribute("aria-label", "Unread messages"); badge.style.cssText = "position:absolute;top:-3px;right:0;min-width:15px;height:15px;padding:0 4px;border-radius:9px;background:#d73535;color:#fff;font:700 9px/15px Arial;text-align:center"; link.append(badge); }
-        badge.textContent = total > 9 ? "9+" : String(total); badge.hidden = total === 0;
-      });
-    } catch (_) { /* Badge is available after the activity migration is installed. */ }
+      const [messages, notifications] = await Promise.all([
+        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("type", "new_message").is("read_at", null),
+        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null),
+      ]);
+      if (messages.error) throw messages.error; if (notifications.error) throw notifications.error;
+      const unreadMessages = messages.count || 0, unreadNotifications = notifications.count || 0; window.bmcUnreadMessages = unreadMessages; window.bmcUnreadNotifications = unreadNotifications;
+      document.querySelectorAll('a[href$="messages.html"],a[href*="messages.html?"]').forEach((link) => setNavBadge(link, "bmc-message-badge", unreadMessages, "Unread messages"));
+      document.querySelectorAll('a[data-notifications-link]').forEach((link) => setNavBadge(link, "bmc-notification-badge", unreadNotifications, "Unread notifications"));
+    } catch (_) { /* Badge counts are available after the activity migration is installed. */ }
+  }
+  function setNavBadge(link, className, total, label) {
+    link.style.position = "relative"; let badge = link.querySelector("." + className);
+    if (!badge) { badge = document.createElement("span"); badge.className = className; badge.style.cssText = "position:absolute;top:-3px;right:0;min-width:15px;height:15px;padding:0 4px;border-radius:9px;background:#d73535;color:#fff;font:700 9px/15px Arial;text-align:center"; link.append(badge); }
+    badge.textContent = total > 9 ? "9+" : String(total); badge.hidden = total === 0; badge.setAttribute("aria-label", label + ": " + total);
   }
   window.bmcRefreshMessageBadge = refreshMessageBadge;
   async function getOrCreateProjectChat(supabase, projectId, otherId, user, firstMessage) {
@@ -117,6 +121,62 @@
     if (error || !user) throw new Error("Please log in first, then try again.");
     return user;
   }
+  async function ensureInitializedProfile(supabase, user) {
+    const { data: existing, error: readError } = await supabase.from("profiles").select("id,account_type,onboarding_completed").eq("id", user.id).maybeSingle();
+    if (readError) throw readError;
+    const rawType = String(user.user_metadata?.account_type || "creator").toLowerCase();
+    const accountType = rawType === "influencer" ? "creator" : rawType;
+    if (!accountTypes.includes(accountType)) throw new Error("Your account type could not be verified. Contact support before continuing.");
+    const displayName = String(user.user_metadata?.display_name || "").trim().slice(0, 100);
+    let initialized = existing;
+    if (!initialized) {
+      const { error: insertError } = await supabase.from("profiles").insert({
+        id: user.id, account_type: accountType, display_name: displayName,
+        onboarding_completed: false, is_discoverable: false,
+      });
+      if (insertError && insertError.code !== "23505") throw insertError;
+      const { data: verified, error: verifyError } = await supabase.from("profiles").select("id,account_type,onboarding_completed").eq("id", user.id).maybeSingle();
+      if (verifyError) throw verifyError;
+      initialized = verified;
+    }
+    if (!initialized) throw new Error("Your account is ready, but its profile could not be initialized. Please try again or contact support.");
+    if (initialized.account_type !== accountType) throw new Error("Your saved profile type does not match this account. Contact support before continuing.");
+    const { data: privateContact, error: contactReadError } = await supabase.from("private_contacts").select("full_name").eq("user_id", user.id).maybeSingle();
+    if (contactReadError) throw contactReadError;
+    const fullName = String(user.user_metadata?.full_name || privateContact?.full_name || sessionStorage.getItem("bmc_signup_name") || "").trim();
+    const { error: contactError } = await supabase.from("private_contacts").upsert({ user_id: user.id, email: user.email || null, full_name: fullName || null }, { onConflict: "user_id" });
+    if (contactError) throw contactError;
+    return initialized;
+  }
+  const protectedPages = new Set([
+    "feed.html", "projects.html", "explore.html", "dashboard.html", "messages.html",
+    "applications.html", "saved-opportunities.html", "settings.html", "my-projects.html", "notifications.html",
+    "my-profile.html", "profile-setup.html", "project-form.html",
+  ]);
+  async function requirePageSession(supabase, file) {
+    let user;
+    try {
+      const { data: { user: currentUser }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      user = currentUser;
+    } catch (error) {
+      const next = `${file}${location.search}${location.hash}`;
+      const expired = /refresh token|invalid jwt|session missing|session not found|invalid token|not authenticated/i.test(String(error?.message || ""));
+      if (expired) { try { await supabase.auth.signOut({ scope: "local" }); } catch (_) { /* The local session is already unusable. */ } }
+      location.replace(`index.html?next=${encodeURIComponent(next)}&auth_error=${expired ? "session" : "connection"}`);
+      return false;
+    }
+    if (user) {
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_OUT" && !session) location.replace(`index.html?next=${encodeURIComponent(file)}&auth_error=session`);
+      });
+      return true;
+    }
+    try { await supabase.auth.signOut({ scope: "local" }); } catch (_) { /* Clear stale local auth state when possible. */ }
+    const next = `${file}${location.search}${location.hash}`;
+    location.replace(`index.html?next=${encodeURIComponent(next)}&auth_error=session`);
+    return false;
+  }
   async function loadAccountHeader() {
     const headerName = $(".collabry-account > span");
     if (!headerName) return;
@@ -128,6 +188,13 @@
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
     const label = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[type] || "Creator";
     headerName.textContent = `${name} · ${label}`;
+    const nav = document.querySelector(".collabry-nav nav");
+    if (nav && !nav.querySelector("a[data-notifications-link]")) {
+      const link = document.createElement("a"); link.href = "notifications.html"; link.dataset.notificationsLink = "true"; link.setAttribute("aria-label", "Notifications");
+      link.innerHTML = "<span>♧</span><small>Notifications</small>";
+      if (location.pathname.endsWith("/notifications.html")) { link.classList.add("active"); link.setAttribute("aria-current", "page"); }
+      const messages = nav.querySelector('a[href$="messages.html"]'); if (messages) messages.after(link); else nav.append(link);
+    }
     if (location.pathname.endsWith("/project-form.html") && !new URLSearchParams(location.search).has("id")) {
       const kind = $("#kind");
       if (kind) {
@@ -149,36 +216,89 @@
   async function authSubmit(event) {
     event.preventDefault(); event.stopImmediatePropagation();
     const form = event.currentTarget;
-    const email = $("#email").value.trim();
-    const password = $("#password").value;
+    const emailInput = $("#email"), passwordInput = $("#password");
+    const email = emailInput.value.trim().toLowerCase();
+    const password = passwordInput.value;
     const isSignup = $(".tab.active")?.dataset.mode !== "login";
     const button = form.querySelector('[type="submit"]');
+    if (!emailInput.checkValidity()) { emailInput.reportValidity(); return; }
+    if (isSignup) {
+      const nameInput = $("#full-name"), confirmation = $("#confirm-password"), selectedRole = $(".role-chip.selected")?.dataset.role;
+      if (nameInput.value.trim().length < 2) { nameInput.setCustomValidity("Enter your full name."); nameInput.reportValidity(); nameInput.setCustomValidity(""); return; }
+      if (!accountTypes.includes(selectedRole)) { toast("Choose one of the available account types."); return; }
+      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) { passwordInput.setCustomValidity("Use at least 8 characters, including a letter and a number."); passwordInput.reportValidity(); passwordInput.setCustomValidity(""); return; }
+      if (confirmation.value !== password) { confirmation.setCustomValidity("The passwords do not match."); confirmation.reportValidity(); confirmation.setCustomValidity(""); return; }
+      if (!$("#account-consent").checked) { $("#account-consent").focus(); toast("Please acknowledge how Stagerang uses your account details before creating an account."); return; }
+    } else if (!password) { passwordInput.reportValidity(); return; }
     button.disabled = true;
+    const originalButtonText = button.textContent;
+    button.textContent = isSignup ? "Creating your account…" : "Signing in…";
     try {
       const supabase = await client();
       if (isSignup) {
         const displayName = $("#full-name").value.trim();
-        const chosen = $(".role-chip.selected")?.dataset.role || "Influencer";
-        const accountType = chosen.toLowerCase() === "influencer" ? "creator" : chosen.toLowerCase();
+        const accountType = $(".role-chip.selected").dataset.role;
         sessionStorage.setItem("bmc_signup_type", accountType);
         sessionStorage.setItem("bmc_signup_name", displayName);
         const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: { data: { account_type: accountType, display_name: displayName }, emailRedirectTo: `${location.origin}/site/profile-setup.html` },
+          options: {
+            data: { account_type: accountType, display_name: displayName, full_name: displayName, account_data_acknowledged_at: new Date().toISOString() },
+            emailRedirectTo: `${location.origin}/site/profile-setup.html`,
+          },
         });
         if (error) throw error;
         if (!data.session) {
-          toast("Account created. Check your email to confirm it, then log in to finish your profile.");
+          sessionStorage.removeItem("bmc_signup_type");
+          sessionStorage.removeItem("bmc_signup_name");
+          toast("If this address can be registered, a confirmation email will arrive shortly. Confirm it to continue setting up your profile.");
           return;
         }
-        location.href = "profile-setup.html";
+        const user = data.user;
+        if (!user) throw new Error("Supabase did not return the new account. Please try again.");
+        const { data: profile, error: profileError } = await supabase.from("profiles").select("id,account_type,onboarding_completed").eq("id", user.id).maybeSingle();
+        if (profileError) throw profileError;
+        if (!profile) {
+          const { error: initError } = await supabase.from("profiles").insert({ id: user.id, account_type: accountType, display_name: displayName, onboarding_completed: false, is_discoverable: false });
+          if (initError && initError.code !== "23505") throw initError;
+        } else if (profile.account_type !== accountType) {
+          throw new Error("Your account was created, but its profile type did not match the selection. Contact support before continuing.");
+        }
+        location.replace("profile-setup.html");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        location.href = "feed.html";
+        if (!data.user) throw new Error("Sign in did not return an authenticated user. Please try again.");
+        const { data: profile, error: profileError } = await supabase.from("profiles").select("id,account_type,onboarding_completed").eq("id", data.user.id).maybeSingle();
+        if (profileError) throw profileError;
+        if (!profile) location.replace("profile-setup.html");
+        else if (!profile.onboarding_completed) location.replace("profile-setup.html");
+        else location.replace(authNextPage() || "feed.html");
       }
-    } catch (error) { toast(error.message || "Account request failed."); }
-    finally { button.disabled = false; }
+    } catch (error) {
+      const message = authErrorMessage(error);
+      toast(message);
+    } finally { button.disabled = false; button.innerHTML = originalButtonText; }
+  }
+  function authErrorMessage(error) {
+    const message = String(error?.message || "");
+    if (/invalid login credentials|invalid email or password/i.test(message)) return "Email or password is incorrect. Check your details and try again.";
+    if (/email not confirmed/i.test(message)) return "Confirm your email from the link we sent before signing in.";
+    if (/password should be at least|password.*weak|weak password/i.test(message)) return "Choose a stronger password with at least 8 characters, including a letter and a number.";
+    if (/user already registered|already been registered/i.test(message)) return "We couldn’t create an account with those details. If you already registered, log in or use Forgot password.";
+    if (/failed to fetch|networkerror|load failed/i.test(message)) return "Stagerang could not reach the sign-in service. Check your connection and try again.";
+    return message || "We could not complete that account request. Please try again.";
+  }
+  function authNextPage() {
+    const requested = new URLSearchParams(location.search).get("next");
+    const safePages = new Set(["feed.html", "projects.html", "explore.html", "dashboard.html", "messages.html", "applications.html", "saved-opportunities.html", "settings.html", "my-projects.html", "my-profile.html", "project-form.html"]);
+    if (!requested) return "";
+    try {
+      const candidate = new URL(requested, location.href);
+      const file = candidate.pathname.split("/").pop();
+      if (candidate.origin !== location.origin || !safePages.has(file) || !candidate.pathname.endsWith(`/site/${file}`)) return "";
+      return `${file}${candidate.search}${candidate.hash}`;
+    } catch (_) { return ""; }
   }
   async function saveProfile(complete) {
     const supabase = await client();
@@ -204,10 +324,17 @@
     const fullPhone = normalizedPhone.startsWith("+") ? normalizedPhone : `${countryCode}${normalizedPhone.replace(/^0+/, "")}`;
     if (phone && !/^\+[1-9]\d{7,14}$/.test(fullPhone)) profileFieldError("#phone", "Enter a valid mobile number with country code.");
     if (markComplete && !phone) profileFieldError("#phone", "Mobile number is required to complete your profile.");
+    const creatorFullName = accountType === "creator" ? $("#full-name")?.value?.trim() || "" : "";
+    const creatorCategory = accountType === "creator" ? $("#creator-category")?.value?.trim() || "" : "";
     const required = isOrg
       ? [["#company", accountType === "event" ? "Organisation or event business name" : accountType === "media" ? "Media organisation name" : "Company name"], ["#category", "Industry / category"], ["#company-bio", "About your organisation"], ...(["brand", "agency"].includes(accountType) ? [["#manager", "Project contact name"]] : []), ...(accountType === "agency" ? [["#agency-type", "Agency type"]] : [])]
-      : [["#display-name", accountType === "celebrity" ? "Public or stage name" : "Display name"], ["#location", "Location"], ["#bio", "Bio"], ...(accountType === "celebrity" ? [["#profession", "Profession / talent category"]] : [])];
+      : [...(accountType === "creator" ? [["#full-name", "Full name"], ["#creator-category", "Primary creator category / niche"]] : []), ["#display-name", accountType === "celebrity" ? "Public or stage name" : "Display name"], ["#location", "Location"], ["#bio", "Bio"], ...(accountType === "celebrity" ? [["#profession", "Profession / talent category"]] : [])];
     if (markComplete) for (const [selector, label] of required) if (!$(selector)?.value?.trim()) profileFieldError(selector, `${label} is required.`);
+    if (markComplete && accountType === "creator" && !(window.bmcAvatarUrl || window.bmcExistingAvatarUrl)) {
+      document.querySelector(".creator-only .profile-pic")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast("Upload a profile photo to complete your Creator profile.");
+      throw new Error("A profile photo is required.");
+    }
     const availabilitySelect = !isOrg ? $("#availability") : null;
     const availabilityStatus = availabilitySelect?.value || null;
     const availabilityDate = availabilityStatus === "Available from a date" ? $("#availability-date")?.value || null : null;
@@ -233,7 +360,7 @@
       manager_name: ["brand", "agency"].includes(accountType) ? $("#manager")?.value.trim() || null : null,
       manager_title: ["brand", "agency"].includes(accountType) ? $("#manager-title")?.value.trim() || null : null,
       bio: (isOrg ? $("#company-bio")?.value : $("#bio")?.value)?.trim() || "",
-      category: $("#category")?.value || profession || null,
+      category: creatorCategory || $("#category")?.value || profession || null,
       location: $(isOrg ? "#market" : "#location")?.value?.trim() || null,
       website_url: (isOrg ? $("#company-site")?.value : $("#website")?.value)?.trim() || null,
       content_categories: contentCategories,
@@ -262,7 +389,9 @@
       payload.availability_status = availabilityStatus;
       payload.availability_date = availabilityDate;
     }
-    const contact = { user_id: user.id, email: user.email || null, phone: phone ? fullPhone : null };
+    const { data: existingContact, error: existingContactError } = await supabase.from("private_contacts").select("full_name").eq("user_id", user.id).maybeSingle();
+    if (existingContactError) throw existingContactError;
+    const contact = { user_id: user.id, email: user.email || null, phone: phone ? fullPhone : null, full_name: accountType === "creator" ? creatorFullName || null : existingContact?.full_name || user.user_metadata?.full_name || null };
     const { error: contactError } = await supabase.from("private_contacts").upsert(contact);
     if (contactError) throw contactError;
     const { error } = await supabase.from("profiles").upsert(payload);
@@ -288,7 +417,7 @@
     }
     if (complete) {
       sessionStorage.removeItem("bmc_signup_type"); sessionStorage.removeItem("bmc_signup_name"); sessionStorage.removeItem("bmc_edit_account_type");
-      location.href = "my-profile.html";
+      location.href = "dashboard.html";
     } else toast("Profile saved to your account.");
   }
   function profileClick(event) {
@@ -324,7 +453,8 @@
       input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true; document.body.append(input);
       input.addEventListener("change", async () => {
         const file = input.files?.[0]; if (!file) return;
-        if (file.size > 5 * 1024 * 1024) return toast("Choose an image smaller than 5 MB.");
+          if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) return toast("Choose a JPG, PNG, or WebP image.");
+          if (file.size > 5 * 1024 * 1024) return toast("Choose an image smaller than 5 MB.");
         try {
           const supabase = await client(); const user = await signedIn(supabase);
           const ext = file.name.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
@@ -334,8 +464,10 @@
           const { data } = supabase.storage.from("avatars").getPublicUrl(path);
           window.bmcAvatarUrl = data.publicUrl;
           let preview = window.bmcProfileAvatarTarget; if (preview) preview.innerHTML = `<img src="${esc(data.publicUrl)}" alt="Profile photo preview" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
+          window.bmcUpdateProfileCompletion?.();
           toast("Photo uploaded. Save your profile to keep it.");
         } catch (error) { toast(error.message || "Photo upload failed."); }
+        finally { input.value = ""; }
       });
     }
     input.click();
@@ -356,6 +488,7 @@
   }
   async function loadProfileSetup() {
     const supabase = await client(); const user = await signedIn(supabase);
+    await ensureInitializedProfile(supabase, user);
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (error) throw error;
     const editingProfile = new URLSearchParams(location.search).get("edit") === "1";
@@ -443,7 +576,7 @@
     }
     const updateProfileCompletion = initProfileCompletion(accountType);
     const [{ data: contact, error: contactError }, { data: socials, error: socialError }] = await Promise.all([
-      supabase.from("private_contacts").select("phone").eq("user_id", user.id).maybeSingle(),
+      supabase.from("private_contacts").select("phone,full_name").eq("user_id", user.id).maybeSingle(),
       supabase.from("social_accounts").select("id,platform,profile_url,follower_count").eq("user_id", user.id),
     ]);
     if (contactError) throw contactError;
@@ -453,6 +586,8 @@
       if (callingCode) { if ($("#phone-country")) $("#phone-country").value = callingCode; phoneInput.value = contact.phone.slice(callingCode.length); }
       else phoneInput.value = contact.phone;
     }
+    const fullNameInput = $("#full-name");
+    if (fullNameInput) fullNameInput.value = String(contact?.full_name || user.user_metadata?.full_name || "").trim();
     document.querySelectorAll(".connected").forEach((row) => {
       const platform = row.querySelector(".social-meta b")?.textContent.trim() || "Other";
       row.dataset.platform = platform;
@@ -476,9 +611,9 @@
     });
     if (!profile) { updateProfileCompletion(); return; }
     const values = {
-      "#display-name": profile.display_name, "#company": profile.company_name,
+      "#display-name": profile.display_name, "#full-name": contact?.full_name || user.user_metadata?.full_name || "", "#company": profile.company_name,
       "#agency-type": profile.agency_type, "#bio": profile.bio, "#company-bio": profile.bio,
-      "#category": profile.category, "#location": profile.location, "#market": profile.location,
+      "#category": profile.category, "#creator-category": accountType === "creator" ? profile.category : "", "#location": profile.location, "#market": profile.location,
       "#website": profile.website_url, "#company-site": profile.website_url,
       "#manager": profile.manager_name, "#manager-title": profile.manager_title,
       "#creator-skills": accountType === "creator" ? (profile.skills || []).join(", ") : "",
@@ -505,6 +640,7 @@
       window.bmcExistingAvatarUrl = profile.avatar_url;
       document.querySelectorAll(".profile-pic .pic").forEach((preview) => { preview.innerHTML = `<img src="${esc(profile.avatar_url)}" alt="Current profile image" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`; });
     }
+    updateProfileCompletion();
     [...document.querySelectorAll(".creator-only .tags")].forEach((group, index) => {
       const values = index === 0 ? profile.content_categories || [] : profile.collaboration_categories || [];
       group.querySelectorAll(".tag").forEach((tag) => tag.classList.toggle("selected", values.includes(tag.textContent.trim())));
@@ -532,13 +668,15 @@
   }
   function initProfileCompletion(accountType) {
     const progress = $(".progress div"); if (!progress) return;
-    const required = ["#phone", ...(accountType === "creator" ? ["#display-name", "#location", "#bio"] : accountType === "celebrity" ? ["#display-name", "#location", "#bio", "#profession"] : ["#company", "#category", "#company-bio", ...(["brand", "agency"].includes(accountType) ? ["#manager"] : []), ...(accountType === "agency" ? ["#agency-type"] : [])])];
+    const required = ["#phone", ...(accountType === "creator" ? ["#full-name", "#display-name", "#creator-category", "#location", "#bio"] : accountType === "celebrity" ? ["#display-name", "#location", "#bio", "#profession"] : ["#company", "#category", "#company-bio", ...(["brand", "agency"].includes(accountType) ? ["#manager"] : []), ...(accountType === "agency" ? ["#agency-type"] : [])])];
     const update = () => {
-      const completeCount = required.filter((selector) => !!$(selector)?.value?.trim()).length;
-      const percent = Math.round(completeCount / required.length * 100);
+      const completeCount = required.filter((selector) => !!$(selector)?.value?.trim()).length + (accountType === "creator" && (window.bmcAvatarUrl || window.bmcExistingAvatarUrl) ? 1 : 0);
+      const total = required.length + (accountType === "creator" ? 1 : 0);
+      const percent = Math.round(completeCount / total * 100);
       progress.style.width = `${percent}%`; progress.setAttribute("role", "progressbar"); progress.setAttribute("aria-valuemin", "0"); progress.setAttribute("aria-valuemax", "100"); progress.setAttribute("aria-valuenow", String(percent));
       const label = $(".step-label"); if (label) label.textContent = `PROFILE COMPLETION · ${percent}%`;
     };
+    window.bmcUpdateProfileCompletion = update;
     required.forEach((selector) => { const input = $(selector); input?.addEventListener("input", () => { input.removeAttribute("aria-invalid"); input.closest(".field")?.querySelector(".field-error")?.remove(); update(); }); input?.addEventListener("change", update); });
     update();
     return update;
@@ -563,8 +701,18 @@
     const socialLinks = (socialAccounts || []).map((account) => { const url = publicLink(account.profile_url); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>` : ""; }).join("");
     const portfolioLinks = (profile.portfolio_links || []).map((value) => { const url = publicLink(value); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Featured work</a>` : ""; }).join("");
     const social = socialLinks || portfolioLinks ? `<div class="public-social-links">${socialLinks}${portfolioLinks}</div>` : "";
-    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || profile.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.agency_type || profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "This member is still completing their public profile.")}</p>${profile.website_url && publicLink(profile.website_url) ? `<a href="${esc(publicLink(profile.website_url))}" target="_blank" rel="noopener noreferrer">${esc(profile.website_url)}</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>${social}${isOwner ? `<p class="profile-discovery-status">${profile.is_discoverable ? "Your profile is visible in Explore." : "Your profile is hidden from Explore."}</p><a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>` : '<div id="profile-connection-actions" class="profile-connection-actions" aria-live="polite"><span>Loading connection options…</span></div>'}</div></section>`;
-    if (!isOwner) await window.bmcConnections?.renderProfileActions(profile.id, false);
+    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || profile.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}${profile.is_verified ? " · Verified" : ""}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.agency_type || profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "This member is still completing their public profile.")}</p>${profile.website_url && publicLink(profile.website_url) ? `<a href="${esc(publicLink(profile.website_url))}" target="_blank" rel="noopener noreferrer">${esc(profile.website_url)}</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>${social}${isOwner ? `<p class="profile-discovery-status">${profile.is_discoverable ? "Your profile is visible in Explore." : "Your profile is hidden from Explore."}</p><a class="edit" href="profile-setup.html?edit=1">Edit my profile</a><section id="verification-box" style="margin-top:20px;padding:16px;border:1px solid #e9e7df;border-radius:12px"><b>Profile verification</b><p id="verification-status" class="profile-discovery-status">Checking request status…</p>${profile.is_verified ? "" : '<button id="verification-toggle" class="edit" type="button">Request verification</button><form id="verification-form" hidden style="margin-top:12px"><label for="verification-statement">Tell us why your profile should be verified</label><textarea id="verification-statement" minlength="20" maxlength="2000" required style="display:block;width:100%;min-height:100px;margin:8px 0;padding:10px;border:1px solid #e9e7df;border-radius:8px;font:inherit"></textarea><button class="edit" type="submit">Send request</button></form>'}</section>` : '<div id="profile-connection-actions" class="profile-connection-actions" aria-live="polite"><span>Loading connection options…</span></div>'}</div></section>`;
+    if (!isOwner) {
+      await window.bmcConnections?.renderProfileActions(profile.id, false);
+      const actions = $("#profile-connection-actions");
+      if (actions) { const report = document.createElement("button"); report.type = "button"; report.className = "block-profile"; report.textContent = "Report profile"; report.onclick = async () => { const reasons=["spam","harassment","impersonation","unsafe_content","fraud","other"];const reason=(prompt(`Choose a reason: ${reasons.join(", ")}`,"other")||"").trim().toLowerCase();if(!reasons.includes(reason))return toast("Enter one of the listed reasons.");const description=(prompt("Describe the concern (at least 10 characters):")||"").trim();if(description.length<10)return toast("Add a little more detail before submitting.");const{data:{session}}=await supabase.auth.getSession();const response=await fetch("/api/reports",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session?.access_token||""}`},body:JSON.stringify({targetUserId:profile.id,reason,description})});const result=await response.json().catch(()=>({}));if(!response.ok)return toast(result.error||"Could not submit the report.");toast("Report sent to the moderation team.");}; actions.append(report); }
+    } else if (!profile.is_verified) {
+      const status = $("#verification-status"), form = $("#verification-form"), toggle = $("#verification-toggle");
+      toggle?.addEventListener("click", () => { form.hidden = !form.hidden; });
+      try { const { data: { session } } = await supabase.auth.getSession(); const response = await fetch("/api/verification-requests", { headers: { Authorization: `Bearer ${session?.access_token || ""}` }, cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error); const latest = result.requests?.[0]; status.textContent = latest ? `Latest request: ${latest.status}${latest.review_note ? ` · ${latest.review_note}` : ""}` : "No verification request submitted yet."; if (latest?.status === "pending") { toggle.disabled = true; toggle.textContent = "Request pending"; } }
+      catch (requestError) { status.textContent = requestError.message || "Verification status could not load."; }
+      form?.addEventListener("submit", async (event) => { event.preventDefault(); const statement = $("#verification-statement").value.trim(); const button = form.querySelector("button[type=submit]"); button.disabled = true; try { const { data: { session } } = await supabase.auth.getSession(); const response = await fetch("/api/verification-requests", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }, body: JSON.stringify({ statement }) }); const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not submit the request."); status.textContent = "Latest request: pending"; toggle.disabled = true; toggle.textContent = "Request pending"; form.hidden = true; toast("Verification request sent."); } catch (requestError) { toast(requestError.message || "Could not submit the request."); } finally { button.disabled = false; } });
+    }
     document.title = `${profile.display_name || "Profile"} — Stagerang`;
   }
   function projectPayload(user, accountType) {
@@ -743,20 +891,6 @@
       activity.innerHTML = '<h3>Your activity</h3><div id="bmc-feed-stats">Loading your activity…</div><div class="activity-link"><a href="dashboard.html">Open dashboard →</a></div>';
       side.prepend(activity);
     }
-    if (side && !$("#bmc-feed-notification-center")) {
-      const notifications = document.createElement("section"); notifications.id = "bmc-feed-notification-center"; notifications.className = "panel";
-      notifications.innerHTML = '<h3>Notifications <span class="notification-count" data-notification-count hidden></span></h3><div id="bmc-notification-toolbar"><div id="bmc-notification-filters" role="group" aria-label="Filter notifications"><button type="button" data-notification-filter="all" aria-pressed="true">All</button><button type="button" data-notification-filter="unread" aria-pressed="false">Unread</button><button type="button" data-notification-filter="read" aria-pressed="false">Read</button></div><button type="button" id="bmc-mark-notifications-read">Mark all read</button></div><div id="bmc-feed-notifications">Loading notifications…</div>';
-      side.insertBefore(notifications, side.querySelector(".tip"));
-      notifications.querySelectorAll("[data-notification-filter]").forEach((button) => button.addEventListener("click", () => {
-        window.bmcNotificationFilter = button.dataset.notificationFilter;
-        notifications.querySelectorAll("[data-notification-filter]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
-        window.bmcRenderFeedNotifications?.();
-      }));
-      notifications.querySelector("#bmc-mark-notifications-read").addEventListener("click", async () => {
-        try { const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null); if (error) throw error; await refreshFeedActivity(supabase, user); toast("All notifications marked as read."); }
-        catch (error) { toast(error.message || "Could not update notifications."); }
-      });
-    }
     const feedTip = $(".right-col .tip p");
     if (feedTip) feedTip.textContent = "When you send interest, add a note and a private one-to-one project chat opens for both people. You can manage the application status from your dashboard.";
     const composer = $(".composer");
@@ -900,40 +1034,6 @@
     if (ids.length) { const received = await supabase.from("applications").select("id", { count: "exact", head: true }).in("project_id", ids).neq("status", "withdrawn"); if (received.error) throw received.error; receivedCount = received.count || 0; }
     await refreshMessageBadge();
     if (stats) stats.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><span><b>${postCount || 0}</b><br>Projects/ideas posted</span><span><b>${sentCount || 0}</b><br>Interests sent</span><span><b>${receivedCount}</b><br>Interests received</span><span><b>${window.bmcUnreadMessages || 0}</b><br>Unread messages</span></div>`;
-    const { data, error } = await supabase.from("notifications").select("id,title,body,type,actor_id,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25);
-    if (error) { if (notifications) notifications.textContent = "Notifications could not be loaded. Please try again."; return; }
-    const unreadResult = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null);
-    const unread = unreadResult.error ? (data || []).filter((item) => !item.read_at).length : unreadResult.count || 0;
-    const countNode = document.querySelector("[data-notification-count]");
-    if (countNode) { countNode.textContent = unread > 99 ? "99+" : String(unread); countNode.hidden = unread === 0; countNode.setAttribute("aria-label", `${unread} unread notifications`); }
-    if (notifications) {
-      const icons = { new_message: "✉", application_received: "↗", application_status: "✓", connection_request: "＋", connection_accepted: "✓", connection_declined: "↗" };
-      window.bmcRenderFeedNotifications = () => {
-        const filter = window.bmcNotificationFilter || "all";
-        const visible = (data || []).filter((item) => filter === "all" || (filter === "unread" ? !item.read_at : Boolean(item.read_at)));
-        notifications.innerHTML = visible.length ? visible.map((item) => {
-          const href = item.conversation_id
-            ? `messages.html?conversation=${encodeURIComponent(item.conversation_id)}`
-            : ["connection_request", "connection_accepted", "connection_declined"].includes(item.type) && item.actor_id
-              ? `my-profile.html?user=${encodeURIComponent(item.actor_id)}`
-              : ["connection_request", "connection_accepted", "connection_declined"].includes(item.type)
-                ? "explore.html"
-            : item.type === "application_received" && item.project_id
-              ? `dashboard.html?project=${encodeURIComponent(item.project_id)}${item.application_id ? `&application=${encodeURIComponent(item.application_id)}` : ""}`
-              : item.type === "application_status" && item.application_id
-                ? `applications.html?application=${encodeURIComponent(item.application_id)}`
-                : item.project_id ? `projects.html?project=${encodeURIComponent(item.project_id)}` : "dashboard.html";
-          return `<a class="bmc-notification" href="${href}" data-notification-id="${esc(item.id)}" data-read="${Boolean(item.read_at)}" data-unread="${!item.read_at}" data-icon="${icons[item.type] || "•"}"><b>${esc(item.title)}</b><span>${esc(item.body)}</span><time datetime="${esc(item.created_at)}">${new Date(item.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time></a>`;
-        }).join("") : `<div class="bmc-empty">${filter === "unread" ? "You’re all caught up." : filter === "read" ? "No read notifications yet." : "No new activity yet."}</div>`;
-        notifications.querySelectorAll("[data-notification-id]").forEach((link) => link.addEventListener("click", async (event) => {
-          event.preventDefault();
-          if (link.dataset.read !== "true") { const { error: updateError } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", link.dataset.notificationId).eq("user_id", user.id); if (updateError) return toast(updateError.message); }
-          await refreshMessageBadge(); location.href = link.href;
-        }));
-      };
-      window.bmcRenderFeedNotifications();
-    }
-    window.bmcRefreshMessageBadge?.();
   }
   async function openProjectsDirectory() {
     if (window.bmcProjectsDirectoryHandled) return;
@@ -969,9 +1069,30 @@
     document.querySelectorAll("#q,#search").forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true })));
     document.body.classList.add("bmc-projects-ready");
   }
-  function init() {
+  async function init() {
     const path = location.pathname;
-    refreshMessageBadge(); window.setInterval(refreshMessageBadge, 20000);
+    const file = path.split("/").pop() || "index.html";
+    if (file === "index.html" || path === "/") {
+      const authError = new URLSearchParams(location.search).get("auth_error");
+      if (authError) {
+        const modal = $("#auth");
+        if (modal) modal.classList.add("open");
+        $(".tab[data-mode='login']")?.click();
+        toast(authError === "connection" ? "We could not verify your Stagerang session because the service is unreachable. Check your connection and try again." : "Your session has expired. Sign in again to continue.");
+      } else if (new URLSearchParams(location.search).get("logged_out") === "1") {
+        const modal = $("#auth");
+        if (modal) modal.classList.add("open");
+        $(".tab[data-mode='login']")?.click();
+        toast("You have been signed out.");
+      }
+    }
+    if (protectedPages.has(file)) {
+      let supabase;
+      try { supabase = await client(); }
+      catch (_) { location.replace(`index.html?next=${encodeURIComponent(`${file}${location.search}${location.hash}`)}&auth_error=connection`); return; }
+      if (!(await requirePageSession(supabase, file))) return;
+    }
+    if (file !== "dashboard.html") { refreshMessageBadge(); window.setInterval(refreshMessageBadge, 20000); }
     $("#search")?.addEventListener("input", (event) => { window.bmcFeedSearch = event.target.value; applyFeedVisibility(); });
     if (!path.endsWith("/index.html") && path !== "/" && !path.endsWith("/logout.html")) loadAccountHeader().catch(() => {});
     if (path.endsWith("/index.html") || path === "/") $("#auth-form")?.addEventListener("submit", authSubmit, true);
@@ -989,7 +1110,18 @@
     if (path.endsWith("/my-profile.html")) renderMyProfile().catch((error) => toast(error.message || "Could not load this profile."));
     if (path.endsWith("/feed.html")) openProjectsForFeed().catch(() => { location.href = "index.html"; });
     if (path.endsWith("/projects.html")) openProjectsDirectory().catch(() => { location.href = "index.html"; });
-    if (path.endsWith("/logout.html")) client().then((supabase) => supabase.auth.signOut()).finally(() => { location.href = "index.html"; });
+    if (path.endsWith("/logout.html")) {
+      try {
+        const supabase = await client();
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+        location.replace("index.html?logged_out=1");
+      } catch (error) {
+        const heading = document.querySelector("main.card h1"), description = document.querySelector("main.card p");
+        if (heading) heading.textContent = "Sign out failed";
+        if (description) { description.setAttribute("role", "alert"); description.textContent = error.message || "We could not end the session. Check your connection and retry."; }
+      }
+    }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();

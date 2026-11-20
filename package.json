@@ -1,11 +1,13 @@
 {
-  "name": "brand-media-collab",
+  "name": "stagerang",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:site": "node scripts/verify-site.mjs",
+    "test": "pnpm test:site && pnpm exec tsc --noEmit"
   },
   "dependencies": {
     "next": "^15.5.0",

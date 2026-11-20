@@ -15,7 +15,7 @@ Avoid uploading files from different subfolders together into the repository roo
 
 ## Admin console setup
 
-The owner console is `https://www.stagerang.com/site/admin-dashboard.html`. Use the verified owner account. Vercel Production must have `STAGERANG_ADMIN_EMAIL=ratnabharati.rb@gmail.com` and the server-only `SUPABASE_SERVICE_ROLE_KEY`, as described in `ADMIN-SETUP.md`. Never expose the service-role key in browser code.
+The owner console is available at `/site/admin-dashboard.html`. Use the verified owner account. Configure `STAGERANG_ADMIN_EMAIL` privately and set the server-only `SUPABASE_SERVICE_ROLE_KEY`, as described in `ADMIN-SETUP.md`. Never expose the service-role key in browser code.
 
 Use `USER-JOURNEYS.md` for the Creator, Brand, and Agency click-by-click flows and the acceptance checklist after deployment.
 

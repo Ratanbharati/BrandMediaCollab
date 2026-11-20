@@ -134,6 +134,17 @@
     renderFilters();
   }
   function formatDate(value) { if (!value) return "Not set"; const date = new Date(`${value}T00:00:00`); return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+  async function reportProject(projectId) {
+    const allowed = ["spam", "harassment", "impersonation", "unsafe_content", "fraud", "other"];
+    const reason = (prompt(`Choose a reason: ${allowed.join(", ")}`, "other") || "").trim().toLowerCase();
+    if (!allowed.includes(reason)) throw new Error("Enter one of the listed report reasons.");
+    const description = (prompt("Please describe the concern (at least 10 characters):") || "").trim();
+    if (description.length < 10) throw new Error("Add a little more detail before submitting.");
+    const { data: { session } } = await db.auth.getSession();
+    const response = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }, body: JSON.stringify({ targetProjectId: projectId, reason, description }) });
+    const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not submit this report.");
+    toast("Report sent to the moderation team.");
+  }
   function buildCard(project) {
     const owner = profilesById[project.owner_id] || {};
     const name = owner.display_name || owner.company_name || "Stagerang member";
@@ -144,6 +155,7 @@
     const budgetRows = Array.isArray(project.budget_by_deliverable) ? project.budget_by_deliverable : [];
     const budgets = budgetRows.map((item) => `<span class="chip">${esc(item.deliverable || "Deliverable")}${item.amount_range ? ` · ${esc(item.amount_range)}` : ""}</span>`).join("");
     card.innerHTML = `<div class="project-top"><div class="logo">${esc(name.slice(0, 2).toUpperCase())}</div><div class="meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(name)}</a></b><span>${label} · ${esc(project.location || "Remote")}</span></div><span class="badge">${esc(String(project.status || "Open"))}</span></div><button class="project-card-title" type="button" data-details="${esc(project.id)}">${esc(project.project_name)}</button><p>${esc(project.requirements)}</p><div class="chips"><span class="chip">${esc(project.category || "Other")}</span>${(project.platforms || []).map((item) => `<span class="chip">${esc(item)}</span>`).join("")}${(project.creator_tiers || []).map((item) => `<span class="chip">${esc(item)} creator</span>`).join("")}${budgets}</div><div class="chips"><span class="chip">Apply by ${esc(formatDate(project.application_deadline))}</span><span class="chip">Delivery ${esc(formatDate(project.delivery_date))}</span></div><div class="bottom"><small>${own ? "Your project" : applied ? "Interest already sent" : "Open opportunity"}</small><div class="actions">${own ? `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit</a>` : `<button class="btn save ${isSaved ? "active" : ""}" type="button" data-save="${esc(project.id)}" aria-pressed="${isSaved}">${isSaved ? "♥ Saved" : "♡ Save"}</button><button class="btn" type="button" data-details="${esc(project.id)}">View details</button><button class="btn" type="button" data-apply="${esc(project.id)}" data-project-name="${esc(project.project_name)}" ${applied ? "disabled" : ""}>${applied ? "Interest sent ✓" : "Interested ↗"}</button><button class="btn" type="button" data-share="${esc(project.id)}">Share</button>`}</div></div>`;
+    if (!own) { const report = document.createElement("button"); report.type = "button"; report.className = "btn"; report.textContent = "Report"; report.onclick = async () => { report.disabled = true; try { await reportProject(project.id); } catch (error) { toast(error.message || "Could not submit this report."); } finally { report.disabled = false; } }; card.querySelector(".actions")?.append(report); }
     return card;
   }
   function openDetails(projectId) {

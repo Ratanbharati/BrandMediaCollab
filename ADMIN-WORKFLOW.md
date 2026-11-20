@@ -1,83 +1,35 @@
-# Stagerang owner/admin journey
+# Stagerang owner/admin workflow
 
-This is the platform owner’s workflow inside Stagerang. It describes the controls present in the current admin console and the outcome expected after each action.
+## Sign in
 
-```mermaid
-flowchart TD
-    A[Configure owner email and server key in Vercel once] --> B[Deploy the project]
-    B --> C[Open /site/admin-dashboard.html]
-    C --> D[Sign in with verified owner account]
-    D --> E{Admin access allowed?}
-    E -- First admin and table empty --> F[Owner is registered as first admin]
-    E -- Existing admin --> G[Membership is checked]
-    F --> H[Overview: live platform totals]
-    G --> H
-    H --> I[People: search account and profile]
-    H --> J[Projects and applications]
-    H --> K[Support and audit log]
-    I --> L[Hide or restore profile]
-    I --> M[Delete test account after exact-email confirmation]
-    L --> N[Refresh and verify change]
-    M --> N
-    J --> N
-    K --> N
-    N --> O[Sign out]
-```
+Open `/site/admin-dashboard.html` and sign in using the verified owner Stagerang Auth account after configuring the Supabase project and owner membership. The page verifies admin membership through a protected API before rendering platform data. This package contains no admin credentials or owner-specific membership record.
 
-## One-time preparation
+## Overview
 
-1. In Vercel, open the Stagerang project’s **Settings → Environment Variables**.
-2. Confirm `STAGERANG_ADMIN_EMAIL` is exactly `ratnabharati.rb@gmail.com` and is set for Production.
-3. Confirm `SUPABASE_SERVICE_ROLE_KEY` is present as a server-only variable. Do not add `NEXT_PUBLIC_` to its name, put it in browser code, or share its value.
-4. Keep `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` configured as they are for the website.
-5. Redeploy after changing environment variables. No new SQL is required for this admin workflow.
+The overview shows current database totals for registered users, six profile types, 30-day active users, projects, published projects, applications, accepted collaborations, accepted connections, reports, pending reports, verification requests, suspended users, open support requests, and admin actions. It refreshes every 30 seconds while visible and supports manual refresh.
 
-## Open and sign in
+## Accounts
 
-1. Visit `https://www.stagerang.com/site/admin-dashboard.html`.
-2. Sign in with the verified owner Stagerang account `ratnabharati.rb@gmail.com` and its current password.
-3. If there are no platform admins yet, the server registers this exact, verified owner as the first admin. If an admin already exists, membership is checked and first-owner setup does not run again.
-4. If access is denied or configuration is missing, read the notice shown on the page. Confirm the Vercel variables and successful Production deployment. Never bypass the check by making a public admin button.
+Use the People filters to search by name/email or filter by profile type/status. Results are fetched server-side in pages of 50. View the public profile fields, email-verification state, creation/last active dates, calculated profile completion, account state, and project count. Admin views avoid private contact details, Auth metadata, credentials, tokens, and messages.
 
-## Review platform status
+Profile visibility can be hidden/restored. Suspend and restore require confirmation; suspension also records a reason. The server prevents suspending any admin account or the current owner account, places a Supabase Auth ban, and uses a restrictive RLS gate to block existing access tokens. Every successful action is audited. Permanent account deletion is not available in the console.
 
-The **Overview** cards show current totals for profiles, projects, applications, conversations, support requests, and admin actions. The console refreshes its open section and overview about every 20 seconds while visible. Click **Refresh data** to refresh immediately. The page displays the last successful refresh time.
+## Moderation
 
-These are records currently in the connected Supabase project. A count is not a quality check: if a workflow did not save its record, it will not appear in the related admin view.
+- **Projects:** review project ownership and categories; set normal, review, hidden, or removed status. Hidden/removed projects remain visible to their owner and an admin, while member discovery excludes them.
+- **Reports:** members can report a profile from Explore/profile pages or report a project from Projects. Review each report and save its status and internal review note.
+- **Verification:** profile owners can submit a verification statement. Approving/rejecting a request updates the profile badge and records the decision.
+- **Support:** review support requests and update status.
+- **Applications:** only project/applicant names, application status, and timestamp are shown. Private application message text is not exposed.
+- **Audit log:** see changes made by the platform admin.
 
-## Find and manage a member
+## Validation after deployment
 
-1. Click **People**.
-2. Search by the member’s name, email, or account type. Use **Previous/Next** to move through result pages.
-3. Check the email, account type, joined date, project count, profile name, and discovery status before acting.
-4. Click **Hide profile** to remove the profile from member discovery. This preserves the account and its records. Use **Show profile** later to restore discovery visibility.
-5. To remove a test account, click **Delete test account**, type the exact email shown, then confirm the second prompt. Deletion is permanent and linked records may be removed by the existing database cascade rules. The console blocks deletion of the admin currently signed in.
-6. After either action, confirm the updated row and check **Audit log** for the recorded admin action.
+1. Sign in as the owner and confirm non-owner accounts cannot open admin API data.
+2. Check the account type counts and compare with database records.
+3. Search/filter a known member and use the detail panel.
+4. On a disposable test account, hide/show the profile, suspend, and restore; verify direct database access is blocked while suspended and restored after reactivation.
+5. Submit a profile/project report and a verification request from a test account, review them, then confirm audit entries and updated status.
+6. Confirm hidden/removed projects are no longer discoverable to members.
 
-Only delete accounts made for testing or accounts whose deletion has been authorized. For a real user who should simply be less visible, hide the profile instead.
-
-## Review platform activity
-
-- **Projects:** review recent project records, owners, owner account types, categories, statuses, and dates.
-- **Applications:** review project, applicant, account type, status, application note, and received date. These are application notes, not private chat transcripts.
-- **Support:** review submitted support requests and the member who sent each one. Change each request to **Open**, **In progress**, or **Resolved**; the status is saved and recorded in the audit log.
-- **Audit log:** review recorded admin actions, the affected record, and action details.
-
-Use the **Refresh data** button or wait for the periodic refresh when checking new activity.
-
-## Privacy and limits
-
-- Private conversation message bodies are not shown in the admin console. Only the overview conversation count is shown.
-- The current console does not edit projects/applications, grant admin roles, reset user passwords, export data, or suspend accounts.
-- Social-network authorization/follower syncing and Google Calendar integrations are separate unfinished product integrations.
-- Admin activity is audited. Keep the owner login private, sign out on shared computers, and do not expose the service-role key.
-
-## Quick test after deployment
-
-1. Open the admin URL and sign in as the owner.
-2. Confirm Overview totals load without an error.
-3. Search for a known test account in People and verify its account type/email.
-4. Hide that test profile, confirm it becomes **Hidden**, restore it, and confirm it becomes **Visible**.
-5. Check one known project and application in their tabs.
-6. Check **Audit log** for the visibility changes.
-7. Do not test account deletion on the owner or on an account with data you need. If deletion behavior must be verified, create a disposable test user first.
+An owner password was not provided, so the owner sign-in itself was not attempted during this code/database audit. Do not claim the login passed until it is tested with the real owner account.

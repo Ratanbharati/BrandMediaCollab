@@ -1,11 +1,11 @@
 # Stagerang account journeys and UI acceptance checklist
 
-This document describes what a member should click, what the page should show, and what data should persist. Use it to review the deployed website with separate test accounts for Creator, Brand, and Agency. A passing screen means the real account data changed in Supabase and is still visible after sign-out/sign-in; a toast or a temporary browser-only change is not enough.
+This document describes what a member should click, what the page should show, and what data should persist. Use it to review the deployed website with separate test accounts for Creator, Brand, Agency, Celebrity, Event, and Media. A passing screen means the real account data changed in Supabase and is still visible after sign-out/sign-in; a toast or a temporary browser-only change is not enough.
 
 ```mermaid
 flowchart TD
     A[Landing page] --> B[Join now or Log in]
-    B --> C[Choose Creator, Brand, or Agency]
+    B --> C[Choose one of six account types]
     C --> D[Confirm email]
     D --> E[Complete matching profile]
     E --> F[Home: role-specific feed and activity]
@@ -64,6 +64,14 @@ flowchart TD
 5. **Collaborate:** open a conversation for the selected campaign and Creator. Replies persist in that conversation. Send campaign updates individually to interested members; confirm the activity is connected to the correct Agency project.
 6. **Dashboard:** Agency projects are their own table, separate from Brand projects, Creator ideas, and applications sent. Date filters update rows and counts consistently.
 
+## Celebrity, Event, and Media journeys
+
+1. **Profile:** choose the matching account type and complete its role-specific profile fields. Save, then confirm My profile and Edit profile continue to show the same account type.
+2. **Discover:** enable profile discoverability in Settings, then open Explore and select the matching type. Search and the available role filters should narrow real profiles; opening a card should show the correct public profile.
+3. **Post:** create a matching Celebrity, Event, or Media opportunity/idea. Confirm it appears only in its matching Projects tab and in My projects.
+4. **Collaborate:** use another eligible account to express interest with a note, then confirm the owner sees the application and project-linked conversation while private contact fields stay hidden.
+5. **Persist:** sign out and back in and confirm the profile, post, interest, and conversation remain associated with their original accounts.
+
 ## Shared navigation and expected behavior
 
 - **Home:** the signed-in member’s own identity/profile card, current live posts grouped by the owner’s saved account type, and relevant recent activity. Brand projects show only Brand-owned posts, Creator ideas only Creator-owned posts, and Agency projects only Agency-owned posts.
@@ -74,10 +82,10 @@ flowchart TD
 
 ## Acceptance run before calling a role complete
 
-Use one test account for each role and keep a small expected-results list. For every role: create/sign in; save its profile; post one item; confirm it appears in its matching tab; select each of the other two tabs and confirm the card disappears; confirm the three tab counts match their Open posts; use another role to show interest with a note; confirm both accounts see the matching application; open the correct private conversation; exchange a message; verify unread state and dashboard/activity counts; sign out and back in; confirm all records persist and stay associated with the right accounts. Repeat once for a Creator idea and once for an Agency campaign.
+Use one test account for each of the six roles. For every role: create/sign in; save its profile; post one item; confirm it appears in its matching tab; select the other tabs and confirm the card disappears; confirm counts match its Open posts; use another eligible role to show interest with a note; confirm both accounts see the matching application; open the correct private conversation; exchange a message; verify unread state and dashboard/activity counts; sign out and back in; confirm all records persist and stay associated with the right accounts. Repeat for each post type.
 
 If a button only shows a sample card, preview toast, or browser-only change, record it as not connected and do not count it as complete. Share the exact page, click, expected result, and actual result when reporting a failure.
 
 ## Known scope limits
 
-Social network OAuth and automatic follower syncing, push notifications, and automatic Google Calendar invitation/sync are not part of this package. Message/activity refresh is periodic, not instantaneous. The owner admin console does not reveal private conversation bodies. Existing Supabase data must be preserved; do not rerun the initial schema, and this package does not automatically execute SQL migrations.
+Social network OAuth and automatic follower syncing, push notifications, and automatic Google Calendar invitation/sync are not part of this package. Messages and activity update through Supabase Realtime with a 30-second polling fallback when the realtime channel is unavailable. The owner admin console does not reveal private conversation bodies. Existing Supabase data must be preserved; do not rerun the initial schema, and this package does not automatically execute SQL migrations.
