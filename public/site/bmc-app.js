@@ -706,7 +706,7 @@
       // The HTML template still contains a link to the old sample creator profile.
       // Route the signed-in member's identity card to their live Supabase profile.
       const identityLink = person.querySelector("a"); if (identityLink) identityLink.href = "my-profile.html";
-      const bio = person.querySelector("p"); if (bio) bio.textContent = profile.account_type === "brand" ? "Brand account" : profile.account_type === "agency" ? "Agency account" : "Creator account";
+      const bio = person.querySelector("p"); if (bio) bio.textContent = `${accountLabel} account`;
       const loc = person.querySelector(".loc"); if (loc) loc.textContent = profile.location || "Open to collaborations";
       const portrait = person.querySelector(".portrait"); if (portrait) portrait.innerHTML = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(name.slice(0, 1).toUpperCase());
     }
