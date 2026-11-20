@@ -2,6 +2,10 @@
 // Uses the publishable key only; authorization is enforced by Supabase RLS.
 (function () {
   const $ = (selector) => document.querySelector(selector);
+  const accountTypes = ["creator", "brand", "agency", "celebrity", "event", "media"];
+  const organizationTypes = new Set(["brand", "agency", "event", "media"]);
+  const isOrganization = (type) => organizationTypes.has(type);
+  const csvValues = (selector) => ($(selector)?.value || "").split(",").map((value) => value.trim()).filter(Boolean);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   async function client() {
     if (!window.bmcSupabaseReady) throw new Error("Supabase setup script is missing.");
@@ -122,12 +126,12 @@
     if (error) throw error;
     const name = profile?.display_name || profile?.company_name || user.user_metadata?.display_name || user.email?.split("@")[0] || "Member";
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
-    const label = type === "brand" ? "Brand" : type === "agency" ? "Agency" : "Creator";
+    const label = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[type] || "Creator";
     headerName.textContent = `${name} · ${label}`;
     if (location.pathname.endsWith("/project-form.html") && !new URLSearchParams(location.search).has("id")) {
       const kind = $("#kind");
       if (kind) {
-        kind.value = type === "creator" ? "creator" : "brand";
+        kind.value = ({ creator: "creator", brand: "brand", agency: "agency", celebrity: "celebrity", event: "event", media: "media" })[type] || "brand";
         const brandOption = kind.querySelector('option[value="brand"]');
         if (type === "creator") brandOption?.remove();
         else if (type === "agency" && brandOption) brandOption.textContent = "Agency campaign";
@@ -183,14 +187,15 @@
     const accountType = editingProfile
       ? sessionStorage.getItem("bmc_edit_account_type") || $("[data-type].selected")?.dataset.type || "creator"
       : sessionStorage.getItem("bmc_signup_type") || $("[data-type].selected")?.dataset.type || "creator";
-    const isOrg = accountType === "brand" || accountType === "agency";
+    if (!accountTypes.includes(accountType)) throw new Error("Choose a supported Stagerang account type.");
+    const isOrg = isOrganization(accountType);
     const markComplete = complete || editingProfile;
     const displayName = (isOrg ? $("#company")?.value : $("#display-name")?.value)?.trim() || sessionStorage.getItem("bmc_signup_name") || "";
     const creatorTagGroups = [...document.querySelectorAll(".creator-only .tags")];
     const orgTagGroups = [...document.querySelectorAll(".brand-only .tags")];
     const selectedTags = (group) => [...(group?.querySelectorAll(".tag.selected") || [])].map((tag) => tag.textContent.trim()).filter(Boolean);
-    const contentCategories = accountType === "creator" ? selectedTags(creatorTagGroups[0]) : [];
-    const collaborationCategories = accountType === "creator" ? selectedTags(creatorTagGroups[1]) : accountType === "brand" ? selectedTags(orgTagGroups[0]) : [];
+    const contentCategories = ["creator", "celebrity"].includes(accountType) ? selectedTags(creatorTagGroups[0]) : [];
+    const collaborationCategories = ["creator", "celebrity"].includes(accountType) ? selectedTags(creatorTagGroups[1]) : accountType === "brand" ? selectedTags(orgTagGroups[0]) : [];
     const agencyServices = accountType === "agency" ? selectedTags($(".agency-services-field .tags")) : [];
     const agencySpecialisations = accountType === "agency" ? selectedTags(orgTagGroups[0]) : [];
     const phone = $("#phone")?.value?.trim() || "";
@@ -200,8 +205,8 @@
     if (phone && !/^\+[1-9]\d{7,14}$/.test(fullPhone)) profileFieldError("#phone", "Enter a valid mobile number with country code.");
     if (markComplete && !phone) profileFieldError("#phone", "Mobile number is required to complete your profile.");
     const required = isOrg
-      ? [["#company", "Company name"], ["#category", "Industry / category"], ["#company-bio", "About the company"], ["#manager", "Project manager name"], ...(accountType === "agency" ? [["#agency-type", "Agency type"]] : [])]
-      : [["#display-name", "Display name"], ["#location", "Location"], ["#bio", "Bio"]];
+      ? [["#company", accountType === "event" ? "Organisation or event business name" : accountType === "media" ? "Media organisation name" : "Company name"], ["#category", "Industry / category"], ["#company-bio", "About your organisation"], ...(["brand", "agency"].includes(accountType) ? [["#manager", "Project contact name"]] : []), ...(accountType === "agency" ? [["#agency-type", "Agency type"]] : [])]
+      : [["#display-name", accountType === "celebrity" ? "Public or stage name" : "Display name"], ["#location", "Location"], ["#bio", "Bio"], ...(accountType === "celebrity" ? [["#profession", "Profession / talent category"]] : [])];
     if (markComplete) for (const [selector, label] of required) if (!$(selector)?.value?.trim()) profileFieldError(selector, `${label} is required.`);
     const availabilitySelect = !isOrg ? $("#availability") : null;
     const availabilityStatus = availabilitySelect?.value || null;
@@ -212,21 +217,39 @@
       if (!availabilityDate || availabilityDate < today) throw new Error("Choose a future date for your availability.");
     }
     const languages = !isOrg ? [...($("#language")?.selectedOptions || [])].map((option) => option.value === "Other" ? $("#language-other")?.value.trim() || "Other" : option.value) : [];
+    const selectedValues = (selector) => [...($(selector)?.selectedOptions || [])].map((option) => option.value).filter(Boolean);
+    if (markComplete && accountType === "media" && !selectedValues("#media-types").length) profileFieldError("#media-types", "Choose at least one media type.");
+    const dynamicServices = ["event", "media"].includes(accountType) ? csvValues(`#${accountType}-services`) : [];
+    const clientIndustries = accountType === "agency" ? csvValues("#agency-client-industries") : accountType === "media" ? csvValues("#media-client-industries") : [];
+    const profession = $("#profession")?.value || null;
+    const profileSkills = accountType === "celebrity" ? csvValues("#celebrity-skills") : accountType === "creator" ? csvValues("#creator-skills") : [];
+    const profileFormats = accountType === "celebrity" ? csvValues("#celebrity-content-formats") : accountType === "creator" ? csvValues("#creator-content-formats") : [];
+    const audienceType = accountType === "event" ? $("#event-audience-type")?.value.trim() : accountType === "media" ? $("#media-audience-type")?.value.trim() : "";
     const payload = {
       id: user.id, account_type: accountType, display_name: displayName,
       avatar_url: window.bmcAvatarUrl || window.bmcExistingAvatarUrl || null,
       company_name: isOrg ? displayName : null,
       agency_type: accountType === "agency" ? $("#agency-type")?.value || null : null,
-      manager_name: isOrg ? $("#manager")?.value.trim() || null : null,
-      manager_title: isOrg ? $("#manager-title")?.value.trim() || null : null,
+      manager_name: ["brand", "agency"].includes(accountType) ? $("#manager")?.value.trim() || null : null,
+      manager_title: ["brand", "agency"].includes(accountType) ? $("#manager-title")?.value.trim() || null : null,
       bio: (isOrg ? $("#company-bio")?.value : $("#bio")?.value)?.trim() || "",
-      category: $("#category")?.value || null,
+      category: $("#category")?.value || profession || null,
       location: $(isOrg ? "#market" : "#location")?.value?.trim() || null,
       website_url: (isOrg ? $("#company-site")?.value : $("#website")?.value)?.trim() || null,
       content_categories: contentCategories,
       collaboration_categories: collaborationCategories,
-      services: agencyServices,
+      services: [...new Set([...agencyServices, ...dynamicServices])],
       specialisations: agencySpecialisations,
+      profession,
+      skills: profileSkills,
+      content_formats: profileFormats,
+      media_types: selectedValues("#media-types"),
+      event_types: selectedValues("#event-types"),
+      client_industries: clientIndustries,
+      company_type: $("#company-type")?.value || null,
+      audience_type: audienceType || null,
+      event_scale: $("#event-scale")?.value.trim() || null,
+      representation_status: $("#representation-status")?.value || null,
       portfolio_links: [...document.querySelectorAll(".portfolio-item[data-url]")].map((item) => item.dataset.url),
       languages,
       onboarding_completed: markComplete,
@@ -317,6 +340,20 @@
     }
     input.click();
   }
+  function ensureSixTypeProfileFields() {
+    if ($("#six-type-profile-fields")) return;
+    const socialCard = [...document.querySelectorAll(".card")].find((card) => card.querySelector(".card-title h3")?.textContent.trim() === "Social accounts");
+    if (!socialCard) return;
+    const host = document.createElement("div"); host.id = "six-type-profile-fields";
+    host.innerHTML = `
+      <section class="card role-fields" data-role-fields="creator"><div class="card-title"><h3>Creator details</h3><span>OPTIONAL</span></div><div class="grid"><div class="field"><label for="creator-skills">Skills</label><input id="creator-skills" placeholder="Photography, editing, writing"></div><div class="field"><label for="creator-content-formats">Content formats</label><input id="creator-content-formats" placeholder="Reels, stories, interviews"></div></div></section>
+      <section class="card role-fields" data-role-fields="celebrity"><div class="card-title"><h3>Talent profile</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="profession">Profession / talent category *</label><select id="profession"><option value="">Choose a talent category</option><option>Actor / actress</option><option>Musician / singer</option><option>Athlete / sports personality</option><option>Comedian</option><option>Author</option><option>Celebrity chef</option><option>Television host</option><option>Public figure</option><option>Other talent</option></select></div><div class="field"><label for="representation-status">Representation</label><select id="representation-status"><option value="">Choose one</option><option value="self_managed">Self-managed</option><option value="represented">Managed by an authorised representative</option></select></div></div><div class="grid"><div class="field"><label for="celebrity-skills">Talent skills</label><input id="celebrity-skills" placeholder="Acting, singing, hosting"></div><div class="field"><label for="celebrity-content-formats">Available formats</label><input id="celebrity-content-formats" placeholder="Interviews, appearances, campaigns"></div></div><p class="metric-note">Personal mobile numbers and private management contact details are never shown on your public profile.</p></section>
+      <section class="card role-fields" data-role-fields="brand"><div class="card-title"><h3>Company details</h3><span>OPTIONAL</span></div><div class="field"><label for="company-type">Company type</label><select id="company-type"><option value="">Choose company type</option><option>Consumer brand</option><option>Startup</option><option>Small business</option><option>Enterprise</option><option>Non-profit</option><option>Other</option></select></div></section>
+      <section class="card role-fields" data-role-fields="agency"><div class="card-title"><h3>Agency expertise</h3><span>OPTIONAL</span></div><div class="field"><label for="agency-client-industries">Client industries</label><input id="agency-client-industries" placeholder="Fashion, food, technology"></div></section>
+      <section class="card role-fields" data-role-fields="event"><div class="card-title"><h3>Event organisation details</h3><span>OPTIONAL</span></div><div class="grid"><div class="field"><label for="event-types">Event specialisations</label><select id="event-types" multiple size="5"><option>Concerts & live music</option><option>Festivals</option><option>Exhibitions & trade fairs</option><option>Conferences & summits</option><option>Corporate events</option><option>Sports events</option><option>College events</option><option>Fashion & experiential events</option><option>Brand activations</option><option>Other</option></select><small>Use Ctrl or Command to select more than one.</small></div><div><div class="field"><label for="event-audience-type">Audience type</label><input id="event-audience-type" placeholder="Families, professionals, fans"></div><div class="field"><label for="event-scale">Event scale or capacity</label><input id="event-scale" placeholder="Optional, for example 500–1,000 attendees"></div></div></div><div class="field"><label for="event-services">Capabilities / services</label><input id="event-services" placeholder="Production, sponsorship, talent booking"></div></section>
+      <section class="card role-fields" data-role-fields="media"><div class="card-title"><h3>Media organisation details</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="media-types">Media type *</label><select id="media-types" multiple size="5"><option>Newspaper</option><option>Television / TV channel</option><option>Radio</option><option>Podcast</option><option>Magazine</option><option>Digital news / publisher</option><option>Print media</option><option>Online publication</option><option>Entertainment media</option><option>Film / video media</option><option>Media production</option><option>News portal</option><option>Photography / editorial</option><option>Other</option></select><small>Select every relevant medium.</small></div><div><div class="field"><label for="media-audience-type">Audience / readership</label><input id="media-audience-type" placeholder="Audience, readership or listener profile"></div><div class="field"><label for="media-client-industries">Editorial industries</label><input id="media-client-industries" placeholder="Culture, business, food"></div></div></div><div class="field"><label for="media-services">Platforms or production capabilities</label><input id="media-services" placeholder="Broadcast, editorial, video production"></div></section>`;
+    socialCard.before(host);
+  }
   async function loadProfileSetup() {
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
@@ -324,10 +361,19 @@
     const editingProfile = new URLSearchParams(location.search).get("edit") === "1";
     if (editingProfile && !profile) { location.replace("profile-setup.html"); return; }
     const accountType = editingProfile ? profile.account_type : profile?.account_type || sessionStorage.getItem("bmc_signup_type") || user.user_metadata?.account_type || "creator";
+    ensureSixTypeProfileFields();
+    document.querySelectorAll("[data-role-fields]").forEach((section) => { section.hidden = section.dataset.roleFields !== accountType; });
     sessionStorage.setItem("bmc_signup_type", accountType);
     if (editingProfile) sessionStorage.setItem("bmc_edit_account_type", accountType);
     if (user.user_metadata?.display_name && !sessionStorage.getItem("bmc_signup_name")) sessionStorage.setItem("bmc_signup_name", user.user_metadata.display_name);
     const typeButton = $(`[data-type="${accountType === "creator" ? "influencer" : accountType}"]`); if (typeButton) typeButton.click();
+    const isOrg = isOrganization(accountType);
+    document.querySelectorAll(".creator-only").forEach((section) => section.classList.toggle("hidden", isOrg));
+    document.querySelectorAll(".brand-only").forEach((section) => section.classList.toggle("hidden", !isOrg));
+    const typeLabel = accountType === "creator" ? "Creator" : accountType[0].toUpperCase() + accountType.slice(1);
+    const pageHeading = $("h1"); if (pageHeading) pageHeading.textContent = editingProfile ? `Edit your ${typeLabel.toLowerCase()} profile` : `Let’s build your ${typeLabel.toLowerCase()} profile.`;
+    const formHeading = $(".main h2"); if (formHeading) formHeading.textContent = isOrg ? `Build your ${accountType === "agency" ? "agency" : accountType === "media" ? "media organisation" : accountType === "event" ? "event organisation" : "company"} profile` : `Build your ${typeLabel.toLowerCase()} profile`;
+    const formSub = $(".main .sub"); if (formSub) formSub.textContent = isOrg ? "Give potential collaborators the context they need to find a good fit. Private contact details stay private." : `Share the details that help the right ${accountType === "celebrity" ? "brands, agencies, events and media partners" : "collaborators"} find you. You can edit everything later.`;
     if (!editingProfile) {
       const switcher = $(".account-switch");
       if (switcher) { const label = document.createElement("p"); label.className = "profile-edit-type"; label.textContent = `Setting up your ${accountType === "creator" ? "Creator" : accountType[0].toUpperCase() + accountType.slice(1)} profile`; switcher.before(label); switcher.hidden = true; }
@@ -435,11 +481,24 @@
       "#category": profile.category, "#location": profile.location, "#market": profile.location,
       "#website": profile.website_url, "#company-site": profile.website_url,
       "#manager": profile.manager_name, "#manager-title": profile.manager_title,
-      "#language": profile.languages,
+      "#creator-skills": accountType === "creator" ? (profile.skills || []).join(", ") : "",
+      "#celebrity-skills": accountType === "celebrity" ? (profile.skills || []).join(", ") : "",
+      "#creator-content-formats": accountType === "creator" ? (profile.content_formats || []).join(", ") : "",
+      "#celebrity-content-formats": accountType === "celebrity" ? (profile.content_formats || []).join(", ") : "",
+      "#profession": profile.profession, "#company-type": profile.company_type,
+      "#agency-client-industries": accountType === "agency" ? (profile.client_industries || []).join(", ") : "",
+      "#media-client-industries": accountType === "media" ? (profile.client_industries || []).join(", ") : "",
+      "#event-audience-type": accountType === "event" ? profile.audience_type : "",
+      "#media-audience-type": accountType === "media" ? profile.audience_type : "",
+      "#event-scale": profile.event_scale, "#representation-status": profile.representation_status,
+      "#event-services": accountType === "event" ? (profile.services || []).join(", ") : "",
+      "#media-services": accountType === "media" ? (profile.services || []).join(", ") : "",
     };
     Object.entries(values).forEach(([selector, value]) => { const el = $(selector); if (el && value) el.value = value; });
     if ($("#discoverable")) $("#discoverable").checked = profile.is_discoverable !== false;
     if (Array.isArray(profile.languages)) [...($("#language")?.options || [])].forEach((option) => { option.selected = profile.languages.includes(option.value); });
+    if (Array.isArray(profile.media_types)) [...($("#media-types")?.options || [])].forEach((option) => { option.selected = profile.media_types.includes(option.value); });
+    if (Array.isArray(profile.event_types)) [...($("#event-types")?.options || [])].forEach((option) => { option.selected = profile.event_types.includes(option.value); });
     const otherLanguage = (profile.languages || []).find((language) => language !== "English" && language !== "Hindi" && language !== "Marathi" && language !== "Kannada" && language !== "Tamil" && language !== "Telugu" && language !== "Bengali" && language !== "Gujarati" && language !== "Malayalam" && language !== "Punjabi");
     if (otherLanguage && $("#language-other")) { $("#language")?.querySelector('option[value="Other"]') && ($("#language").querySelector('option[value="Other"]').selected = true); $("#language-other").value = otherLanguage === "Other" ? "" : otherLanguage; $("#language-other-field").hidden = false; }
     if (profile.avatar_url) {
@@ -473,7 +532,7 @@
   }
   function initProfileCompletion(accountType) {
     const progress = $(".progress div"); if (!progress) return;
-    const required = accountType === "creator" ? ["#phone", "#display-name", "#location", "#bio"] : ["#phone", "#company", "#category", "#company-bio", "#manager", ...(accountType === "agency" ? ["#agency-type"] : [])];
+    const required = ["#phone", ...(accountType === "creator" ? ["#display-name", "#location", "#bio"] : accountType === "celebrity" ? ["#display-name", "#location", "#bio", "#profession"] : ["#company", "#category", "#company-bio", ...(["brand", "agency"].includes(accountType) ? ["#manager"] : []), ...(accountType === "agency" ? ["#agency-type"] : [])])];
     const update = () => {
       const completeCount = required.filter((selector) => !!$(selector)?.value?.trim()).length;
       const percent = Math.round(completeCount / required.length * 100);
@@ -515,7 +574,7 @@
     })).filter((x) => x.amount_range);
     return {
       owner_id: user.id, owner_type: accountType,
-      project_type: accountType === "creator" ? "creator_idea" : "brand_campaign",
+      project_type: ({ creator: "creator_idea", brand: "brand_campaign", agency: "agency_project", celebrity: "celebrity_project", event: "event_project", media: "media_project" })[accountType] || "brand_campaign",
       project_name: $("#name").value.trim(), category: $("#category").value,
       location: $("#location").value.trim() || null,
       requirements: $("#requirements").value.trim(),
@@ -525,6 +584,10 @@
       timeline_end: $("#timelineEnd").value || null,
       creator_tiers: $("#tiers").value.split(",").map((x) => x.trim()).filter(Boolean),
       platforms: $("#platforms").value.split(",").map((x) => x.trim()).filter(Boolean),
+      target_profile_types: [...document.querySelectorAll("[name='target-profile-types']:checked")].map((input) => input.value),
+      required_collaborators: [...document.querySelectorAll("[name='target-profile-types']:checked")].map((input) => ({ profile_type: input.value })),
+      required_skills: csvValues("#required-skills"),
+      required_languages: csvValues("#required-languages"),
       usage_permissions: $("#usage").value.trim() || null,
       reshare_permissions: $("#reshare").value.trim() || null,
       budget_by_deliverable: budget,
@@ -563,9 +626,11 @@
       "#timelineEnd": p.timeline_end, "#tiers": (p.creator_tiers || []).join(", "),
       "#platforms": (p.platforms || []).join(", "), "#usage": p.usage_permissions,
       "#reshare": p.reshare_permissions, "#status": p.status,
+      "#required-skills": (p.required_skills || []).join(", "), "#required-languages": (p.required_languages || []).join(", "),
     };
     Object.entries(values).forEach(([selector, value]) => { const el = $(selector); if (el && value) el.value = value; });
-    $("#kind").value = profile.account_type === "creator" ? "creator" : "brand";
+    $("#kind").value = profile.account_type || "brand";
+    (p.target_profile_types || []).forEach((type) => { const input = document.querySelector(`[name="target-profile-types"][value="${CSS.escape(type)}"]`); if (input) input.checked = true; });
     document.querySelectorAll(".delivery").forEach((row, index) => {
       const item = (p.budget_by_deliverable || [])[index]; if (!item) return;
       row.querySelector(".deliverable").value = item.deliverable || "Other";
@@ -584,7 +649,7 @@
     $("#empty").hidden = data.length > 0;
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "card project";
-      const projectLabel = profile.account_type === "agency" ? "Agency project" : profile.account_type === "creator" ? "Creator collaboration idea" : "Brand campaign";
+      const projectLabel = ({ agency: "Agency project", creator: "Creator collaboration idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand campaign" })[profile.account_type] || "Project";
       row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
       host.append(row);
     });
@@ -622,7 +687,8 @@
       .subscribe((status) => { window.bmcFeedRealtimeConnected = status === "SUBSCRIBED"; });
   }
   async function openProjectsForFeed() {
-    const selectedKind = window.bmcSelectedFeedKind || "brand";
+    let selectedKind = window.bmcSelectedFeedKind || "brand";
+    if (!["brand", "creator", "agency", "celebrity", "event", "media"].includes(selectedKind)) selectedKind = "brand";
     document.querySelectorAll(".center-col > .post").forEach((node) => node.remove());
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error: pError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
@@ -631,7 +697,7 @@
     if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user);
     const name = profile.display_name || profile.company_name || "Member";
     window.bmcAccountType = profile.account_type;
-    const accountLabel = profile.account_type === "brand" ? "Brand" : profile.account_type === "agency" ? "Agency" : "Creator";
+    const accountLabel = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[profile.account_type] || "Member";
     const navAccount = $(".collabry-account > span");
     if (navAccount) navAccount.textContent = `${name} · ${accountLabel}`;
     const person = $(".identity .person");
@@ -696,15 +762,18 @@
     const composer = $(".composer");
     if (composer) {
       const idea = $("#open-post-idea"); const primary = $("#open-post");
-      if (profile.account_type === "brand" || profile.account_type === "agency") {
-        if (primary) primary.textContent = "Share a campaign project with creators...";
-        if (idea) idea.textContent = "Post a project";
+      if (["brand", "agency", "event", "media"].includes(profile.account_type)) {
+        if (primary) primary.textContent = ({ brand: "Share a campaign project with collaborators...", agency: "Share an agency project with collaborators...", event: "Share an event opportunity...", media: "Share a media project with collaborators..." })[profile.account_type];
+        if (idea) idea.textContent = ({ brand: "Post a project", agency: "Post an agency project", event: "Post an event project", media: "Post a media project" })[profile.account_type];
+      } else if (profile.account_type === "celebrity") {
+        if (primary) primary.textContent = "Share a celebrity collaboration idea...";
+        if (idea) idea.textContent = "Post a celebrity project";
       } else {
         if (primary) primary.textContent = "Share a collaboration idea with brands...";
         if (idea) idea.textContent = "Post an idea";
       }
-      if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
-      if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type === "creator" ? "creator" : "brand"}`; }, true); }
+      if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type}`; }, true); }
+      if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type}`; }, true); }
       const addWork = $("#add-work");
       if (addWork) {
         addWork.innerHTML = '<span>▣</span><span>View my profile</span>';
@@ -735,7 +804,8 @@
       const ownerType = p.owner_type || byId[p.owner_id]?.account_type;
       if (projectType === "creator_idea") return "creator";
       if (projectType === "brand_campaign") return ownerType === "agency" ? "agency" : "brand";
-      if (["brand", "creator", "agency"].includes(ownerType)) return ownerType;
+      for (const kind of ["celebrity", "event", "media"]) if ([`${kind}_project`, kind].includes(projectType)) return kind;
+      if (["brand", "creator", "agency", "celebrity", "event", "media"].includes(ownerType)) return ownerType;
       return "brand";
     };
     const feedKinds = projects.map(kindOf);
@@ -748,7 +818,7 @@
     }
     if (!$("#bmc-feed-tabs")) {
       const tabs = document.createElement("div"); tabs.id = "bmc-feed-tabs"; tabs.className = "bmc-feed-tabs";
-      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects <span data-feed-count="brand">0</span></button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas <span data-feed-count="creator">0</span></button><button type="button" data-feed-kind="agency" class="${selectedKind === "agency" ? "active" : ""}">Agency projects <span data-feed-count="agency">0</span></button>`;
+      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects <span data-feed-count="brand">0</span></button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas <span data-feed-count="creator">0</span></button><button type="button" data-feed-kind="agency" class="${selectedKind === "agency" ? "active" : ""}">Agency projects <span data-feed-count="agency">0</span></button><button type="button" data-feed-kind="celebrity" class="${selectedKind === "celebrity" ? "active" : ""}">Celebrity projects <span data-feed-count="celebrity">0</span></button><button type="button" data-feed-kind="event" class="${selectedKind === "event" ? "active" : ""}">Event projects <span data-feed-count="event">0</span></button><button type="button" data-feed-kind="media" class="${selectedKind === "media" ? "active" : ""}">Media projects <span data-feed-count="media">0</span></button>`;
       live.before(tabs);
       tabs.addEventListener("click", (event) => {
         const button = event.target.closest("[data-feed-kind]"); if (!button) return;
@@ -756,12 +826,14 @@
         window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind; applyFeedVisibility();
       });
     }
-    if (!projects.length) { live.innerHTML = ""; ["brand", "creator", "agency"].forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = "0"; }); live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user); if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000); return; }
-    ["brand", "creator", "agency"].forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
+    const allFeedKinds = ["brand", "creator", "agency", "celebrity", "event", "media"];
+    if (!allFeedKinds.includes(selectedKind)) selectedKind = "brand";
+    if (!projects.length) { live.innerHTML = ""; allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = "0"; }); live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user); if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000); return; }
+    allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
     live.innerHTML = projects.map((p) => {
       const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
       const kind = kindOf(p);
-      const type = kind === "agency" ? "Agency project" : kind === "creator" ? "Creator idea" : "Brand project";
+      const type = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kind];
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const canApply = user.id !== p.owner_id;
       return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions"><button class="btn view-project-details" type="button">View details</button>${canApply ? `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button><button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
@@ -921,5 +993,4 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
-
 

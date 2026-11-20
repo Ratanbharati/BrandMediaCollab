@@ -19,4 +19,3 @@ ALTER TABLE public.profiles
       OR (availability_status IS DISTINCT FROM 'Available from a date' AND availability_date IS NULL)
     )
   );
-

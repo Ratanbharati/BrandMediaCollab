@@ -21,7 +21,7 @@
   try{
     const db=await window.bmcSupabaseReady;if(!db)throw new Error(window.bmcSupabaseError||'Could not connect to Stagerang.');const {data:{user},error:authError}=await db.auth.getUser();if(authError||!user){location.href='index.html';return}
     const {data:profile,error}=await db.from('profiles').select('*').eq('id',user.id).single();if(error)throw error;
-    const labels={brand:'Brand',creator:'Creator / Influencer',agency:'Agency'};$('#account-type').textContent=labels[profile.account_type]||'Member';$('#current-email').textContent=user.email||'No email is set';$('#reset-password').href=`reset-password.html?email=${encodeURIComponent(user.email||'')}`;
+    const labels={brand:'Brand',creator:'Creator',agency:'Agency',celebrity:'Celebrity',event:'Event',media:'Media'};$('#account-type').textContent=labels[profile.account_type]||'Member';$('#current-email').textContent=user.email||'No email is set';$('#reset-password').href=`reset-password.html?email=${encodeURIComponent(user.email||'')}`;
     const discover=$('#discoverable');let visible=profile.is_discoverable!==false;const paint=()=>discover.setAttribute('aria-checked',String(visible));paint();
     discover.addEventListener('click',async()=>{discover.disabled=true;const next=!visible;try{const {error:updateError}=await db.from('profiles').update({is_discoverable:next,updated_at:new Date().toISOString()}).eq('id',user.id);if(updateError)throw updateError;visible=next;paint();say(`Profile is now ${visible?'visible':'hidden'} in discovery.`)}catch(err){say(err.message||'Could not update profile visibility.',true)}finally{discover.disabled=false}});
     $('#change-email').addEventListener('click',()=>{$('#email-editor').hidden=false;$('#new-email').focus()});
@@ -40,4 +40,3 @@
   }catch(error){exportSay(error.message||'Could not load account settings.',true)}
 })();
 </script></body></html>
-

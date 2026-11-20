@@ -363,4 +363,3 @@
     document.body.classList.add("bmc-messages-ready");
   }
 })();
-

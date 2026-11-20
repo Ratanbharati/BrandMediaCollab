@@ -35,4 +35,3 @@ create policy social_accounts_read_members on public.social_accounts
         )
     )
   );
-

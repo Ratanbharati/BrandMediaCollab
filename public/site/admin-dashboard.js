@@ -27,18 +27,13 @@
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { setVisible(login, true); setVisible(panel, false); setVisible($("#sign-out"), false); return; }
     token = session.access_token; $("#admin-email").textContent = session.user.email || "Signed in";
-    setVisible(panel, false); setVisible(login, true); setVisible($("#sign-out"), false);
-    errorBox.textContent = ""; notice.classList.add("hidden");
+    setVisible(login, false); setVisible(panel, true); setVisible($("#sign-out"), true); notice.classList.add("hidden");
     try {
       await loadOverview();
-      setVisible(login, false); setVisible(panel, true); setVisible($("#sign-out"), true);
       await loadView(activeView);
       $("#last-updated").textContent = `Last updated ${new Date().toLocaleTimeString()}. Refreshes every 20 seconds while this page is open.`;
-    } catch (error) {
-      token = "";
-      setVisible(panel, false); setVisible(login, true); setVisible($("#sign-out"), false);
-      errorBox.textContent = error.message || "This account is not authorized for platform administration.";
     }
+    catch (error) { showError(error); }
   }
 
   async function loadOverview() {
@@ -96,7 +91,14 @@
 
   async function loadSupport() {
     const data = await api("/api/admin/data?resource=support"), body = $("#support-body"); body.replaceChildren();
-    (data.requests || []).forEach((item) => rowFor(body, [item.subject, item.profile?.display_name || item.profile?.company_name || "Member", item.status, item.description, date(item.created_at)]));
+    (data.requests || []).forEach((item) => {
+      const row = document.createElement("tr"); td(row, item.subject); td(row, item.profile?.display_name || item.profile?.company_name || "Member");
+      const statusCell = document.createElement("td"), status = document.createElement("select");
+      [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"]].forEach(([value, label]) => { const option = document.createElement("option"); option.value = value; option.textContent = label; status.append(option); });
+      status.value = item.status; status.setAttribute("aria-label", `Support status for ${item.subject}`);
+      status.addEventListener("change", async () => { status.disabled = true; try { await api("/api/admin/data", { method: "PATCH", body: JSON.stringify({ id: item.id, status: status.value }) }); toast("Support status updated."); await loadOverview(); } catch (error) { toast(error.message); status.value = item.status; } finally { status.disabled = false; } });
+      statusCell.append(status); row.append(statusCell); td(row, item.description); td(row, date(item.created_at)); body.append(row);
+    });
     if (!body.children.length) { const row = document.createElement("tr"); const cell = td(row, "No support requests found."); cell.colSpan = 5; body.append(row); }
   }
   async function loadAudit() {
@@ -133,7 +135,7 @@
     $("#login-form").addEventListener("submit", async (event) => {
       event.preventDefault(); errorBox.textContent = "";
       const button = event.currentTarget.querySelector("button[type=submit]"); button.disabled = true;
-      try { const { error } = await supabase.auth.signInWithPassword({ email: $("#email").value.trim(), password: $("#password").value }); if (error) throw error; await showConsole(); }
+      try { const { error } = await supabase.auth.signInWithPassword({ email: $("#email").value.trim(), password: $("#password").value }); if (error) throw error; await showConsole(); if (panel.classList.contains("hidden")) throw new Error("Admin data could not be opened."); }
       catch (error) { errorBox.textContent = error.message || "Sign in failed."; }
       finally { button.disabled = false; }
     });

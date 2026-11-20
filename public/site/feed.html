@@ -36,4 +36,3 @@ body:not(.bmc-data-ready) .identity .stats,body:not(.bmc-data-ready) .profile-co
 <script>const toastNode=document.querySelector("#toast");function toast(message){if(!toastNode)return;toastNode.textContent=message;toastNode.classList.add("show");setTimeout(()=>toastNode.classList.remove("show"),2300)}document.querySelectorAll("#open-post,#open-post-idea").forEach(button=>button.addEventListener("click",event=>{event.preventDefault();event.stopImmediatePropagation();location.href=`project-form.html?kind=${window.bmcAccountType==="creator"?"creator":"brand"}`},true));</script><script src="/site/bmc-supabase.js"></script><script src="/site/bmc-app.js"></script></body></html>
 
 
-

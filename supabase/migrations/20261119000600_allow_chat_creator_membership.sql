@@ -31,4 +31,3 @@ create policy members_creator_add on public.conversation_members
         )
     )
   );
-

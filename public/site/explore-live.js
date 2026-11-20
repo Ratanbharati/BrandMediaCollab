@@ -5,7 +5,7 @@
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const toast = (message) => { const node = $("#toast"); if (node) { node.textContent = message; node.classList.add("show"); setTimeout(() => node.classList.remove("show"), 2600); } };
   const PAGE_SIZE = 24;
-  let supabase, user, profiles = [], total = 0, loading = false, activeType = "all", searchTimer;
+  let supabase, user, profiles = [], total = 0, loading = false, profileRefreshQueued = false, activeType = "all", searchTimer, profileChannel, profileFallback, profileRealtimeConnected = false;
   const grid = $("#profile-grid"), countNode = $("#result-count"), loadMore = $("#load-more");
 
   function filterValues() {
@@ -33,11 +33,14 @@
       creator: ["niche", "location", "language", "platform"],
       brand: ["industry", "location", "platform"],
       agency: ["industry", "location", "service", "platform"],
+      celebrity: ["industry", "niche", "location", "language", "platform"],
+      event: ["industry", "niche", "location", "service", "platform"],
+      media: ["industry", "niche", "location", "platform", "service"],
       all: ["industry", "niche", "location", "language", "platform", "service"],
     }[type] || [];
     $$("[data-filter-field]").forEach((field) => { field.hidden = !typeFields.includes(field.dataset.filterField); });
     const heading = $("#results-title");
-    if (heading) heading.textContent = type === "all" ? "People to discover" : `${type === "agency" ? "Agencies" : `${type[0].toUpperCase()}${type.slice(1)}s`} to discover`;
+    if (heading) heading.textContent = type === "all" ? "People to discover" : `${({ agency: "Agencies", celebrity: "Celebrities", event: "Events", media: "Media organisations" })[type] || `${type[0].toUpperCase()}${type.slice(1)}s`} to discover`;
     if (window.matchMedia("(min-width:721px)").matches) $("#filter-panel").open = true;
   }
 
@@ -49,7 +52,7 @@
   }
 
   function profileName(profile) {
-    return profile.account_type === "creator"
+    return ["creator", "celebrity"].includes(profile.account_type)
       ? (profile.display_name || profile.company_name || "Stagerang creator")
       : (profile.company_name || profile.display_name || "Stagerang member");
   }
@@ -59,9 +62,15 @@
   function cardHtml(profile) {
     const name = profileName(profile);
     const role = profile.account_type || "member";
-    const subtitle = role === "creator" ? (profile.content_categories || []).slice(0, 2).join(" · ") || profile.category || "Creator" : role === "agency" ? (profile.agency_type || profile.category || "Agency") : (profile.category || "Brand");
+    const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[role] || "Member";
+    const subtitle = role === "creator" ? (profile.content_categories || []).slice(0, 2).join(" · ") || profile.category || "Creator"
+      : role === "celebrity" ? (profile.profession || profile.category || "Talent")
+      : role === "event" ? (profile.event_types || []).slice(0, 2).join(" · ") || profile.category || "Event organiser"
+      : role === "media" ? (profile.media_types || []).slice(0, 2).join(" · ") || profile.category || "Media organisation"
+      : role === "agency" ? (profile.agency_type || profile.category || "Agency") : (profile.category || "Brand");
     const tags = [...new Set([
       ...(profile.content_categories || []), ...(profile.collaboration_categories || []),
+      ...(profile.skills || []), ...(profile.content_formats || []), ...(profile.media_types || []), ...(profile.event_types || []),
       ...(role === "agency" ? [...(profile.services || []), ...(profile.specialisations || [])] : []),
       ...(role === "creator" ? (profile.languages || []) : []),
     ])].filter(Boolean).slice(0, 4);
@@ -73,7 +82,7 @@
     const recent = joinedDate && (Date.now() - joinedDate.getTime()) < 30 * 86400000;
     return `<article class="profile-card" data-profile-id="${esc(profile.profile_id)}" data-type="${esc(role)}">
       <a class="profile-main" href="${profileHref(profile)}" aria-label="View ${esc(name)}’s profile">
-        <div class="profile-cover"><div class="profile-avatar">${avatar}</div><span class="type-pill">${esc(role)}</span></div>
+        <div class="profile-cover"><div class="profile-avatar">${avatar}</div><span class="type-pill">${esc(roleLabel)}</span></div>
         <div class="profile-content">
           <div class="profile-title-row"><h3>${esc(name)}</h3>${recent ? '<span class="joined">Recently joined</span>' : ""}</div>
           <p class="profile-kind">${esc(subtitle)}</p>
@@ -127,7 +136,7 @@
   }
 
   async function loadProfiles({ reset = false } = {}) {
-    if (loading) return;
+    if (loading) { if (reset) profileRefreshQueued = true; return; }
     if (reset) { profiles = []; total = 0; loadingState(); }
     loading = true;
     const offset = reset ? 0 : profiles.length;
@@ -153,7 +162,10 @@
       grid.innerHTML = `<div class="empty-state"><b>Profiles could not load</b><p>${esc(error.message || "Check your connection and try again.")}</p><button class="load-retry" type="button">Try again</button></div>`;
       $(".load-retry")?.addEventListener("click", () => loadProfiles({ reset: true }));
       countNode.textContent = "Please try again"; loadMore.hidden = true;
-    } finally { loading = false; }
+    } finally {
+      loading = false;
+      if (profileRefreshQueued) { profileRefreshQueued = false; clearTimeout(searchTimer); searchTimer = setTimeout(() => loadProfiles({ reset: true }), 50); }
+    }
   }
 
   function clearFilters() {
@@ -195,10 +207,16 @@
     $("#load-more button").addEventListener("click", () => loadProfiles());
     $("#blocked-area").addEventListener("toggle", () => { if ($("#blocked-area").open) renderBlockedProfiles(); });
     window.bmcConnections.subscribe(() => { renderCards(); if ($("#blocked-area").open) renderBlockedProfiles(); });
+    profileChannel = supabase.channel(`explore-profiles-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
+        clearTimeout(searchTimer); searchTimer = setTimeout(() => loadProfiles({ reset: true }), 250);
+      })
+      .subscribe((status) => { profileRealtimeConnected = status === "SUBSCRIBED"; });
+    profileFallback = window.setInterval(() => { if (!profileRealtimeConnected && !document.hidden) loadProfiles({ reset: true }); }, 30000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) loadProfiles({ reset: true }); });
     await Promise.all([loadProfiles({ reset: true }), renderBlockedProfiles()]);
   } catch (error) {
     console.error("Explore could not start:", error);
     grid.setAttribute("aria-busy", "false"); grid.innerHTML = `<div class="empty-state"><b>Sign in to explore Stagerang</b><p>${esc(error.message || "Your profile discovery session could not be started.")}</p><a href="index.html">Go to sign in</a></div>`; countNode.textContent = "";
   }
 })();
-

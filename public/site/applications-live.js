@@ -179,4 +179,3 @@
     document.body.classList.add("bmc-applications-ready");
   }
 })();
-

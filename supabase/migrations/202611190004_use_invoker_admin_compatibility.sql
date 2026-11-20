@@ -11,4 +11,3 @@ as $$
 $$;
 revoke all on function public.is_platform_admin() from public, anon;
 grant execute on function public.is_platform_admin() to authenticated;
-

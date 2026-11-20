@@ -65,4 +65,3 @@ drop trigger if exists projects_enforce_owner_classification on public.projects;
 create trigger projects_enforce_owner_classification
 before insert or update of owner_id, owner_type, project_type on public.projects
 for each row execute function public.enforce_project_owner_classification();
-

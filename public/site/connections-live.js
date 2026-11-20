@@ -165,4 +165,3 @@
 
   window.bmcConnections = { ready, refresh, stateFor, request, respond, cancel, block, unblock, listBlockedProfiles, subscribe, renderProfileActions };
 })();
-

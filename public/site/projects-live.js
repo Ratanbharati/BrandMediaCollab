@@ -9,9 +9,10 @@
   let db, user, projects = [], applications = [], saved = new Set(), profilesById = {};
   let scope = ["owned", "applied", "saved"].includes(new URLSearchParams(location.search).get("scope")) ? new URLSearchParams(location.search).get("scope") : "discover";
   let activeKind = new URLSearchParams(location.search).get("kind");
-  if (!["brand", "creator", "agency"].includes(activeKind)) activeKind = "brand";
+  const projectKinds = ["brand", "creator", "agency", "celebrity", "event", "media"];
+  if (!projectKinds.includes(activeKind)) activeKind = "brand";
   let channel, refreshTimer, loadInFlight = false, refreshQueued = false, realtimeConnected = false, deepLinkOpened = false;
-  const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0, agencies: 0 };
+  const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0, agencies: 0, celebrities: 0, events: 0, media: 0 };
 
   function toast(message) {
     const node = $("#toast");
@@ -25,11 +26,12 @@
   function accountKind(value) {
     const type = String(value || "").trim().toLowerCase();
     if (["creator", "influencer", "creator/influencer"].includes(type)) return "creator";
-    return ["brand", "agency"].includes(type) ? type : "";
+    return projectKinds.includes(type) ? type : "";
   }
   function projectKind(project) {
     const type = String(project.project_type || "").trim().toLowerCase();
     if (["creator_idea", "creator", "idea"].includes(type)) return "creator";
+    for (const kind of ["celebrity", "event", "media"]) if ([`${kind}_project`, kind].includes(type)) return kind;
     const owner = accountKind(project.owner_type || profilesById[project.owner_id]?.account_type);
     // The current database represents agency campaigns as brand_campaign rows
     // with owner_type=agency. Keep them in their own category.
@@ -63,15 +65,18 @@
     populateSelect("#tier", "Any creator tier", filterValues(available, "creator_tiers"));
     populateSelect("#platform", "Any platform", filterValues(available, "platforms"));
     populateSelect("#location", "Any location", filterValues(available, "location"));
+    populateSelect("#target-type", "Any collaborator", [...new Set(available.flatMap((project) => project.target_profile_types || []))].sort());
   }
   function projectMatches(project) {
     const query = $("#q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const category = $("#cat").value.toLowerCase(), tier = $("#tier").value.toLowerCase();
     const platform = $("#platform").value.toLowerCase(), locationValue = $("#location").value.toLowerCase();
+    const targetType = $("#target-type")?.value.toLowerCase() || "all";
+    const skill = $("#skill")?.value.trim().toLowerCase() || "", language = $("#language")?.value.trim().toLowerCase() || "";
     const owner = profilesById[project.owner_id] || {};
     const haystack = [project.project_name, project.requirements, project.category, project.location,
       owner.display_name, owner.company_name, owner.account_type, project.project_type,
-      ...(project.platforms || []), ...(project.creator_tiers || []),
+      ...(project.platforms || []), ...(project.creator_tiers || []), ...(project.target_profile_types || []), ...(project.required_skills || []), ...(project.required_languages || []),
       ...(Array.isArray(project.budget_by_deliverable) ? project.budget_by_deliverable.flatMap((item) => [item.deliverable, item.amount_range]) : [])]
       .filter(Boolean).join(" ").toLowerCase();
     const scopeMatches = scope === "owned" ? project.owner_id === user.id
@@ -83,7 +88,10 @@
       && (category === "all" || String(project.category || "").toLowerCase() === category)
       && (tier === "all" || (project.creator_tiers || []).some((value) => String(value).toLowerCase() === tier))
       && (platform === "all" || (project.platforms || []).some((value) => String(value).toLowerCase() === platform))
-      && (locationValue === "all" || String(project.location || "").toLowerCase().includes(locationValue));
+      && (locationValue === "all" || String(project.location || "").toLowerCase().includes(locationValue))
+      && (targetType === "all" || !(project.target_profile_types || []).length || (project.target_profile_types || []).map((value) => String(value).toLowerCase()).includes(targetType))
+      && (!skill || (project.required_skills || []).some((value) => String(value).toLowerCase().includes(skill)))
+      && (!language || (project.required_languages || []).some((value) => String(value).toLowerCase().includes(language)));
   }
   function renderFilters() {
     if (!user) return;
@@ -105,7 +113,7 @@
     if (!deepLinkOpened && deepLink && visible.some((project) => project.id === deepLink)) { deepLinkOpened = true; openDetails(deepLink); }
   }
   function setKind(kind) {
-    if (!["brand", "creator", "agency"].includes(kind)) return;
+    if (!projectKinds.includes(kind)) return;
     activeKind = kind;
     document.querySelectorAll(".segmented [data-kind]").forEach((button) => {
       const active = button.dataset.kind === kind;
@@ -113,6 +121,7 @@
     });
     if (scope === "discover") {
       document.querySelectorAll(".side-link[data-status]").forEach((link) => link.classList.toggle("active", link.dataset.status === (kind === "creator" ? "collab" : kind === "agency" ? "agency" : "discover")));
+      document.querySelectorAll(".side-link[data-side-kind]").forEach((link) => link.classList.toggle("active", link.dataset.sideKind === kind));
     }
     const url = new URL(location.href); url.searchParams.set("kind", kind); history.replaceState({}, "", url);
     renderFilters();
@@ -128,7 +137,7 @@
   function buildCard(project) {
     const owner = profilesById[project.owner_id] || {};
     const name = owner.display_name || owner.company_name || "Stagerang member";
-    const kind = projectKind(project), label = kind === "agency" ? "Agency project" : kind === "creator" ? "Creator idea" : "Brand project";
+    const kind = projectKind(project), label = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kind];
     const applied = applications.some((item) => item.project_id === project.id && item.status !== "withdrawn");
     const isSaved = saved.has(project.id), own = project.owner_id === user.id;
     const card = document.createElement("article"); card.className = "panel project item"; card.dataset.projectId = project.id;
@@ -143,7 +152,7 @@
     const dialog = document.createElement("dialog"); dialog.className = "project-details-dialog";
     const budget = Array.isArray(project.budget_by_deliverable) ? project.budget_by_deliverable : [];
     const budgetMarkup = budget.length ? `<section><h3>Budget & deliverables</h3>${budget.map((item) => `<p><strong>${esc(item.deliverable || "Deliverable")}</strong>${item.amount_range ? ` · ${esc(item.amount_range)}` : ""}</p>`).join("")}</section>` : "";
-    dialog.innerHTML = `<article class="project-details-sheet"><button class="details-close" type="button" aria-label="Close project details">×</button><span class="badge">${kind === "agency" ? "Agency project" : kind === "creator" ? "Creator idea" : "Brand project"}</span><h2>${esc(project.project_name)}</h2><p class="details-owner"><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(owner.display_name || owner.company_name || "Stagerang member")}</a> · ${esc(project.location || "Remote")}</p><p>${esc(project.requirements)}</p>${budgetMarkup}<section><h3>Eligibility</h3><p>${esc((project.creator_tiers || []).join(", ") || "Open creator tier")}${project.platforms?.length ? ` · ${esc(project.platforms.join(", "))}` : ""}</p></section><section><h3>Timeline</h3><p>Applications close ${esc(formatDate(project.application_deadline))}; delivery ${esc(formatDate(project.delivery_date))}.</p></section>${project.usage_permissions ? `<section><h3>Usage permissions</h3><p>${esc(project.usage_permissions)}</p></section>` : ""}${project.reshare_permissions ? `<section><h3>Reshare permissions</h3><p>${esc(project.reshare_permissions)}</p></section>` : ""}<div class="details-actions"><a class="btn" href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">View profile</a>${project.owner_id !== user.id ? `<button class="btn" type="button" data-detail-apply="${esc(project.id)}">Express interest</button>` : `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit project</a>`}</div></article>`;
+    dialog.innerHTML = `<article class="project-details-sheet"><button class="details-close" type="button" aria-label="Close project details">×</button><span class="badge">${({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kind]}</span><h2>${esc(project.project_name)}</h2><p class="details-owner"><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(owner.display_name || owner.company_name || "Stagerang member")}</a> · ${esc(project.location || "Remote")}</p><p>${esc(project.requirements)}</p>${budgetMarkup}<section><h3>Eligibility</h3><p>${esc((project.target_profile_types || project.creator_tiers || []).join(", ") || "Open to collaborators")}${project.platforms?.length ? ` · ${esc(project.platforms.join(", "))}` : ""}${project.required_skills?.length ? ` · Skills: ${esc(project.required_skills.join(", "))}` : ""}</p></section><section><h3>Timeline</h3><p>Applications close ${esc(formatDate(project.application_deadline))}; delivery ${esc(formatDate(project.delivery_date))}.</p></section>${project.usage_permissions ? `<section><h3>Usage permissions</h3><p>${esc(project.usage_permissions)}</p></section>` : ""}${project.reshare_permissions ? `<section><h3>Reshare permissions</h3><p>${esc(project.reshare_permissions)}</p></section>` : ""}<div class="details-actions"><a class="btn" href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">View profile</a>${project.owner_id !== user.id ? `<button class="btn" type="button" data-detail-apply="${esc(project.id)}">Express interest</button>` : `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit project</a>`}</div></article>`;
     document.body.append(dialog); dialog.showModal();
     $(".details-close", dialog).addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
@@ -183,8 +192,13 @@
       counts.brands = discoverable.filter((project) => projectKind(project) === "brand").length;
       counts.ideas = discoverable.filter((project) => projectKind(project) === "creator").length;
       counts.agencies = discoverable.filter((project) => projectKind(project) === "agency").length;
+      counts.celebrities = discoverable.filter((project) => projectKind(project) === "celebrity").length;
+      counts.events = discoverable.filter((project) => projectKind(project) === "event").length;
+      counts.media = discoverable.filter((project) => projectKind(project) === "media").length;
       setCount("owned", counts.owned); setCount("applied", counts.applications); setCount("saved", counts.saved);
       setCount("ideas", counts.ideas); setCount("ideaTab", counts.ideas); setCount("brands", counts.brands); setCount("agency", counts.agencies); setCount("agencyTab", counts.agencies);
+      setCount("celebrityTab", counts.celebrities); setCount("eventTab", counts.events); setCount("mediaTab", counts.media);
+      setCount("celebrity", counts.celebrities); setCount("event", counts.events); setCount("media", counts.media);
       renderFilterChoices();
       document.body.classList.add("bmc-projects-ready");
       if (appsResult.error || savedResult.error || profileResult.error) toast("Some activity details could not load. Project listings are still available.");
@@ -223,12 +237,13 @@
       else if (status === "discover") { event.preventDefault(); setScope("discover"); setKind("brand"); }
       else if (["applied", "saved"].includes(status)) { event.preventDefault(); setScope(status); }
     }));
+    document.querySelectorAll(".side-link[data-side-kind]").forEach((button) => button.addEventListener("click", () => { setScope("discover"); setKind(button.dataset.sideKind); }));
     document.querySelectorAll("[data-mobile-kind]").forEach((button) => button.addEventListener("click", () => {
       $(".mobile-project-menu")?.removeAttribute("open"); setScope("discover"); setKind(button.dataset.mobileKind);
     }));
     $("[data-mobile-scope='discover']")?.addEventListener("click", () => { $(".mobile-project-menu")?.removeAttribute("open"); setScope("discover"); setKind("brand"); });
-    ["q", "cat", "tier", "platform", "location"].forEach((id) => $("#" + id)?.addEventListener(id === "q" ? "input" : "change", renderFilters));
-    $("#clear")?.addEventListener("click", () => { ["q", "cat", "tier", "platform", "location"].forEach((id, index) => { const input = $("#" + id); if (input) input.value = index ? "all" : ""; }); renderFilters(); });
+    ["q", "skill", "language", "cat", "tier", "platform", "location", "target-type"].forEach((id) => $("#" + id)?.addEventListener(["q", "skill", "language"].includes(id) ? "input" : "change", renderFilters));
+    $("#clear")?.addEventListener("click", () => { ["q", "skill", "language", "cat", "tier", "platform", "location", "target-type"].forEach((id) => { const input = $("#" + id); if (input) input.value = ["q", "skill", "language"].includes(id) ? "" : "all"; }); renderFilters(); });
     host.addEventListener("click", async (event) => {
       const target = event.target.closest("button"); if (!target) return;
       const project = projects.find((item) => item.id === target.dataset.save || item.id === target.dataset.apply || item.id === target.dataset.details || item.id === target.dataset.share);
@@ -265,4 +280,3 @@
     window.bmcLoadProjectsDirectory = load;
   } catch (error) { showLoadError(error); }
 })();
-

@@ -95,4 +95,3 @@ drop trigger if exists validate_private_contact_phone_before_write on public.pri
 create trigger validate_private_contact_phone_before_write
 before insert or update of phone on public.private_contacts
 for each row execute function public.validate_private_contact_phone();
-

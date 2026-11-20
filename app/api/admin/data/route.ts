@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminErrorResponse, requirePlatformAdmin, serviceFetch } from "../_shared";
+import { adminErrorResponse, requirePlatformAdmin, serviceFetch, writeAudit } from "../_shared";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +78,29 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ error: "Unknown admin data view." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  } catch (error) { return adminErrorResponse(error); }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const context = await requirePlatformAdmin(request);
+    const body = await request.json();
+    const id = typeof body.id === "string" ? body.id : "";
+    const status = body.status;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      return NextResponse.json({ error: "Choose a valid support request." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
+    if (!["open", "in_progress", "resolved"].includes(status)) {
+      return NextResponse.json({ error: "Choose a valid support status." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
+    const rows = await serviceFetch(context, `/rest/v1/support_requests?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
+    });
+    const updated = Array.isArray(rows) ? rows[0] : null;
+    if (!updated) return NextResponse.json({ error: "Support request not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
+    await writeAudit(context, "support_request.status_updated", "support_request", id, { status });
+    return NextResponse.json({ request: updated }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return adminErrorResponse(error); }
 }
 
