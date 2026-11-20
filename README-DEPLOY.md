@@ -4,7 +4,7 @@ The production site is served from `public/site`. Vercel must use the repository
 
 ## Included workflows
 
-- Creator, Brand, Agency, Celebrity, Event, and Media account types with separate project views on Home and Projects.
+- Brand, Creator, and Agency account types and separate Brand project, Creator idea, and Agency project views on Home and Projects.
 - Home and Projects classify each post by its owner’s saved account type and explicitly hide cards outside the selected tab.
 - Supabase-backed signup, login, password reset, profiles, project posts, saved items, applications/interest, dashboard summaries, project-linked conversations, support requests, and account data export.
 - Profile editing stays tied to the signed-in account type.
@@ -16,7 +16,7 @@ Preserve the package folder structure when copying it to the connected GitHub re
 
 Keep the existing Supabase project and user data. Vercel deployment does not execute SQL migrations. Do not rerun the initial schema on a database that already contains accounts. The admin console setup is in `ADMIN-SETUP.md`.
 
-The core role journeys and post-deployment acceptance checklist are in `USER-JOURNEYS.md`. Six-type database update instructions are in `SUPABASE-UPDATE-GUIDE.md`.
+The Creator, Brand, and Agency click-by-click journeys and post-deployment acceptance checklist are in `USER-JOURNEYS.md`.
 
 The owner console click-by-click workflow and admin limitations are in `ADMIN-WORKFLOW.md`.
 

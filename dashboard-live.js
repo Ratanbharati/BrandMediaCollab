@@ -298,10 +298,11 @@
     if (profileError) throw profileError;
     const name = profile?.display_name || profile?.company_name || "Member";
     const type = profile?.account_type || "creator"; accountType = type;
-    const header = $(".collabry-account > span"); if (header) header.textContent = `${name} · ${type === "creator" ? "Creator" : type[0].toUpperCase() + type.slice(1)}`;
+    const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[type] || "Member";
+    const header = $(".collabry-account > span"); if (header) header.textContent = `${name} · ${roleLabel}`;
     const picker = $("#role"); if (picker) { picker.value = type; picker.disabled = true; }
-    const title = $("#page-title"); if (title) title.textContent = type === "creator" ? "Creator project dashboard" : type === "agency" ? "Agency project dashboard" : "Brand project dashboard";
-    const create = $("#create-project"); if (create) create.onclick = () => { location.href = `project-form.html?kind=${type === "creator" ? "creator" : "brand"}`; };
+    const title = $("#page-title"); if (title) title.textContent = `${roleLabel} project dashboard`;
+    const create = $("#create-project"); if (create) create.onclick = () => { location.href = `project-form.html?kind=${type}`; };
     $("#apply-date")?.addEventListener("click", () => setTimeout(syncDashboardDates, 0));
     $("#date-from")?.addEventListener("change", () => document.querySelector('[data-preset="custom"]')?.classList.add("active"));
     $("#date-to")?.addEventListener("change", () => document.querySelector('[data-preset="custom"]')?.classList.add("active"));

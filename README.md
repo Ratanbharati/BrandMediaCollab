@@ -1,6 +1,6 @@
 # Stagerang
 
-Stagerang is a Next.js shell that serves the existing application from `public/site` and its Supabase migrations from `supabase/migrations`. The HTML and scripts in `public/site` are the active frontend; root-level HTML files are archival copies unless a deployment guide explicitly says otherwise. The current role update supports Creator, Brand, Agency, Celebrity, Event, and Media profiles and projects while preserving the existing site design.
+Stagerang is a Next.js shell that serves the existing application from `public/site` and its Supabase migrations from `supabase/migrations`. The HTML and scripts in `public/site` are the active frontend; root-level HTML files are archival copies unless a deployment guide explicitly says otherwise. The existing site design is preserved.
 
 ## Local setup
 
@@ -13,7 +13,7 @@ Stagerang is a Next.js shell that serves the existing application from `public/s
 
 ## Build and deployment
 
-Run `npm run build` before deployment. In Vercel, use the repository root as the project Root Directory. Deployment does not apply Supabase SQL migrations. Review and apply only missing migrations to the existing Supabase project; do not rerun the initial schema against a database with user data. For the six-type update, see [SUPABASE-UPDATE-GUIDE.md](SUPABASE-UPDATE-GUIDE.md). See [README-DEPLOY.md](README-DEPLOY.md), [ADMIN-SETUP.md](ADMIN-SETUP.md), and [USER-JOURNEYS.md](USER-JOURNEYS.md) for deployment and acceptance details.
+Run `npm run build` before deployment. In Vercel, use the repository root as the project Root Directory. Deployment does not apply Supabase SQL migrations. Review and apply only the unapplied, ordered migrations to the existing Supabase project; do not rerun the initial schema against a database with user data. See [README-DEPLOY.md](README-DEPLOY.md), [ADMIN-SETUP.md](ADMIN-SETUP.md), and [USER-JOURNEYS.md](USER-JOURNEYS.md) for deployment and acceptance details.
 
 ## Current verification scope
 
