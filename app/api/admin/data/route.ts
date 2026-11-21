@@ -39,7 +39,12 @@ export async function GET(request: Request) {
       if (roles.has(type)) query.set("account_type", `eq.${type}`);
       if (["active", "suspended"].includes(status)) query.set("account_status", `eq.${status}`);
       query.set("order", "created_at.desc");
-      return json(await paged(context, "admin_user_directory", query));
+      const [pageData, adminRows] = await Promise.all([
+        paged(context, "admin_user_directory", query),
+        serviceFetch(context, "/rest/v1/platform_admins?select=user_id&limit=1000") as Promise<Array<{ user_id: string }>>,
+      ]);
+      const adminIds = new Set(adminRows.map((row) => row.user_id));
+      return json({ ...pageData, rows: pageData.rows.map((row) => ({ ...row, is_platform_admin: adminIds.has(String(row.id)) })) });
     }
     if (resource === "user") {
       const id = params.get("id") || "";

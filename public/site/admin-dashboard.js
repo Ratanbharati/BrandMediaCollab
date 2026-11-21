@@ -1,7 +1,7 @@
 (async function () {
   const $ = (selector) => document.querySelector(selector);
   const login = $("#login-panel"), panel = $("#admin-panel"), errorBox = $("#login-error"), notice = $("#setup-notice"), toastNode = $("#toast");
-  let supabase, activeView = "overview", cache = {}, pages = { users: 1, reports: 1, verification: 1 }, hasMore = {}, refreshTimer = 0, refreshBusy = false, searchTimer = 0;
+  let supabase, activeAdminId = "", activeView = "overview", cache = {}, pages = { users: 1, reports: 1, verification: 1 }, hasMore = {}, refreshTimer = 0, refreshBusy = false, searchTimer = 0;
   const esc = (value) => String(value ?? "");
   const date = (value) => value ? new Date(value).toLocaleString() : "—";
   const toast = (message) => { toastNode.textContent = message; toastNode.classList.add("show"); window.setTimeout(() => toastNode.classList.remove("show"), 3000); };
@@ -62,6 +62,7 @@
       const detail = document.createElement("button"); detail.className = "button secondary"; detail.textContent = "View"; detail.onclick = () => openUserDetail(user.id).catch((e) => toast(e.message)); actions.append(detail);
       const visibility = document.createElement("button"); visibility.className = "button secondary"; visibility.textContent = user.is_discoverable ? "Hide" : "Show"; visibility.onclick = async () => { visibility.disabled = true; try { await mutate("/api/admin/users", { action: "visibility", userId: user.id, isDiscoverable: !user.is_discoverable }); toast("Profile visibility updated."); await loadUsers(); } catch (e) { toast(e.message); visibility.disabled = false; } }; actions.append(visibility);
       const toggle = document.createElement("button"); toggle.className = `button ${user.account_status === "suspended" ? "secondary" : "danger"}`; toggle.textContent = user.account_status === "suspended" ? "Restore" : "Suspend";
+      toggle.disabled = Boolean(user.is_platform_admin || user.id === activeAdminId);
       toggle.onclick = async () => {
         const isSuspended = user.account_status === "suspended";
         const reason = isSuspended ? "" : (prompt(`Reason for suspending ${user.email || "this account"}:`) || "").trim();
@@ -70,7 +71,25 @@
         toggle.disabled = true;
         try { await mutate("/api/admin/users", { action: isSuspended ? "restore" : "suspend", userId: user.id, reason }); toast(isSuspended ? "Account restored." : "Account suspended."); await loadUsers(); await loadOverview(); }
         catch (e) { toast(e.message); toggle.disabled = false; }
-      }; actions.append(toggle); row.append(actions); body.append(row);
+      }; actions.append(toggle);
+      const canDelete = !user.is_platform_admin && user.id !== activeAdminId;
+      const remove = document.createElement("button"); remove.className = "button danger"; remove.textContent = canDelete ? "Delete" : "Protected"; remove.disabled = !canDelete;
+      remove.title = canDelete ? "Permanently delete this account and its associated platform data" : "Platform administrator accounts are protected";
+      remove.onclick = async () => {
+        const email = String(user.email || "").trim();
+        if (!email) return toast("This account has no email address to confirm.");
+        if (!confirm(`Permanently delete ${email}? This cannot be undone. The account profile, projects, applications, connections, messages, notifications, and uploaded avatar files associated with the account may be deleted. The email can then be used to register again.`)) return;
+        const typedEmail = prompt(`To confirm permanent deletion, type this account's email exactly:\n\n${email}`);
+        if (typedEmail === null) return;
+        if (typedEmail.trim().toLowerCase() !== email.toLowerCase()) return toast("Email did not match. The account was not deleted.");
+        remove.disabled = true; remove.textContent = "Deleting…";
+        try {
+          const result = await api("/api/admin/users", { method: "DELETE", body: JSON.stringify({ userId: user.id, confirmEmail: typedEmail.trim() }) });
+          toast(result.auditWarning ? "Account deleted. The audit log could not record the completion." : "Account permanently deleted. Its email can now be reused.");
+          await loadUsers(); await loadOverview();
+        } catch (error) { toast(error.message); remove.disabled = false; remove.textContent = "Delete"; }
+      };
+      actions.append(remove); row.append(actions); body.append(row);
     });
     if (!body.children.length) emptyRow(body, "No accounts match these filters.", 9);
     $("#users-page-label").textContent = `Page ${pages.users} · ${cache.users.length} accounts shown${hasMore.users ? " · more available" : ""}`; $("#users-prev").disabled = pages.users <= 1; $("#users-next").disabled = !hasMore.users;
@@ -138,7 +157,7 @@
   async function authorizeAndShow() {
     const { data: { session } } = await supabase.auth.getSession();
     if(!session){setVisible(login,true);setVisible(panel,false);setVisible($("#sign-out"),false);return;}
-    $("#admin-email").textContent=session.user.email||"Signed in";
+    activeAdminId=session.user.id; $("#admin-email").textContent=session.user.email||"Signed in";
     try{await loadOverview();setVisible(login,false);setVisible(panel,true);setVisible($("#sign-out"),true);errorBox.textContent="";notice.classList.add("hidden");await loadView(activeView);$("#last-updated").textContent=`Last updated ${new Date().toLocaleTimeString()}. Refreshes every 30 seconds while this page is open.`;}
     catch(error){setVisible(panel,false);setVisible(login,true);setVisible($("#sign-out"),true);showError(error);}
   }
@@ -155,7 +174,7 @@
     ["users","reports","verification"].forEach((resource)=>{$(`#${resource}-prev`).onclick=()=>{if(pages[resource]>1){pages[resource]--;loadView(activeView).catch(showError);}};$(`#${resource}-next`).onclick=()=>{if(hasMore[resource]){pages[resource]++;loadView(activeView).catch(showError);}};});
     $("#user-detail-close").onclick=()=>$("#user-detail").close();$("#user-detail").addEventListener("click",(event)=>{if(event.target===$("#user-detail"))$("#user-detail").close();});
     $("#refresh").onclick=()=>refreshCurrent(true);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refreshCurrent(false);});
-    $("#sign-out").onclick=async()=>{if(refreshTimer)clearInterval(refreshTimer);refreshTimer=0;await supabase.auth.signOut();cache={};setVisible(panel,false);setVisible(login,true);setVisible($("#sign-out"),false);$("#admin-email").textContent="";errorBox.textContent="";};
+    $("#sign-out").onclick=async()=>{if(refreshTimer)clearInterval(refreshTimer);refreshTimer=0;await supabase.auth.signOut();activeAdminId="";cache={};setVisible(panel,false);setVisible(login,true);setVisible($("#sign-out"),false);$("#admin-email").textContent="";errorBox.textContent="";};
     supabase.auth.onAuthStateChange((event,session)=>{if(event==="SIGNED_OUT"||!session){setVisible(panel,false);setVisible(login,true);setVisible($("#sign-out"),false);}});
     await authorizeAndShow();refreshTimer=window.setInterval(()=>refreshCurrent(false),30_000);
   } catch(error) { showError(error);setVisible(login,true);setVisible(panel,false); }
