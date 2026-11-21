@@ -6,7 +6,7 @@ Open `/site/admin-dashboard.html` and sign in using the verified owner Stagerang
 
 ## Overview
 
-The overview shows current database totals for registered users, six profile types, 30-day active users, projects, published projects, applications, accepted collaborations, accepted connections, reports, pending reports, verification requests, suspended users, open support requests, and admin actions. It refreshes every 30 seconds while visible and supports manual refresh.
+The overview shows current database totals for registered users, nine profile types, 30-day active users, projects, published projects, applications, accepted collaborations, accepted connections, reports, pending reports, verification requests, suspended users, open support requests, and admin actions. It refreshes every 30 seconds while visible and supports manual refresh.
 
 ## Accounts
 

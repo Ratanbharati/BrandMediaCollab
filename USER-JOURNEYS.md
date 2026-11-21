@@ -1,11 +1,11 @@
 # Stagerang account journeys and UI acceptance checklist
 
-This document describes what a member should click, what the page should show, and what data should persist. Use it to review the deployed website with separate test accounts for Creator, Brand, Agency, Celebrity, Event, and Media. A passing screen means the real account data changed in Supabase and is still visible after sign-out/sign-in; a toast or a temporary browser-only change is not enough.
+This document describes what a member should click, what the page should show, and what data should persist. Use it to review the deployed website with separate test accounts for Creator, Brand, Agency, Celebrity, Event, Media, Community, Distributor, and Freelancer. A passing screen means the real account data changed in Supabase and is still visible after sign-out/sign-in; a toast or a temporary browser-only change is not enough.
 
 ```mermaid
 flowchart TD
     A[Landing page] --> B[Join now or Log in]
-    B --> C[Choose one of six account types]
+    B --> C[Choose one of nine account types]
     C --> D[Confirm email]
     D --> E[Complete matching profile]
     E --> F[Home: role-specific feed and activity]

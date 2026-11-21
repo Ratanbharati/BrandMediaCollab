@@ -40,7 +40,7 @@ The Phase 5 migration tightens application insert/update enforcement without dis
 
 ## Verification results
 
-- `pnpm test` — passed: 24 HTML pages, 11 scripts, local links/scripts, auth and profile checks, six account types, application integrity checks, mock-data removal, and Realtime wiring. TypeScript check also passed.
+- `pnpm test` — passed: 24 HTML pages, 11 scripts, local links/scripts, auth and profile checks, nine account types, application integrity checks, mock-data removal, and Realtime wiring. TypeScript check also passed.
 - `pnpm build` — passed after directing the temporary build output to a separate `.next-phase5` directory. The default `.next` path first returned Windows `EPERM`; the temporary config and build output were removed after the successful build.
 - No live Supabase RLS/policy test or real multi-account workflow test was possible without a connected Supabase project and credentials.
 
@@ -52,5 +52,5 @@ Apply pending migrations through the project’s migration workflow. The two rel
 
 - Live production schema, RLS and Realtime publication state could not be verified here.
 - Team invitations and a dedicated settings table/workflow are not implemented in the current schema.
-- The original profile account-type check lists three account types; the six-type migration broadens it. Application eligibility is checked against the stored applicant profile and project target list. Validate all supported profile types against production data.
+- The original profile account-type check lists three account types; the migrations broadens it. Application eligibility is checked against the stored applicant profile and project target list. Validate all supported profile types against production data.
 - The workspace’s default `.next` directory still returns Windows `EPERM`; a clean build succeeds when Next.js writes to a separate output directory.

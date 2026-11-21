@@ -61,7 +61,7 @@ Supabase database migrations are not run by `pnpm build` or Vercel deployment. M
 
 ## Authentication and account setup
 
-Public account types are Creator, Brand, Agency, Celebrity, Event, and Media. Admin is not a public signup option. Signup uses Supabase Auth and profile/account initialization depends on the matching database migrations and Auth trigger. Email verification/reset email delivery depends on your Supabase Auth provider configuration.
+Public account types are Creator, Brand, Agency, Celebrity, Event, Media, Community, Distributor, and Freelancer. Admin is not a public signup option. Signup uses Supabase Auth and profile/account initialization depends on the matching database migrations and Auth trigger. Email verification/reset email delivery depends on your Supabase Auth provider configuration.
 
 See `AUTH-SETUP.md` for redirect and email settings and the live auth acceptance checklist. Do not use real customer accounts for test signups.
 
@@ -102,4 +102,4 @@ The ZIP contains source and instructions; it does not deploy code or change GitH
 
 ## Known limitations and QA status
 
-The latest local QA report records static verification, TypeScript, and a production build as passing. Live end-to-end tests for the six account types, Supabase Auth/email, persisted two-user workflows, realtime, admin authorization/moderation, and responsive browser rendering were not completed because this checkout had no Supabase test configuration or disposable test accounts. Team invitations are not implemented in the current schema/workflow. Review `END-TO-END-QA-REPORT.md` before treating the application as production-verified.
+The latest local QA report records static verification, TypeScript, and a production build as passing. Live end-to-end tests for the nine account types, Supabase Auth/email, persisted two-user workflows, realtime, admin authorization/moderation, and responsive browser rendering were not completed because this checkout had no Supabase test configuration or disposable test accounts. Team invitations are not implemented in the current schema/workflow. Review `END-TO-END-QA-REPORT.md` before treating the application as production-verified.
