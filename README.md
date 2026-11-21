@@ -1,6 +1,6 @@
-# Stagerang
+# Brand Media Collab
 
-Stagerang is a collaboration platform for creators, brands, agencies, celebrities, event organizers, and media organizations. This repository contains the active Next.js application, its static frontend, API routes, Supabase migrations, and setup documentation.
+Brand Media Collab is a collaboration platform for creators, brands, agencies, celebrities, event organizers, media organizations, communities, distributors, and freelancers. This repository contains the active Next.js application, its static frontend, API routes, Supabase migrations, and setup documentation.
 
 ## What's in this project
 

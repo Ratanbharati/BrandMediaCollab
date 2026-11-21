@@ -1,4 +1,4 @@
-# Stagerang account journeys and UI acceptance checklist
+# Brand Media Collab account journeys and UI acceptance checklist
 
 This document describes what a member should click, what the page should show, and what data should persist. Use it to review the deployed website with separate test accounts for Creator, Brand, Agency, Celebrity, Event, Media, Community, Distributor, and Freelancer. A passing screen means the real account data changed in Supabase and is still visible after sign-out/sign-in; a toast or a temporary browser-only change is not enough.
 
@@ -28,13 +28,13 @@ flowchart TD
 
 ## Shared start: new account and every later login
 
-1. Open `https://www.stagerang.com`. The landing page shows **Log in** and **Join now**.
-2. Click **Join now**. Choose one account type: **Creator / Influencer**, **Brand**, or **Agency**. Enter name, email, and password, then submit.
-3. Confirm the email using the link delivered to that address. The confirmation link returns to Stagerang profile setup.
+1. Open `https://www.brandmediacollab.com`. The landing page shows **Log in** and **Join the network**.
+2. Click **Join the network**. Choose one of the nine account types: **Creator, Brand, Agency, Celebrity, Event, Media, Community, Distributor, or Freelancer**. Enter name, email, and password, then submit.
+3. If email confirmation is enabled in the Supabase project, confirm using the link delivered to that address. The confirmation link returns to Brand Media Collab profile setup.
 4. Complete and save the profile. The selected account type and account owner must be saved to the signed-in user’s record.
 5. Continue to Home. The header should show the same account name and correct type.
 6. Use **Log out**, then log back in with the same email and password. The correct profile, account type, posts, applications, saved items, messages, and activity must return. A member must never see another test account’s identity or private data.
-7. If the password is forgotten, use **Forgot password**, open the reset email, set a new password, and sign in. The reset must return to Stagerang and preserve the account.
+7. If the password is forgotten, use **Forgot password**, open the reset email, set a new password, and sign in. The reset must return to Brand Media Collab and preserve the account.
 
 ## Creator / Influencer journey
 

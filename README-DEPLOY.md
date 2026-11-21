@@ -1,4 +1,4 @@
-# Stagerang deployment notes
+# Brand Media Collab deployment notes
 
 The production site is served from `public/site`. Vercel must use the repository root as its Root Directory (leave the Root Directory field empty). Root-level HTML copies are archives; edit the files under `public/site` for the live website.
 

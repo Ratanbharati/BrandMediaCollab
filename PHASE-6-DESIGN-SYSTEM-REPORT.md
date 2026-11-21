@@ -1,6 +1,6 @@
 # Phase 6 — Global UI/UX Consistency & Responsive Repair
 
-> **Build status update (2026-11-21):** The historical build note below records an earlier Windows filesystem failure. A fresh `pnpm build` now completes successfully in the current checkout. See [FINAL-WEBSITE-AUDIT-2026-11-21.md](FINAL-WEBSITE-AUDIT-2026-11-21.md) for the current audit and remaining viewport-testing limits.
+> **Build status update (2026-11-22):** A fresh `pnpm test` and `pnpm build` complete successfully in the current checkout. See [FINAL-WEBSITE-AUDIT-2026-11-22.md](FINAL-WEBSITE-AUDIT-2026-11-22.md) for the current audit and remaining live-backend/viewport-testing limits.
 
 ## What was standardized
 
@@ -10,7 +10,10 @@
 - Added reusable `.sr-button`, `.sr-field`, `.sr-card`, `.sr-tab`, `.sr-empty`, `.sr-error`, and `.sr-toast` component hooks; the shared script applies them to existing and dynamically rendered controls while retaining their current brand variants.
 - Added one small local outline SVG icon family and `public/site/design-system.js`. It replaces the mixed Unicode icons in primary navigation and marked icon slots while preserving text labels and unread badges. It has no CDN dependency.
 - Added shared keyboard focus-visible feedback, reduced-motion handling, 320px minimum viewport support, clipped page-level horizontal overflow, responsive control bounds, scrollable table wrappers, touch sizing, and mobile dialog limits.
-- Preserved the current green, cream, and dark-green Stagerang palette and existing page-specific layouts.
+- Preserved the existing green, cream, and dark-green Brand Media Collab palette and page-specific layouts.
+- Reduced the signed-in product page heading scale to 26–34px while keeping the larger landing-page and Explore hero scale.
+- Standardized signed-in navigation typography, common button text to 14px, form controls to 14px, and dense feed controls to 13px.
+- Changed the nine home-feed project/account-category tabs to responsive wrapping, with two columns on mobile and no horizontal scrollbar.
 
 ## Pages improved
 
