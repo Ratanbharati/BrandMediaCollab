@@ -28,7 +28,7 @@ The migrations add moderation/report/verification tables, profile verification a
 
 ## Sign in
 
-1. Open `https://www.stagerang.com/site/admin-dashboard.html` after the new code is uploaded and deployed.
+1. Open `https://www.brandmediacollab.com/site/admin-dashboard.html` after the new code is uploaded and deployed.
 2. Sign in with the existing owner account. The server checks membership before showing the console data.
 3. If login succeeds but admin access is denied, confirm this account is present in `public.platform_admins` and verify the Vercel server-only environment variables. Do not add a frontend “make admin” action or share the service-role key.
 

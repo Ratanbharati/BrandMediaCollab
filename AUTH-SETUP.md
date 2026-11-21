@@ -6,8 +6,8 @@ The browser uses Supabase Auth through the publishable key returned by `/api/sup
 
 In Supabase Dashboard → Authentication → URL Configuration:
 
-- Set the Site URL to the canonical production origin, currently `https://www.stagerang.com`.
-- Add the exact production redirect URLs `https://www.stagerang.com/site/profile-setup.html` and `https://www.stagerang.com/site/update-password.html`.
+- Set the Site URL to the canonical production origin, `https://www.brandmediacollab.com`.
+- Add the exact production redirect URLs `https://www.brandmediacollab.com/site/profile-setup.html` and `https://www.brandmediacollab.com/site/update-password.html`.
 - Add the matching preview-deployment URLs used for manual testing, and local development URLs such as `http://localhost:3000/site/profile-setup.html` and `http://localhost:3000/site/update-password.html` only where needed.
 - Keep email/password sign-in enabled. For a public production signup flow, keep email confirmation enabled and configure a verified sending domain/provider with appropriate deliverability and rate limits.
 - Enable Supabase Auth leaked-password protection and review the configured minimum password length/strength so it is consistent with the client checks (8+ characters, at least one letter and one number).

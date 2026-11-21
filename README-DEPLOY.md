@@ -12,7 +12,7 @@ The production site is served from `public/site`. Vercel must use the repository
 
 ## Deployment
 
-Preserve the package folder structure when copying it to the connected GitHub repository. Commit and push to `main`, then wait for the newest Vercel Production deployment to show **Ready**. Hard-refresh `https://www.stagerang.com` with **Ctrl+Shift+R**.
+Preserve the package folder structure when copying it to the connected GitHub repository. Commit and push to `main`, then wait for the newest Vercel Production deployment to show **Ready**. Hard-refresh `https://www.brandmediacollab.com` with **Ctrl+Shift+R**.
 
 Keep the existing Supabase project and user data. Vercel deployment does not execute SQL migrations. Do not rerun the initial schema on a database that already contains accounts. The admin console setup is in `ADMIN-SETUP.md`.
 
