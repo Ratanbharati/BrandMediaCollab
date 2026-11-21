@@ -2,8 +2,8 @@
 // Uses the publishable key only; authorization is enforced by Supabase RLS.
 (function () {
   const $ = (selector) => document.querySelector(selector);
-  const accountTypes = ["creator", "brand", "agency", "celebrity", "event", "media"];
-  const organizationTypes = new Set(["brand", "agency", "event", "media"]);
+  const accountTypes = ["creator", "brand", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"];
+  const organizationTypes = new Set(["brand", "agency", "event", "media", "community", "distributor"]);
   const isOrganization = (type) => organizationTypes.has(type);
   const csvValues = (selector) => ($(selector)?.value || "").split(",").map((value) => value.trim()).filter(Boolean);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -186,7 +186,7 @@
     if (error) throw error;
     const name = profile?.display_name || profile?.company_name || user.user_metadata?.display_name || user.email?.split("@")[0] || "Member";
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
-    const label = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[type] || "Creator";
+    const label = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[type] || "Creator";
     headerName.textContent = `${name} · ${label}`;
     const nav = document.querySelector(".collabry-nav nav");
     if (nav && !nav.querySelector("a[data-notifications-link]")) {
@@ -198,7 +198,7 @@
     if (location.pathname.endsWith("/project-form.html") && !new URLSearchParams(location.search).has("id")) {
       const kind = $("#kind");
       if (kind) {
-        kind.value = ({ creator: "creator", brand: "brand", agency: "agency", celebrity: "celebrity", event: "event", media: "media" })[type] || "brand";
+        kind.value = ({ creator: "creator", brand: "brand", agency: "agency", celebrity: "celebrity", event: "event", media: "media", community: "community", distributor: "distributor", freelancer: "freelancer" })[type] || "brand";
         const brandOption = kind.querySelector('option[value="brand"]');
         if (type === "creator") brandOption?.remove();
         else if (type === "agency" && brandOption) brandOption.textContent = "Agency campaign";
@@ -315,7 +315,7 @@
     const orgTagGroups = [...document.querySelectorAll(".brand-only .tags")];
     const selectedTags = (group) => [...(group?.querySelectorAll(".tag.selected") || [])].map((tag) => tag.textContent.trim()).filter(Boolean);
     const contentCategories = ["creator", "celebrity"].includes(accountType) ? selectedTags(creatorTagGroups[0]) : [];
-    const collaborationCategories = ["creator", "celebrity"].includes(accountType) ? selectedTags(creatorTagGroups[1]) : accountType === "brand" ? selectedTags(orgTagGroups[0]) : [];
+    const collaborationCategories = ["creator", "celebrity"].includes(accountType) ? selectedTags(creatorTagGroups[1]) : ["brand", "community"].includes(accountType) ? selectedTags(orgTagGroups[0]) : [];
     const agencyServices = accountType === "agency" ? selectedTags($(".agency-services-field .tags")) : [];
     const agencySpecialisations = accountType === "agency" ? selectedTags(orgTagGroups[0]) : [];
     const phone = $("#phone")?.value?.trim() || "";
@@ -324,15 +324,15 @@
     const fullPhone = normalizedPhone.startsWith("+") ? normalizedPhone : `${countryCode}${normalizedPhone.replace(/^0+/, "")}`;
     if (phone && !/^\+[1-9]\d{7,14}$/.test(fullPhone)) profileFieldError("#phone", "Enter a valid mobile number with country code.");
     if (markComplete && !phone) profileFieldError("#phone", "Mobile number is required to complete your profile.");
-    const creatorFullName = accountType === "creator" ? $("#full-name")?.value?.trim() || "" : "";
+    const creatorFullName = ["creator", "freelancer"].includes(accountType) ? $("#full-name")?.value?.trim() || "" : "";
     const creatorCategory = accountType === "creator" ? $("#creator-category")?.value?.trim() || "" : "";
     const required = isOrg
-      ? [["#company", accountType === "event" ? "Organisation or event business name" : accountType === "media" ? "Media organisation name" : "Company name"], ["#category", "Industry / category"], ["#company-bio", "About your organisation"], ...(["brand", "agency"].includes(accountType) ? [["#manager", "Project contact name"]] : []), ...(accountType === "agency" ? [["#agency-type", "Agency type"]] : [])]
-      : [...(accountType === "creator" ? [["#full-name", "Full name"], ["#creator-category", "Primary creator category / niche"]] : []), ["#display-name", accountType === "celebrity" ? "Public or stage name" : "Display name"], ["#location", "Location"], ["#bio", "Bio"], ...(accountType === "celebrity" ? [["#profession", "Profession / talent category"]] : [])];
+      ? [["#company", accountType === "community" ? "Community name" : accountType === "event" ? "Organisation or event business name" : accountType === "media" ? "Media organisation name" : accountType === "distributor" ? "Distributor / company name" : "Company name"], ["#category", accountType === "distributor" ? "Product category / industry" : accountType === "community" ? "Community category" : "Industry / category"], ["#company-bio", accountType === "community" ? "About the community" : "About the organisation"], ["#manager", "Owner / primary contact name"], ["#market", "Location"], ...(accountType === "agency" ? [["#agency-type", "Agency type"]] : []), ...(accountType === "community" ? [["#community-type", "Community format"]] : []), ...(accountType === "distributor" ? [["#distributor-type", "Distributor type"]] : [])]
+      : [...(["creator", "freelancer"].includes(accountType) ? [["#full-name", "Full name"]] : []), ["#display-name", accountType === "celebrity" ? "Public or stage name" : accountType === "freelancer" ? "Professional / display name" : "Display name"], ["#location", "Location"], ["#bio", accountType === "freelancer" ? "Professional description" : "Bio"], ...(accountType === "creator" ? [["#creator-category", "Primary creator category / niche"]] : []), ...(accountType === "celebrity" ? [["#profession", "Profession / talent category"]] : []), ...(accountType === "freelancer" ? [["#freelancer-profession", "Primary service / profession"]] : [])];
     if (markComplete) for (const [selector, label] of required) if (!$(selector)?.value?.trim()) profileFieldError(selector, `${label} is required.`);
-    if (markComplete && accountType === "creator" && !(window.bmcAvatarUrl || window.bmcExistingAvatarUrl)) {
+    if (markComplete && ["creator", "freelancer", "community", "distributor"].includes(accountType) && !(window.bmcAvatarUrl || window.bmcExistingAvatarUrl)) {
       document.querySelector(".creator-only .profile-pic")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      toast("Upload a profile photo to complete your Creator profile.");
+      toast("Upload a profile photo or logo to complete your profile.");
       throw new Error("A profile photo is required.");
     }
     const availabilitySelect = !isOrg ? $("#availability") : null;
@@ -346,10 +346,11 @@
     const languages = !isOrg ? [...($("#language")?.selectedOptions || [])].map((option) => option.value === "Other" ? $("#language-other")?.value.trim() || "Other" : option.value) : [];
     const selectedValues = (selector) => [...($(selector)?.selectedOptions || [])].map((option) => option.value).filter(Boolean);
     if (markComplete && accountType === "media" && !selectedValues("#media-types").length) profileFieldError("#media-types", "Choose at least one media type.");
-    const dynamicServices = ["event", "media"].includes(accountType) ? csvValues(`#${accountType}-services`) : [];
-    const clientIndustries = accountType === "agency" ? csvValues("#agency-client-industries") : accountType === "media" ? csvValues("#media-client-industries") : [];
-    const profession = $("#profession")?.value || null;
-    const profileSkills = accountType === "celebrity" ? csvValues("#celebrity-skills") : accountType === "creator" ? csvValues("#creator-skills") : [];
+    if (markComplete && accountType === "freelancer" && !csvValues("#freelancer-skills").length) profileFieldError("#freelancer-skills", "Add at least one skill.");
+    const dynamicServices = ["event", "media"].includes(accountType) ? csvValues(`#${accountType}-services`) : accountType === "freelancer" ? csvValues("#freelancer-services") : accountType === "distributor" ? csvValues("#distribution-capabilities") : accountType === "community" ? csvValues("#community-activities") : [];
+    const clientIndustries = accountType === "agency" ? csvValues("#agency-client-industries") : accountType === "media" ? csvValues("#media-client-industries") : accountType === "distributor" ? csvValues("#distribution-industries") : [];
+    const profession = accountType === "freelancer" ? $("#freelancer-profession")?.value || null : $("#profession")?.value || null;
+    const profileSkills = accountType === "celebrity" ? csvValues("#celebrity-skills") : accountType === "creator" ? csvValues("#creator-skills") : accountType === "freelancer" ? csvValues("#freelancer-skills") : [];
     const profileFormats = accountType === "celebrity" ? csvValues("#celebrity-content-formats") : accountType === "creator" ? csvValues("#creator-content-formats") : [];
     const audienceType = accountType === "event" ? $("#event-audience-type")?.value.trim() : accountType === "media" ? $("#media-audience-type")?.value.trim() : "";
     const payload = {
@@ -357,8 +358,8 @@
       avatar_url: window.bmcAvatarUrl || window.bmcExistingAvatarUrl || null,
       company_name: isOrg ? displayName : null,
       agency_type: accountType === "agency" ? $("#agency-type")?.value || null : null,
-      manager_name: ["brand", "agency"].includes(accountType) ? $("#manager")?.value.trim() || null : null,
-      manager_title: ["brand", "agency"].includes(accountType) ? $("#manager-title")?.value.trim() || null : null,
+      manager_name: isOrg ? $("#manager")?.value.trim() || null : null,
+      manager_title: isOrg ? $("#manager-title")?.value.trim() || null : null,
       bio: (isOrg ? $("#company-bio")?.value : $("#bio")?.value)?.trim() || "",
       category: creatorCategory || $("#category")?.value || profession || null,
       location: $(isOrg ? "#market" : "#location")?.value?.trim() || null,
@@ -373,7 +374,13 @@
       media_types: selectedValues("#media-types"),
       event_types: selectedValues("#event-types"),
       client_industries: clientIndustries,
-      company_type: $("#company-type")?.value || null,
+      company_type: accountType === "community" ? $("#community-type")?.value || null : accountType === "distributor" ? $("#distributor-type")?.value || null : $("#company-type")?.value || null,
+      community_type: accountType === "community" ? $("#community-type")?.value || null : null,
+      membership_type: accountType === "community" ? $("#membership-type")?.value || null : null,
+      member_range: accountType === "community" ? $("#member-range")?.value || null : null,
+      distribution_regions: accountType === "distributor" ? csvValues("#distribution-regions") : [],
+      business_capabilities: accountType === "distributor" ? selectedTags($("#distributor-capabilities")) : [],
+      work_preference: accountType === "freelancer" ? $("#work-preference")?.value || null : null,
       audience_type: audienceType || null,
       event_scale: $("#event-scale")?.value.trim() || null,
       representation_status: $("#representation-status")?.value || null,
@@ -391,7 +398,7 @@
     }
     const { data: existingContact, error: existingContactError } = await supabase.from("private_contacts").select("full_name").eq("user_id", user.id).maybeSingle();
     if (existingContactError) throw existingContactError;
-    const contact = { user_id: user.id, email: user.email || null, phone: phone ? fullPhone : null, full_name: accountType === "creator" ? creatorFullName || null : existingContact?.full_name || user.user_metadata?.full_name || null };
+    const contact = { user_id: user.id, email: user.email || null, phone: phone ? fullPhone : null, full_name: ["creator", "freelancer"].includes(accountType) ? creatorFullName || null : existingContact?.full_name || user.user_metadata?.full_name || null };
     const { error: contactError } = await supabase.from("private_contacts").upsert(contact);
     if (contactError) throw contactError;
     const { error } = await supabase.from("profiles").upsert(payload);
@@ -472,18 +479,21 @@
     }
     input.click();
   }
-  function ensureSixTypeProfileFields() {
-    if ($("#six-type-profile-fields")) return;
+  function ensureNineTypeProfileFields() {
+    if ($("#nine-type-profile-fields")) return;
     const socialCard = [...document.querySelectorAll(".card")].find((card) => card.querySelector(".card-title h3")?.textContent.trim() === "Social accounts");
     if (!socialCard) return;
-    const host = document.createElement("div"); host.id = "six-type-profile-fields";
+    const host = document.createElement("div"); host.id = "nine-type-profile-fields";
     host.innerHTML = `
       <section class="card role-fields" data-role-fields="creator"><div class="card-title"><h3>Creator details</h3><span>OPTIONAL</span></div><div class="grid"><div class="field"><label for="creator-skills">Skills</label><input id="creator-skills" placeholder="Photography, editing, writing"></div><div class="field"><label for="creator-content-formats">Content formats</label><input id="creator-content-formats" placeholder="Reels, stories, interviews"></div></div></section>
       <section class="card role-fields" data-role-fields="celebrity"><div class="card-title"><h3>Talent profile</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="profession">Profession / talent category *</label><select id="profession"><option value="">Choose a talent category</option><option>Actor / actress</option><option>Musician / singer</option><option>Athlete / sports personality</option><option>Comedian</option><option>Author</option><option>Celebrity chef</option><option>Television host</option><option>Public figure</option><option>Other talent</option></select></div><div class="field"><label for="representation-status">Representation</label><select id="representation-status"><option value="">Choose one</option><option value="self_managed">Self-managed</option><option value="represented">Managed by an authorised representative</option></select></div></div><div class="grid"><div class="field"><label for="celebrity-skills">Talent skills</label><input id="celebrity-skills" placeholder="Acting, singing, hosting"></div><div class="field"><label for="celebrity-content-formats">Available formats</label><input id="celebrity-content-formats" placeholder="Interviews, appearances, campaigns"></div></div><p class="metric-note">Personal mobile numbers and private management contact details are never shown on your public profile.</p></section>
       <section class="card role-fields" data-role-fields="brand"><div class="card-title"><h3>Company details</h3><span>OPTIONAL</span></div><div class="field"><label for="company-type">Company type</label><select id="company-type"><option value="">Choose company type</option><option>Consumer brand</option><option>Startup</option><option>Small business</option><option>Enterprise</option><option>Non-profit</option><option>Other</option></select></div></section>
       <section class="card role-fields" data-role-fields="agency"><div class="card-title"><h3>Agency expertise</h3><span>OPTIONAL</span></div><div class="field"><label for="agency-client-industries">Client industries</label><input id="agency-client-industries" placeholder="Fashion, food, technology"></div></section>
       <section class="card role-fields" data-role-fields="event"><div class="card-title"><h3>Event organisation details</h3><span>OPTIONAL</span></div><div class="grid"><div class="field"><label for="event-types">Event specialisations</label><select id="event-types" multiple size="5"><option>Concerts & live music</option><option>Festivals</option><option>Exhibitions & trade fairs</option><option>Conferences & summits</option><option>Corporate events</option><option>Sports events</option><option>College events</option><option>Fashion & experiential events</option><option>Brand activations</option><option>Other</option></select><small>Use Ctrl or Command to select more than one.</small></div><div><div class="field"><label for="event-audience-type">Audience type</label><input id="event-audience-type" placeholder="Families, professionals, fans"></div><div class="field"><label for="event-scale">Event scale or capacity</label><input id="event-scale" placeholder="Optional, for example 500–1,000 attendees"></div></div></div><div class="field"><label for="event-services">Capabilities / services</label><input id="event-services" placeholder="Production, sponsorship, talent booking"></div></section>
-      <section class="card role-fields" data-role-fields="media"><div class="card-title"><h3>Media organisation details</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="media-types">Media type *</label><select id="media-types" multiple size="5"><option>Newspaper</option><option>Television / TV channel</option><option>Radio</option><option>Podcast</option><option>Magazine</option><option>Digital news / publisher</option><option>Print media</option><option>Online publication</option><option>Entertainment media</option><option>Film / video media</option><option>Media production</option><option>News portal</option><option>Photography / editorial</option><option>Other</option></select><small>Select every relevant medium.</small></div><div><div class="field"><label for="media-audience-type">Audience / readership</label><input id="media-audience-type" placeholder="Audience, readership or listener profile"></div><div class="field"><label for="media-client-industries">Editorial industries</label><input id="media-client-industries" placeholder="Culture, business, food"></div></div></div><div class="field"><label for="media-services">Platforms or production capabilities</label><input id="media-services" placeholder="Broadcast, editorial, video production"></div></section>`;
+      <section class="card role-fields" data-role-fields="media"><div class="card-title"><h3>Media organisation details</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="media-types">Media type *</label><select id="media-types" multiple size="5"><option>Newspaper</option><option>Television / TV channel</option><option>Radio</option><option>Podcast</option><option>Magazine</option><option>Digital news / publisher</option><option>Print media</option><option>Online publication</option><option>Entertainment media</option><option>Film / video media</option><option>Media production</option><option>News portal</option><option>Photography / editorial</option><option>Other</option></select><small>Select every relevant medium.</small></div><div><div class="field"><label for="media-audience-type">Audience / readership</label><input id="media-audience-type" placeholder="Audience, readership or listener profile"></div><div class="field"><label for="media-client-industries">Editorial industries</label><input id="media-client-industries" placeholder="Culture, business, food"></div></div></div><div class="field"><label for="media-services">Platforms or production capabilities</label><input id="media-services" placeholder="Broadcast, editorial, video production"></div></section>
+      <section class="card role-fields" data-role-fields="community"><div class="card-title"><h3>Community profile</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="community-type">Community format *</label><select id="community-type"><option value="">Choose a format</option><option>Interest-based community</option><option>Professional network</option><option>Local community</option><option>Student community</option><option>Non-profit community</option><option>Online community</option><option>Other</option></select></div><div class="field"><label for="membership-type">Membership</label><select id="membership-type"><option value="">Choose membership access</option><option>Open to join</option><option>Application required</option><option>Invitation only</option><option>Member organisation</option></select></div></div><div class="grid"><div class="field"><label for="member-range">Community size</label><select id="member-range"><option value="">Choose approximate size</option><option>Under 100</option><option>100–999</option><option>1,000–9,999</option><option>10,000+</option></select></div><div class="field"><label for="community-activities">Activities / interests</label><input id="community-activities" placeholder="Meetups, education, arts, advocacy"></div></div></section>
+      <section class="card role-fields" data-role-fields="distributor"><div class="card-title"><h3>Distribution profile</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="distributor-type">Distributor type *</label><select id="distributor-type"><option value="">Choose a type</option><option>Retail distributor</option><option>Wholesale distributor</option><option>Regional distributor</option><option>Importer / exporter</option><option>Marketplace</option><option>Logistics / fulfilment</option><option>Other</option></select></div><div class="field"><label for="distribution-regions">Coverage regions</label><input id="distribution-regions" placeholder="West India, Maharashtra, nationwide"></div></div><div class="grid"><div class="field"><label for="distribution-industries">Industries / product categories</label><input id="distribution-industries" placeholder="Fashion, food, consumer goods"></div><div class="field"><label for="distribution-capabilities">Business capabilities</label><input id="distribution-capabilities" placeholder="Retail network, fulfilment, import/export"></div></div></section>
+      <section class="card role-fields" data-role-fields="freelancer"><div class="card-title"><h3>Freelance services</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="freelancer-profession">Primary service / profession *</label><select id="freelancer-profession"><option value="">Choose a profession</option><option>Photographer</option><option>Videographer</option><option>Editor</option><option>Designer</option><option>Writer / copywriter</option><option>Social media manager</option><option>Producer</option><option>Make-up artist / stylist</option><option>Marketing consultant</option><option>Other</option></select></div><div class="field"><label for="freelancer-skills">Skills *</label><input id="freelancer-skills" placeholder="Editing, motion graphics, copywriting"></div></div><div class="grid"><div class="field"><label for="freelancer-services">Services</label><input id="freelancer-services" placeholder="Campaign production, editing, consulting"></div><div class="field"><label for="work-preference">Work preference</label><select id="work-preference"><option value="">Choose a preference</option><option>Remote</option><option>On-site</option><option>Hybrid</option><option>Project-based</option></select></div></div></section>`;
     socialCard.before(host);
   }
   async function loadProfileSetup() {
@@ -494,7 +504,7 @@
     const editingProfile = new URLSearchParams(location.search).get("edit") === "1";
     if (editingProfile && !profile) { location.replace("profile-setup.html"); return; }
     const accountType = editingProfile ? profile.account_type : profile?.account_type || sessionStorage.getItem("bmc_signup_type") || user.user_metadata?.account_type || "creator";
-    ensureSixTypeProfileFields();
+    ensureNineTypeProfileFields();
     document.querySelectorAll("[data-role-fields]").forEach((section) => { section.hidden = section.dataset.roleFields !== accountType; });
     sessionStorage.setItem("bmc_signup_type", accountType);
     if (editingProfile) sessionStorage.setItem("bmc_edit_account_type", accountType);
@@ -505,7 +515,7 @@
     document.querySelectorAll(".brand-only").forEach((section) => section.classList.toggle("hidden", !isOrg));
     const typeLabel = accountType === "creator" ? "Creator" : accountType[0].toUpperCase() + accountType.slice(1);
     const pageHeading = $("h1"); if (pageHeading) pageHeading.textContent = editingProfile ? `Edit your ${typeLabel.toLowerCase()} profile` : `Let’s build your ${typeLabel.toLowerCase()} profile.`;
-    const formHeading = $(".main h2"); if (formHeading) formHeading.textContent = isOrg ? `Build your ${accountType === "agency" ? "agency" : accountType === "media" ? "media organisation" : accountType === "event" ? "event organisation" : "company"} profile` : `Build your ${typeLabel.toLowerCase()} profile`;
+    const formHeading = $(".main h2"); if (formHeading) formHeading.textContent = isOrg ? `Build your ${accountType === "agency" ? "agency" : accountType === "media" ? "media organisation" : accountType === "event" ? "event organisation" : accountType === "community" ? "community" : accountType === "distributor" ? "distribution" : "company"} profile` : `Build your ${typeLabel.toLowerCase()} profile`;
     const formSub = $(".main .sub"); if (formSub) formSub.textContent = isOrg ? "Give potential collaborators the context they need to find a good fit. Private contact details stay private." : `Share the details that help the right ${accountType === "celebrity" ? "brands, agencies, events and media partners" : "collaborators"} find you. You can edit everything later.`;
     if (!editingProfile) {
       const switcher = $(".account-switch");
@@ -621,6 +631,18 @@
       "#creator-content-formats": accountType === "creator" ? (profile.content_formats || []).join(", ") : "",
       "#celebrity-content-formats": accountType === "celebrity" ? (profile.content_formats || []).join(", ") : "",
       "#profession": profile.profession, "#company-type": profile.company_type,
+      "#freelancer-profession": accountType === "freelancer" ? profile.profession : "",
+      "#freelancer-skills": accountType === "freelancer" ? (profile.skills || []).join(", ") : "",
+      "#freelancer-services": accountType === "freelancer" ? (profile.services || []).join(", ") : "",
+      "#work-preference": profile.work_preference,
+      "#community-type": profile.community_type || profile.company_type,
+      "#membership-type": profile.membership_type,
+      "#member-range": profile.member_range,
+      "#community-activities": accountType === "community" ? (profile.services || []).join(", ") : "",
+      "#distributor-type": profile.company_type,
+      "#distribution-regions": (profile.distribution_regions || []).join(", "),
+      "#distribution-industries": accountType === "distributor" ? (profile.client_industries || []).join(", ") : "",
+      "#distribution-capabilities": (profile.business_capabilities || []).join(", "),
       "#agency-client-industries": accountType === "agency" ? (profile.client_industries || []).join(", ") : "",
       "#media-client-industries": accountType === "media" ? (profile.client_industries || []).join(", ") : "",
       "#event-audience-type": accountType === "event" ? profile.audience_type : "",
@@ -668,10 +690,11 @@
   }
   function initProfileCompletion(accountType) {
     const progress = $(".progress div"); if (!progress) return;
-    const required = ["#phone", ...(accountType === "creator" ? ["#full-name", "#display-name", "#creator-category", "#location", "#bio"] : accountType === "celebrity" ? ["#display-name", "#location", "#bio", "#profession"] : ["#company", "#category", "#company-bio", ...(["brand", "agency"].includes(accountType) ? ["#manager"] : []), ...(accountType === "agency" ? ["#agency-type"] : [])])];
+    const required = ["#phone", ...(["creator", "freelancer"].includes(accountType) ? ["#full-name", "#display-name", "#location", "#bio"] : accountType === "celebrity" ? ["#display-name", "#location", "#bio", "#profession"] : ["#company", "#category", "#company-bio", ...(["brand", "agency"].includes(accountType) ? ["#manager"] : []), ...(accountType === "agency" ? ["#agency-type"] : [])]), ...(accountType === "creator" ? ["#creator-category"] : []), ...(accountType === "freelancer" ? ["#freelancer-profession", "#freelancer-skills"] : []), ...(accountType === "community" ? ["#community-type"] : []), ...(accountType === "distributor" ? ["#distributor-type"] : [])];
     const update = () => {
-      const completeCount = required.filter((selector) => !!$(selector)?.value?.trim()).length + (accountType === "creator" && (window.bmcAvatarUrl || window.bmcExistingAvatarUrl) ? 1 : 0);
-      const total = required.length + (accountType === "creator" ? 1 : 0);
+      const needsAvatar = ["creator", "freelancer", "community", "distributor"].includes(accountType);
+      const completeCount = required.filter((selector) => !!$(selector)?.value?.trim()).length + (needsAvatar && (window.bmcAvatarUrl || window.bmcExistingAvatarUrl) ? 1 : 0);
+      const total = required.length + (needsAvatar ? 1 : 0);
       const percent = Math.round(completeCount / total * 100);
       progress.style.width = `${percent}%`; progress.setAttribute("role", "progressbar"); progress.setAttribute("aria-valuemin", "0"); progress.setAttribute("aria-valuemax", "100"); progress.setAttribute("aria-valuenow", String(percent));
       const label = $(".step-label"); if (label) label.textContent = `PROFILE COMPLETION · ${percent}%`;
@@ -722,7 +745,7 @@
     })).filter((x) => x.amount_range);
     return {
       owner_id: user.id, owner_type: accountType,
-      project_type: ({ creator: "creator_idea", brand: "brand_campaign", agency: "agency_project", celebrity: "celebrity_project", event: "event_project", media: "media_project" })[accountType] || "brand_campaign",
+      project_type: ({ creator: "creator_idea", brand: "brand_campaign", agency: "agency_project", celebrity: "celebrity_project", event: "event_project", media: "media_project", community: "community_project", distributor: "distribution_project", freelancer: "freelance_project" })[accountType] || "brand_campaign",
       project_name: $("#name").value.trim(), category: $("#category").value,
       location: $("#location").value.trim() || null,
       requirements: $("#requirements").value.trim(),
@@ -797,7 +820,7 @@
     $("#empty").hidden = data.length > 0;
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "card project";
-      const projectLabel = ({ agency: "Agency project", creator: "Creator collaboration idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand campaign" })[profile.account_type] || "Project";
+      const projectLabel = ({ agency: "Agency project", creator: "Creator collaboration idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand campaign", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment" })[profile.account_type] || "Project";
       row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
       host.append(row);
     });
@@ -836,7 +859,7 @@
   }
   async function openProjectsForFeed() {
     let selectedKind = window.bmcSelectedFeedKind || "brand";
-    if (!["brand", "creator", "agency", "celebrity", "event", "media"].includes(selectedKind)) selectedKind = "brand";
+    if (!accountTypes.includes(selectedKind)) selectedKind = "brand";
     document.querySelectorAll(".center-col > .post").forEach((node) => node.remove());
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error: pError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
@@ -845,7 +868,7 @@
     if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user);
     const name = profile.display_name || profile.company_name || "Member";
     window.bmcAccountType = profile.account_type;
-    const accountLabel = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[profile.account_type] || "Member";
+    const accountLabel = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[profile.account_type] || "Member";
     const navAccount = $(".collabry-account > span");
     if (navAccount) navAccount.textContent = `${name} · ${accountLabel}`;
     const person = $(".identity .person");
@@ -939,7 +962,7 @@
       if (projectType === "creator_idea") return "creator";
       if (projectType === "brand_campaign") return ownerType === "agency" ? "agency" : "brand";
       for (const kind of ["celebrity", "event", "media"]) if ([`${kind}_project`, kind].includes(projectType)) return kind;
-      if (["brand", "creator", "agency", "celebrity", "event", "media"].includes(ownerType)) return ownerType;
+      if (accountTypes.includes(ownerType)) return ownerType;
       return "brand";
     };
     const feedKinds = projects.map(kindOf);
@@ -952,7 +975,7 @@
     }
     if (!$("#bmc-feed-tabs")) {
       const tabs = document.createElement("div"); tabs.id = "bmc-feed-tabs"; tabs.className = "bmc-feed-tabs";
-      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects <span data-feed-count="brand">0</span></button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas <span data-feed-count="creator">0</span></button><button type="button" data-feed-kind="agency" class="${selectedKind === "agency" ? "active" : ""}">Agency projects <span data-feed-count="agency">0</span></button><button type="button" data-feed-kind="celebrity" class="${selectedKind === "celebrity" ? "active" : ""}">Celebrity projects <span data-feed-count="celebrity">0</span></button><button type="button" data-feed-kind="event" class="${selectedKind === "event" ? "active" : ""}">Event projects <span data-feed-count="event">0</span></button><button type="button" data-feed-kind="media" class="${selectedKind === "media" ? "active" : ""}">Media projects <span data-feed-count="media">0</span></button>`;
+      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects <span data-feed-count="brand">0</span></button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas <span data-feed-count="creator">0</span></button><button type="button" data-feed-kind="agency" class="${selectedKind === "agency" ? "active" : ""}">Agency projects <span data-feed-count="agency">0</span></button><button type="button" data-feed-kind="celebrity" class="${selectedKind === "celebrity" ? "active" : ""}">Celebrity projects <span data-feed-count="celebrity">0</span></button><button type="button" data-feed-kind="event" class="${selectedKind === "event" ? "active" : ""}">Event projects <span data-feed-count="event">0</span></button><button type="button" data-feed-kind="media" class="${selectedKind === "media" ? "active" : ""}">Media projects <span data-feed-count="media">0</span></button><button type="button" data-feed-kind="community" class="${selectedKind === "community" ? "active" : ""}">Community projects <span data-feed-count="community">0</span></button><button type="button" data-feed-kind="distributor" class="${selectedKind === "distributor" ? "active" : ""}">Distribution projects <span data-feed-count="distributor">0</span></button><button type="button" data-feed-kind="freelancer" class="${selectedKind === "freelancer" ? "active" : ""}">Freelance projects <span data-feed-count="freelancer">0</span></button>`;
       live.before(tabs);
       tabs.addEventListener("click", (event) => {
         const button = event.target.closest("[data-feed-kind]"); if (!button) return;
@@ -960,14 +983,14 @@
         window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind; applyFeedVisibility();
       });
     }
-    const allFeedKinds = ["brand", "creator", "agency", "celebrity", "event", "media"];
+    const allFeedKinds = accountTypes;
     if (!allFeedKinds.includes(selectedKind)) selectedKind = "brand";
     if (!projects.length) { live.innerHTML = ""; allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = "0"; }); live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user); if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000); return; }
     allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
     live.innerHTML = projects.map((p) => {
       const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
       const kind = kindOf(p);
-      const type = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kind];
+      const type = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment" })[kind];
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const canApply = user.id !== p.owner_id;
       return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions"><button class="btn view-project-details" type="button">View details</button>${canApply ? `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button><button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;

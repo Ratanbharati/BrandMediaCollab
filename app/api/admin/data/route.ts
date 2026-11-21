@@ -3,7 +3,7 @@ import { adminErrorResponse, requirePlatformAdmin, serviceFetch, writeAudit } fr
 
 export const dynamic = "force-dynamic";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const roles = new Set(["creator", "brand", "agency", "celebrity", "event", "media"]);
+const roles = new Set(["creator", "brand", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"]);
 const reportStatuses = new Set(["pending", "reviewing", "actioned", "dismissed"]);
 const verificationStatuses = new Set(["approved", "rejected"]);
 const projectStatuses = new Set(["normal", "review", "hidden", "removed"]);

@@ -29,6 +29,7 @@
       ["Total registered users", c.total_users], ["Active users · 30 days", c.active_users_30d],
       ["Creators", c.creator_accounts], ["Brands", c.brand_accounts], ["Agencies", c.agency_accounts],
       ["Celebrities", c.celebrity_accounts], ["Events", c.event_accounts], ["Media", c.media_accounts],
+      ["Communities", c.community_accounts], ["Distributors", c.distributor_accounts], ["Freelancers", c.freelancer_accounts],
       ["Total projects", c.total_projects], ["Published projects", c.published_projects], ["Applications", c.applications],
       ["Collaborations", c.collaborations], ["Connections", c.connections], ["Reports", c.reports],
       ["Pending reports", c.pending_reports], ["Pending verification", c.pending_verification],

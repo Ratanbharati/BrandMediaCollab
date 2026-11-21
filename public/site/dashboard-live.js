@@ -34,9 +34,12 @@
     const celebrityPanel = makePanel("celebrity-projects-panel", "Celebrity projects", "celebrity-projects-summary", "celebrity-projects-body", "celebrity-projects-empty", "Interested partners");
     const eventPanel = makePanel("event-projects-panel", "Event projects", "event-projects-summary", "event-projects-body", "event-projects-empty", "Interested partners");
     const mediaPanel = makePanel("media-projects-panel", "Media projects", "media-projects-summary", "media-projects-body", "media-projects-empty", "Interested partners");
-    if (postsPanel && sentPanel) { postsPanel.after(creatorPanel); creatorPanel.after(agencyPanel); agencyPanel.after(celebrityPanel); celebrityPanel.after(eventPanel); eventPanel.after(mediaPanel); }
+    const communityPanel = makePanel("community-projects-panel", "Community projects", "community-projects-summary", "community-projects-body", "community-projects-empty", "Interested partners");
+    const distributorPanel = makePanel("distributor-projects-panel", "Distribution partnerships", "distributor-projects-summary", "distributor-projects-body", "distributor-projects-empty", "Interested partners");
+    const freelancerPanel = makePanel("freelancer-projects-panel", "Freelance assignments", "freelancer-projects-summary", "freelancer-projects-body", "freelancer-projects-empty", "Interested clients");
+    if (postsPanel && sentPanel) { postsPanel.after(creatorPanel); creatorPanel.after(agencyPanel); agencyPanel.after(celebrityPanel); celebrityPanel.after(eventPanel); eventPanel.after(mediaPanel); mediaPanel.after(communityPanel); communityPanel.after(distributorPanel); distributorPanel.after(freelancerPanel); }
     const rolePicker = $("#role"); if (rolePicker) rolePicker.hidden = true;
-    const insight = $(".insight"); if (insight) insight.innerHTML = '<b>How it works:</b> Brand projects, Creator ideas, Agency projects, Celebrity projects, Event projects, and Media projects are separated by the account that posted them. “Applications sent” is your interest in other people’s posts. Each conversation is private and one-to-one. A bulk update sends the same message separately to accepted collaborators.';
+    const insight = $(".insight"); if (insight) insight.innerHTML = '<b>How it works:</b> Projects and ideas for all nine account types stay in the same collaboration network and are grouped by the account that posted them. “Applications sent” is your interest in other people’s posts. Each conversation is private and one-to-one. A bulk update sends the same message separately to accepted collaborators.';
   }
 
   async function ensureChat(projectId, otherId, message) {
@@ -122,7 +125,7 @@
   }
 
   function renderOwned(owned, applications, conversations) {
-    const ownBody = $("#table-body"); const creatorIdeaBody = $("#creator-ideas-body"); const agencyBody = $("#agency-projects-body"); const celebrityBody = $("#celebrity-projects-body"); const eventBody = $("#event-projects-body"); const mediaBody = $("#media-projects-body"); const sentBody = $("#creator-table-body");
+    const ownBody = $("#table-body"); const creatorIdeaBody = $("#creator-ideas-body"); const agencyBody = $("#agency-projects-body"); const celebrityBody = $("#celebrity-projects-body"); const eventBody = $("#event-projects-body"); const mediaBody = $("#media-projects-body"); const communityBody = $("#community-projects-body"); const distributorBody = $("#distributor-projects-body"); const freelancerBody = $("#freelancer-projects-body"); const sentBody = $("#creator-table-body");
     const ownedIds = new Set(owned.map((p) => p.id));
     const forProject = Object.fromEntries(owned.map((project) => [project.id, applications.filter((app) => app.project_id === project.id)]));
     for (const project of owned) project.applications = forProject[project.id] || [];
@@ -134,10 +137,13 @@
     const celebrityPosts = owned.filter((p) => kindOf(p) === "celebrity");
     const eventPosts = owned.filter((p) => kindOf(p) === "event");
     const mediaPosts = owned.filter((p) => kindOf(p) === "media");
+    const communityPosts = owned.filter((p) => kindOf(p) === "community");
+    const distributorPosts = owned.filter((p) => kindOf(p) === "distributor");
+    const freelancerPosts = owned.filter((p) => kindOf(p) === "freelancer");
     const renderProjectRows = (posts) => posts.map((p) => {
       const rows = forProject[p.id] || []; const interested = rows.filter((x) => x.status === "interested").length;
       const together = rows.filter((x) => x.status === "working_together").length; const rejected = rows.filter((x) => x.status === "rejected").length;
-      const label = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kindOf(p)];
+      const label = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment" })[kindOf(p)];
       return `<tr class="data-row" data-role="${esc(kindOf(p))}" data-project-id="${esc(p.id)}" data-date="${esc((p.created_at || "").slice(0,10))}" data-project="${esc(p.project_name)}" data-recipients="${interested}"><td class="project-cell"><b>${esc(p.project_name)}</b><span>${label} · ${esc(p.category)}</span></td><td>${esc(p.status)}</td><td><span class="metric">${rows.length}</span></td><td><span class="metric">${interested}</span></td><td><span class="metric">${together}</span></td><td><span class="metric">${rejected}</span></td><td><span class="metric">${chatCounts[p.id] || 0}</span></td><td><div class="row-actions"><button class="action" data-applicants="${esc(p.id)}">View responses (${rows.length})</button><button class="action primary-action" data-bulk="${esc(p.id)}">Message interested</button></div></td></tr>`;
     }).join("");
     if (ownBody) ownBody.innerHTML = renderProjectRows(brandPosts);
@@ -146,6 +152,9 @@
     if (celebrityBody) celebrityBody.innerHTML = renderProjectRows(celebrityPosts);
     if (eventBody) eventBody.innerHTML = renderProjectRows(eventPosts);
     if (mediaBody) mediaBody.innerHTML = renderProjectRows(mediaPosts);
+    if (communityBody) communityBody.innerHTML = renderProjectRows(communityPosts);
+    if (distributorBody) distributorBody.innerHTML = renderProjectRows(distributorPosts);
+    if (freelancerBody) freelancerBody.innerHTML = renderProjectRows(freelancerPosts);
     const externalApps = applications.filter((app) => !ownedIds.has(app.project_id));
     if (sentBody) sentBody.innerHTML = externalApps.map((app) => {
       const project = projectById[app.project_id] || {}; const owner = profileById[project.owner_id] || {};
@@ -153,7 +162,7 @@
       const chat = conversations.find((c) => c.project_id === app.project_id && c.memberIds?.includes(project.owner_id));
       return `<tr class="data-row" data-role="applications" data-date="${esc((app.created_at || "").slice(0,10))}" data-project="${esc(project.project_name || "Project")}"><td class="project-cell"><b>${esc(project.project_name || "Project")}</b><span>${esc(project.category || "")}</span></td><td>${esc(name)}</td><td>${esc(app.status)}</td><td>${esc(app.message || "—")}</td><td>${new Date(app.created_at).toLocaleDateString()}</td><td colspan="2">${chat ? "Private chat ready" : "No chat yet"}</td><td><button class="action primary-action" data-open-chat="${esc(app.project_id)}" data-other="${esc(project.owner_id || "")}" ${app.status !== "working_together" ? "disabled title=\"Chat opens after the project owner accepts your application.\"" : ""}>${app.status === "working_together" ? "Open chat" : "Accept to chat"}</button></td></tr>`;
     }).join("");
-    [ownBody, creatorIdeaBody, agencyBody, celebrityBody, eventBody, mediaBody].filter(Boolean).forEach((body) => {
+    [ownBody, creatorIdeaBody, agencyBody, celebrityBody, eventBody, mediaBody, communityBody, distributorBody, freelancerBody].filter(Boolean).forEach((body) => {
       body.querySelectorAll("[data-applicants]").forEach((button) => button.onclick = () => openApplicants(button.dataset.applicants));
       body.querySelectorAll("[data-bulk]").forEach((button) => button.onclick = () => bulkMessage(button.dataset.bulk));
     });
@@ -165,12 +174,15 @@
     setEmpty("#celebrity-projects-empty", celebrityPosts, "No celebrity projects have been posted yet.");
     setEmpty("#event-projects-empty", eventPosts, "No event projects have been posted yet.");
     setEmpty("#media-projects-empty", mediaPosts, "No media projects have been posted yet.");
+    setEmpty("#community-projects-empty", communityPosts, "No community partnerships have been posted yet.");
+    setEmpty("#distributor-projects-empty", distributorPosts, "No distribution partnerships have been posted yet.");
+    setEmpty("#freelancer-projects-empty", freelancerPosts, "No freelance assignments have been posted yet.");
     const sentEmpty = $("#creator-empty"); if (sentEmpty) sentEmpty.style.display = externalApps.length ? "none" : "block";
     const summary = (rows) => `${rows.length} post${rows.length === 1 ? "" : "s"} · ${rows.reduce((n,p) => n + (forProject[p.id] || []).length, 0)} responses received`;
     const brandSummary = $("#range-summary"); if (brandSummary) brandSummary.textContent = summary(brandPosts);
     const creatorSummary = $("#creator-ideas-summary"); if (creatorSummary) creatorSummary.textContent = summary(creatorPosts);
     const agencySummary = $("#agency-projects-summary"); if (agencySummary) agencySummary.textContent = summary(agencyPosts);
-    for (const [id, rows] of [["#celebrity-projects-summary", celebrityPosts], ["#event-projects-summary", eventPosts], ["#media-projects-summary", mediaPosts]]) { const node = $(id); if (node) node.textContent = summary(rows); }
+    for (const [id, rows] of [["#celebrity-projects-summary", celebrityPosts], ["#event-projects-summary", eventPosts], ["#media-projects-summary", mediaPosts], ["#community-projects-summary", communityPosts], ["#distributor-projects-summary", distributorPosts], ["#freelancer-projects-summary", freelancerPosts]]) { const node = $(id); if (node) node.textContent = summary(rows); }
     const sentSummary = $("#creator-range-summary"); if (sentSummary) sentSummary.textContent = `${externalApps.length} application${externalApps.length === 1 ? "" : "s"} sent to other members’ posts`;
     syncDashboardDates();
   }
@@ -273,7 +285,7 @@
     if (profileError) throw profileError;
     const name = profile?.display_name || profile?.company_name || "Member";
     const type = profile?.account_type || "creator"; accountType = type;
-    const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[type] || "Member";
+    const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[type] || "Member";
     const header = $(".collabry-account > span"); if (header) header.textContent = `${name} · ${roleLabel}`;
     const picker = $("#role"); if (picker) { picker.value = type; picker.disabled = true; }
     const title = $("#page-title"); if (title) title.textContent = `${roleLabel} project dashboard`;

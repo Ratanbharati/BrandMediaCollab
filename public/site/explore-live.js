@@ -36,11 +36,14 @@
       celebrity: ["industry", "niche", "location", "language", "platform"],
       event: ["industry", "niche", "location", "service", "platform"],
       media: ["industry", "niche", "location", "platform", "service"],
+      community: ["industry", "niche", "location", "language", "service"],
+      distributor: ["industry", "niche", "location", "service"],
+      freelancer: ["niche", "location", "language", "platform", "service"],
       all: ["industry", "niche", "location", "language", "platform", "service"],
     }[type] || [];
     $$("[data-filter-field]").forEach((field) => { field.hidden = !typeFields.includes(field.dataset.filterField); });
     const heading = $("#results-title");
-    if (heading) heading.textContent = type === "all" ? "People to discover" : `${({ agency: "Agencies", celebrity: "Celebrities", event: "Events", media: "Media organisations" })[type] || `${type[0].toUpperCase()}${type.slice(1)}s`} to discover`;
+    if (heading) heading.textContent = type === "all" ? "People to discover" : `${({ agency: "Agencies", celebrity: "Celebrities", event: "Events", media: "Media organisations", community: "Communities", distributor: "Distributors", freelancer: "Freelancers" })[type] || `${type[0].toUpperCase()}${type.slice(1)}s`} to discover`;
     if (window.matchMedia("(min-width:721px)").matches) $("#filter-panel").open = true;
   }
 
@@ -52,7 +55,7 @@
   }
 
   function profileName(profile) {
-    return ["creator", "celebrity"].includes(profile.account_type)
+    return ["creator", "celebrity", "freelancer"].includes(profile.account_type)
       ? (profile.display_name || profile.company_name || "Stagerang creator")
       : (profile.company_name || profile.display_name || "Stagerang member");
   }
@@ -62,17 +65,27 @@
   function cardHtml(profile) {
     const name = profileName(profile);
     const role = profile.account_type || "member";
-    const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[role] || "Member";
+    const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[role] || "Member";
     const subtitle = role === "creator" ? (profile.content_categories || []).slice(0, 2).join(" · ") || profile.category || "Creator"
       : role === "celebrity" ? (profile.profession || profile.category || "Talent")
       : role === "event" ? (profile.event_types || []).slice(0, 2).join(" · ") || profile.category || "Event organiser"
       : role === "media" ? (profile.media_types || []).slice(0, 2).join(" · ") || profile.category || "Media organisation"
-      : role === "agency" ? (profile.agency_type || profile.category || "Agency") : (profile.category || "Brand");
+      : role === "community" ? profile.community_type || profile.category || "Community"
+      : role === "distributor" ? profile.company_type || profile.category || "Distributor"
+      : role === "freelancer" ? profile.profession || profile.category || "Freelancer"
+      : role === "agency" ? (profile.agency_type || profile.category || "Agency")
+      : (profile.category || "Brand");
     const tags = [...new Set([
       ...(profile.content_categories || []), ...(profile.collaboration_categories || []),
       ...(profile.skills || []), ...(profile.content_formats || []), ...(profile.media_types || []), ...(profile.event_types || []),
       ...(role === "agency" ? [...(profile.services || []), ...(profile.specialisations || [])] : []),
       ...(role === "creator" ? (profile.languages || []) : []),
+      ...(role === "community" ? (profile.collaboration_categories || []) : []),
+      ...(role === "distributor" ? [...(profile.services || []), ...(profile.client_industries || [])] : []),
+      ...(role === "distributor" ? (profile.distribution_regions || []) : []),
+      ...(role === "distributor" ? (profile.business_capabilities || []) : []),
+      ...(role === "community" ? (profile.services || []) : []),
+      ...(role === "freelancer" ? [...(profile.skills || []), ...(profile.services || []), ...(profile.languages || [])] : []),
     ])].filter(Boolean).slice(0, 4);
     const social = (profile.social_accounts || []).filter((item) => item.platform).map((item) => item.platform).filter((item, index, all) => all.indexOf(item) === index).slice(0, 3);
     const avatar = /^https?:\/\//i.test(profile.avatar_url || "")

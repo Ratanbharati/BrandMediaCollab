@@ -71,8 +71,8 @@ for (const icon of ["home", "projects", "explore", "dashboard", "messages", "not
   if (!designSystemJs.includes(`"${icon}"`)) errors.push(`Design system icons: missing ${icon}`);
 }
 const resetFlow = fs.readFileSync(path.join(siteRoot, "password-reset.js"), "utf8");
-const authMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261120091936_handle_new_user_six_types.sql"), "utf8");
-const roles = ["creator", "brand", "agency", "celebrity", "event", "media"];
+const authMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261121130000_expand_to_nine_account_types.sql"), "utf8");
+const roles = ["creator", "brand", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"];
 for (const role of roles) {
   if (!app.includes(`"${role}"`)) errors.push(`bmc-app.js: missing account type ${role}`);
   if (!projectForm.includes(`value="${role}"`)) errors.push(`project-form.html: missing project type ${role}`);
@@ -124,7 +124,7 @@ const creatorMigration = fs.readFileSync(path.join(root, "supabase", "migrations
 for (const requirement of ["full_name text", "avatar_url", "primary category", "validate_private_contact_creator_name"]) {
   if (!creatorMigration.toLowerCase().includes(requirement.toLowerCase())) errors.push(`Creator profile migration: missing ${requirement}`);
 }
-for (const requirement of ["creatorFullName", "creatorCategory", "bmcUpdateProfileCompletion", "profile photo is required"]) {
+for (const requirement of ["creatorFullName", "creatorCategory", "bmcUpdateProfileCompletion", "profile photo is required", "ensureNineTypeProfileFields", "community_type", "distribution_regions", "work_preference"]) {
   if (!app.includes(requirement)) errors.push(`Creator profile workflow: missing ${requirement}`);
 }
 if (profileSetup.includes("Could not connect to Stagerang. Reload and try again.")) errors.push("Creator profile setup: placeholder save failure handler remains");
@@ -134,5 +134,5 @@ if (errors.length) {
   for (const error of errors) console.error(`- ${error}`);
   process.exitCode = 1;
 } else {
-  console.log(`Site verification passed: ${htmlFiles.length} pages, ${jsFiles.length} scripts, shared design-system wiring, six profile and project types, auth/profile checks, local links/scripts, application integrity, mock-data removal, and realtime hooks.`);
+  console.log(`Site verification passed: ${htmlFiles.length} pages, ${jsFiles.length} scripts, shared design-system wiring, nine profile and project types, auth/profile checks, local links/scripts, application integrity, mock-data removal, and realtime hooks.`);
 }
