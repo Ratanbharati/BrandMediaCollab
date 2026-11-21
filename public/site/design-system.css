@@ -1,4 +1,4 @@
-/* Stagerang shared design tokens and baseline components. Page layouts and brand color remain page-owned. */
+/* Brand Media Collab shared design tokens and baseline components. */
 :root {
   --sr-ink: #1b2b22;
   --sr-muted: #788078;
@@ -13,8 +13,8 @@
   --sr-text-sm: 0.875rem;
   --sr-text-base: 1rem;
   --sr-text-lg: 1.125rem;
-  --sr-heading-page: clamp(1.75rem, 3vw, 2.5rem);
-  --sr-heading-section: clamp(1.25rem, 2vw, 1.625rem);
+  --sr-heading-page: clamp(1.625rem, 2.5vw, 2.125rem);
+  --sr-heading-section: clamp(1.25rem, 1.8vw, 1.5rem);
   --sr-heading-card: 1.125rem;
   --sr-space-1: 0.25rem;
   --sr-space-2: 0.5rem;
@@ -83,23 +83,50 @@ textarea { line-height: 1.5; }
 .collabry-nav nav a .sr-nav-icon svg { width: 18px; height: 18px; }
 
 /* Align the shared app navigation without changing each page's content grid. */
-.collabry-nav { font-family: var(--sr-font-body); }
-.collabry-nav nav a { gap: var(--sr-space-1); }
-.collabry-account { font-family: var(--sr-font-body); }
+body:not(.sr-hero-page) .collabry-nav { font-family: var(--sr-font-body) !important; }
+body:not(.sr-hero-page) .collabry-nav nav a { gap: var(--sr-space-1); font: 500 0.8125rem/1.25 var(--sr-font-body) !important; }
+body:not(.sr-hero-page) .collabry-nav nav a small { font: inherit !important; }
+body:not(.sr-hero-page) .collabry-account { font-family: var(--sr-font-body) !important; }
+body:not(.sr-hero-page) .collabry-logo { font-family: var(--sr-font-display) !important; }
+
+/* Nine role tabs wrap cleanly instead of exposing a horizontal scrollbar. */
+.bmc-feed-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.25rem), 1fr));
+  gap: var(--sr-space-2) !important;
+  width: 100%;
+  overflow: visible !important;
+  padding: 0 0 var(--sr-space-1) !important;
+  scrollbar-width: none;
+}
+.bmc-feed-tabs button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.5rem 0.625rem !important;
+  white-space: normal !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.3;
+}
 
 /* Shared component baseline; existing page classes continue to provide their brand variants. */
 button, .button, .btn, .primary, .secondary, .action {
   font-weight: 600;
+  font-size: 0.875rem;
   line-height: 1.25;
 }
 .sr-button {
   font-family: var(--sr-font-body);
   font-weight: 600;
+  font-size: 0.875rem !important;
   line-height: 1.25;
   touch-action: manipulation;
   transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
+.bmc-feed-tabs button.sr-button,
+.composer-actions button.sr-button { font-size: 0.8125rem !important; }
 .sr-field { max-width: 100%; min-height: 44px; border-radius: var(--sr-radius-control); font: inherit; }
+input.sr-field, select.sr-field, textarea.sr-field { font-size: 0.875rem !important; }
+.collabry-account select.sr-field { font-size: 0.75rem !important; }
 .sr-card { min-width: 0; border-radius: var(--sr-radius-card); }
 .sr-empty, .sr-error { line-height: 1.5; overflow-wrap: anywhere; }
 .sr-tab { min-height: 40px; touch-action: manipulation; }
@@ -112,7 +139,8 @@ label { line-height: 1.4; }
 
 @media (max-width: 720px) {
   body { font-size: 16px; }
-  .collabry-nav nav a { min-height: 44px; }
+  body:not(.sr-hero-page) .collabry-nav nav a { min-height: 44px; font-size: 0.65625rem !important; line-height: 1.1 !important; text-align: center; white-space: normal; }
+  body:not(.sr-hero-page) .collabry-nav nav a small { font-size: inherit !important; }
   button, .button, .btn, .primary, .secondary, .action { min-height: 40px; }
   .sr-button, .sr-tab { min-height: 44px; }
   .sr-field { min-height: 44px; }
@@ -120,6 +148,7 @@ label { line-height: 1.4; }
   select, textarea { max-width: 100%; }
   main, section, article, aside, header, nav, footer { min-width: 0; }
   .modal, [role="dialog"] { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
+  .bmc-feed-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
