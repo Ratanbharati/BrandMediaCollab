@@ -124,7 +124,7 @@
     $("#chat-name").href = `my-profile.html?user=${encodeURIComponent(item.otherId)}`;
     $("#chat-title").textContent = item.accountType ? item.projectName + " · " + item.accountType.replaceAll("_", " ") : item.projectName;
     $("#context-title").textContent = item.projectName;
-    if ($("#context-subtitle")) $("#context-subtitle").textContent = item.isDirect ? "Connected on Stagerang · Private conversation" : item.projectType ? item.projectType.replaceAll("_", " ") + " · Private project chat" : "Private project chat";
+    if ($("#context-subtitle")) $("#context-subtitle").textContent = item.isDirect ? "Connected on Brand Media Collab · Private conversation" : item.projectType ? item.projectType.replaceAll("_", " ") + " · Private project chat" : "Private project chat";
     $("#chat-avatar").textContent = item.otherName.slice(0, 2).toUpperCase();
     $("#messages").classList.add("show-chat");
     $(".compose").style.display = "";

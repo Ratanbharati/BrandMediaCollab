@@ -12,9 +12,9 @@
     if (supabase && user) return { supabase, user };
     if (!loading) loading = (async () => {
       supabase = await window.bmcSupabaseReady;
-      if (!supabase) throw new Error(window.bmcSupabaseError || "Could not connect to Stagerang.");
+      if (!supabase) throw new Error(window.bmcSupabaseError || "Could not connect to Brand Media Collab.");
       const { data: { user: current }, error } = await supabase.auth.getUser();
-      if (error || !current) throw new Error("Please log in to explore Stagerang profiles.");
+      if (error || !current) throw new Error("Please log in to explore Brand Media Collab profiles.");
       user = current;
       await refresh();
       connectRealtime();
