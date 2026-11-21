@@ -56,8 +56,8 @@
 
   function profileName(profile) {
     return ["creator", "celebrity", "freelancer"].includes(profile.account_type)
-      ? (profile.display_name || profile.company_name || "Stagerang creator")
-      : (profile.company_name || profile.display_name || "Stagerang member");
+      ? (profile.display_name || profile.company_name || "Brand Media Collab creator")
+      : (profile.company_name || profile.display_name || "Brand Media Collab member");
   }
 
   function profileHref(profile) { return `my-profile.html?user=${encodeURIComponent(profile.profile_id)}`; }
@@ -203,7 +203,7 @@
     const host = $("#blocked-list"); if (!host) return;
     try {
       const items = await window.bmcConnections.listBlockedProfiles();
-      host.innerHTML = items.length ? items.map((item) => `<div class="blocked-item"><span>${esc(item.profile.display_name || item.profile.company_name || "Stagerang member")} · ${esc(item.profile.account_type || "member")}</span><button type="button" data-unblock="${esc(item.blocked_id)}">Unblock</button></div>`).join("") : '<span>No profiles blocked.</span>';
+      host.innerHTML = items.length ? items.map((item) => `<div class="blocked-item"><span>${esc(item.profile.display_name || item.profile.company_name || "Brand Media Collab member")} · ${esc(item.profile.account_type || "member")}</span><button type="button" data-unblock="${esc(item.blocked_id)}">Unblock</button></div>`).join("") : '<span>No profiles blocked.</span>';
       host.querySelectorAll("[data-unblock]").forEach((button) => button.addEventListener("click", async () => {
         button.disabled = true;
         try { await window.bmcConnections.unblock(button.dataset.unblock); await renderBlockedProfiles(); renderCards(); toast("Profile unblocked."); }
@@ -241,6 +241,6 @@
     await Promise.all([loadProfiles({ reset: true }), renderBlockedProfiles()]);
   } catch (error) {
     console.error("Explore could not start:", error);
-    grid.setAttribute("aria-busy", "false"); grid.innerHTML = `<div class="empty-state"><b>Sign in to explore Stagerang</b><p>${esc(error.message || "Your profile discovery session could not be started.")}</p><a href="index.html">Go to sign in</a></div>`; countNode.textContent = "";
+    grid.setAttribute("aria-busy", "false"); grid.innerHTML = `<div class="empty-state"><b>Sign in to explore Brand Media Collab</b><p>${esc(error.message || "Your profile discovery session could not be started.")}</p><a href="index.html">Go to sign in</a></div>`; countNode.textContent = "";
   }
 })();

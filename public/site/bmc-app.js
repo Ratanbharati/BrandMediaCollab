@@ -228,7 +228,7 @@
       if (!accountTypes.includes(selectedRole)) { toast("Choose one of the available account types."); return; }
       if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) { passwordInput.setCustomValidity("Use at least 8 characters, including a letter and a number."); passwordInput.reportValidity(); passwordInput.setCustomValidity(""); return; }
       if (confirmation.value !== password) { confirmation.setCustomValidity("The passwords do not match."); confirmation.reportValidity(); confirmation.setCustomValidity(""); return; }
-      if (!$("#account-consent").checked) { $("#account-consent").focus(); toast("Please acknowledge how Stagerang uses your account details before creating an account."); return; }
+      if (!$("#account-consent").checked) { $("#account-consent").focus(); toast("Please acknowledge how Brand Media Collab uses your account details before creating an account."); return; }
     } else if (!password) { passwordInput.reportValidity(); return; }
     button.disabled = true;
     const originalButtonText = button.textContent;
@@ -286,7 +286,7 @@
     if (/email not confirmed/i.test(message)) return "Confirm your email from the link we sent before signing in.";
     if (/password should be at least|password.*weak|weak password/i.test(message)) return "Choose a stronger password with at least 8 characters, including a letter and a number.";
     if (/user already registered|already been registered/i.test(message)) return "We couldn’t create an account with those details. If you already registered, log in or use Forgot password.";
-    if (/failed to fetch|networkerror|load failed/i.test(message)) return "Stagerang could not reach the sign-in service. Check your connection and try again.";
+    if (/failed to fetch|networkerror|load failed/i.test(message)) return "Brand Media Collab could not reach the sign-in service. Check your connection and try again.";
     return message || "We could not complete that account request. Please try again.";
   }
   function authNextPage() {
@@ -307,7 +307,7 @@
     const accountType = editingProfile
       ? sessionStorage.getItem("bmc_edit_account_type") || $("[data-type].selected")?.dataset.type || "creator"
       : sessionStorage.getItem("bmc_signup_type") || $("[data-type].selected")?.dataset.type || "creator";
-    if (!accountTypes.includes(accountType)) throw new Error("Choose a supported Stagerang account type.");
+    if (!accountTypes.includes(accountType)) throw new Error("Choose a supported Brand Media Collab account type.");
     const isOrg = isOrganization(accountType);
     const markComplete = complete || editingProfile;
     const displayName = (isOrg ? $("#company")?.value : $("#display-name")?.value)?.trim() || sessionStorage.getItem("bmc_signup_name") || "";
@@ -713,7 +713,7 @@
       const root = $("#dynamic-profile"); if (!root) return;
       if (error || !profile || (current.data.user?.id !== targetId && profile.is_discoverable !== true)) {
         root.innerHTML = `<section class="card profile-unavailable"><div class="profile-body"><span class="role">Profile unavailable</span><h1>This profile isn’t available</h1><p>This member may have turned off Explore visibility or removed their profile.</p><a class="edit" href="explore.html">Back to Explore</a></div></section>`;
-        document.title = "Profile unavailable — Stagerang";
+        document.title = "Profile unavailable — Brand Media Collab";
         return;
       }
     const { data: socialAccounts, error: socialError } = await supabase.from("social_accounts").select("platform,profile_url").eq("user_id", targetId).order("platform");
@@ -736,7 +736,7 @@
       catch (requestError) { status.textContent = requestError.message || "Verification status could not load."; }
       form?.addEventListener("submit", async (event) => { event.preventDefault(); const statement = $("#verification-statement").value.trim(); const button = form.querySelector("button[type=submit]"); button.disabled = true; try { const { data: { session } } = await supabase.auth.getSession(); const response = await fetch("/api/verification-requests", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }, body: JSON.stringify({ statement }) }); const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not submit the request."); status.textContent = "Latest request: pending"; toggle.disabled = true; toggle.textContent = "Request pending"; form.hidden = true; toast("Verification request sent."); } catch (requestError) { toast(requestError.message || "Could not submit the request."); } finally { button.disabled = false; } });
     }
-    document.title = `${profile.display_name || "Profile"} — Stagerang`;
+    document.title = `${profile.display_name || "Profile"} — Brand Media Collab`;
   }
   function projectPayload(user, accountType) {
     const budget = [...document.querySelectorAll(".delivery")].map((row) => ({
@@ -838,7 +838,7 @@
     const refreshActivity = () => { clearTimeout(activityRefresh); activityRefresh = setTimeout(async () => { try { await refreshFeedActivity(supabase, user); await refreshMessageBadge(); } catch (error) { console.error("Live activity refresh failed:", error); } }, 250); };
     const announce = (title, body) => {
       toast(body || title || "You have new activity.");
-      if (document.hidden && "Notification" in window && Notification.permission === "granted") new Notification(title || "Stagerang", { body: body || "You have new activity." });
+      if (document.hidden && "Notification" in window && Notification.permission === "granted") new Notification(title || "Brand Media Collab", { body: body || "You have new activity." });
     };
     window.bmcFeedRealtimeConnected = false;
     window.bmcFeedRealtimeChannel = supabase.channel(`creator-dashboard-${user.id}`)
@@ -988,7 +988,7 @@
     if (!projects.length) { live.innerHTML = ""; allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = "0"; }); live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user); if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000); return; }
     allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
     live.innerHTML = projects.map((p) => {
-      const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
+      const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Brand Media Collab member";
       const kind = kindOf(p);
       const type = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment" })[kind];
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
@@ -1101,7 +1101,7 @@
         const modal = $("#auth");
         if (modal) modal.classList.add("open");
         $(".tab[data-mode='login']")?.click();
-        toast(authError === "connection" ? "We could not verify your Stagerang session because the service is unreachable. Check your connection and try again." : "Your session has expired. Sign in again to continue.");
+        toast(authError === "connection" ? "We could not verify your Brand Media Collab session because the service is unreachable. Check your connection and try again." : "Your session has expired. Sign in again to continue.");
       } else if (new URLSearchParams(location.search).get("logged_out") === "1") {
         const modal = $("#auth");
         if (modal) modal.classList.add("open");

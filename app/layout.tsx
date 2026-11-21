@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Stagerang",
-  description: "A collaboration platform connecting brands, creators, and agencies."
+  title: "Brand Media Collab",
+  description: "Brand Media Collab connects brands, creators, influencers, agencies, and media professionals to discover opportunities and grow through collaboration."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
