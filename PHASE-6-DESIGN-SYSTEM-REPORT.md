@@ -1,5 +1,7 @@
 # Phase 6 — Global UI/UX Consistency & Responsive Repair
 
+> **Build status update (2026-11-21):** The historical build note below records an earlier Windows filesystem failure. A fresh `pnpm build` now completes successfully in the current checkout. See [FINAL-WEBSITE-AUDIT-2026-11-21.md](FINAL-WEBSITE-AUDIT-2026-11-21.md) for the current audit and remaining viewport-testing limits.
+
 ## What was standardized
 
 - Added `public/site/design-system.css`, a shared design layer loaded on all 24 application HTML pages.

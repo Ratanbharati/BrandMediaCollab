@@ -1,5 +1,7 @@
 # Stagerang — End-to-End QA Report
 
+> **Superseded:** This report is the historical 2026-11-20 snapshot. The current source now includes all nine profile types. See [FINAL-WEBSITE-AUDIT-2026-11-21.md](FINAL-WEBSITE-AUDIT-2026-11-21.md) for the latest local test/build results and current verified/blocked statuses.
+
 Date: 2026-11-20
 
 ## Test setup and limits
