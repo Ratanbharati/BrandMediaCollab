@@ -9,10 +9,10 @@
   let db, user, projects = [], applications = [], saved = new Set(), profilesById = {};
   let scope = ["owned", "applied", "saved"].includes(new URLSearchParams(location.search).get("scope")) ? new URLSearchParams(location.search).get("scope") : "discover";
   let activeKind = new URLSearchParams(location.search).get("kind");
-  const projectKinds = ["brand", "creator", "agency", "celebrity", "event", "media"];
+  const projectKinds = ["brand", "creator", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"];
   if (!projectKinds.includes(activeKind)) activeKind = "brand";
   let channel, refreshTimer, loadInFlight = false, refreshQueued = false, realtimeConnected = false, deepLinkOpened = false;
-  const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0, agencies: 0, celebrities: 0, events: 0, media: 0 };
+  const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0, agencies: 0, celebrities: 0, events: 0, media: 0, communities: 0, distributors: 0, freelancers: 0 };
 
   function toast(message) {
     const node = $("#toast");
@@ -31,7 +31,7 @@
   function projectKind(project) {
     const type = String(project.project_type || "").trim().toLowerCase();
     if (["creator_idea", "creator", "idea"].includes(type)) return "creator";
-    for (const kind of ["celebrity", "event", "media"]) if ([`${kind}_project`, kind].includes(type)) return kind;
+    for (const kind of ["celebrity", "event", "media", "community", "distributor", "freelancer"]) if ([`${kind}_project`, kind, ...(kind === "distributor" ? ["distribution_project"] : kind === "freelancer" ? ["freelance_project"] : [])].includes(type)) return kind;
     const owner = accountKind(project.owner_type || profilesById[project.owner_id]?.account_type);
     // The current database represents agency campaigns as brand_campaign rows
     // with owner_type=agency. Keep them in their own category.
@@ -134,16 +134,28 @@
     renderFilters();
   }
   function formatDate(value) { if (!value) return "Not set"; const date = new Date(`${value}T00:00:00`); return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+  async function reportProject(projectId) {
+    const allowed = ["spam", "harassment", "impersonation", "unsafe_content", "fraud", "other"];
+    const reason = (prompt(`Choose a reason: ${allowed.join(", ")}`, "other") || "").trim().toLowerCase();
+    if (!allowed.includes(reason)) throw new Error("Enter one of the listed report reasons.");
+    const description = (prompt("Please describe the concern (at least 10 characters):") || "").trim();
+    if (description.length < 10) throw new Error("Add a little more detail before submitting.");
+    const { data: { session } } = await db.auth.getSession();
+    const response = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }, body: JSON.stringify({ targetProjectId: projectId, reason, description }) });
+    const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not submit this report.");
+    toast("Report sent to the moderation team.");
+  }
   function buildCard(project) {
     const owner = profilesById[project.owner_id] || {};
     const name = owner.display_name || owner.company_name || "Stagerang member";
-    const kind = projectKind(project), label = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kind];
+    const kind = projectKind(project), label = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment", brand: "Brand project" })[kind];
     const applied = applications.some((item) => item.project_id === project.id && item.status !== "withdrawn");
     const isSaved = saved.has(project.id), own = project.owner_id === user.id;
     const card = document.createElement("article"); card.className = "panel project item"; card.dataset.projectId = project.id;
     const budgetRows = Array.isArray(project.budget_by_deliverable) ? project.budget_by_deliverable : [];
     const budgets = budgetRows.map((item) => `<span class="chip">${esc(item.deliverable || "Deliverable")}${item.amount_range ? ` · ${esc(item.amount_range)}` : ""}</span>`).join("");
     card.innerHTML = `<div class="project-top"><div class="logo">${esc(name.slice(0, 2).toUpperCase())}</div><div class="meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(name)}</a></b><span>${label} · ${esc(project.location || "Remote")}</span></div><span class="badge">${esc(String(project.status || "Open"))}</span></div><button class="project-card-title" type="button" data-details="${esc(project.id)}">${esc(project.project_name)}</button><p>${esc(project.requirements)}</p><div class="chips"><span class="chip">${esc(project.category || "Other")}</span>${(project.platforms || []).map((item) => `<span class="chip">${esc(item)}</span>`).join("")}${(project.creator_tiers || []).map((item) => `<span class="chip">${esc(item)} creator</span>`).join("")}${budgets}</div><div class="chips"><span class="chip">Apply by ${esc(formatDate(project.application_deadline))}</span><span class="chip">Delivery ${esc(formatDate(project.delivery_date))}</span></div><div class="bottom"><small>${own ? "Your project" : applied ? "Interest already sent" : "Open opportunity"}</small><div class="actions">${own ? `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit</a>` : `<button class="btn save ${isSaved ? "active" : ""}" type="button" data-save="${esc(project.id)}" aria-pressed="${isSaved}">${isSaved ? "♥ Saved" : "♡ Save"}</button><button class="btn" type="button" data-details="${esc(project.id)}">View details</button><button class="btn" type="button" data-apply="${esc(project.id)}" data-project-name="${esc(project.project_name)}" ${applied ? "disabled" : ""}>${applied ? "Interest sent ✓" : "Interested ↗"}</button><button class="btn" type="button" data-share="${esc(project.id)}">Share</button>`}</div></div>`;
+    if (!own) { const report = document.createElement("button"); report.type = "button"; report.className = "btn"; report.textContent = "Report"; report.onclick = async () => { report.disabled = true; try { await reportProject(project.id); } catch (error) { toast(error.message || "Could not submit this report."); } finally { report.disabled = false; } }; card.querySelector(".actions")?.append(report); }
     return card;
   }
   function openDetails(projectId) {
@@ -152,7 +164,7 @@
     const dialog = document.createElement("dialog"); dialog.className = "project-details-dialog";
     const budget = Array.isArray(project.budget_by_deliverable) ? project.budget_by_deliverable : [];
     const budgetMarkup = budget.length ? `<section><h3>Budget & deliverables</h3>${budget.map((item) => `<p><strong>${esc(item.deliverable || "Deliverable")}</strong>${item.amount_range ? ` · ${esc(item.amount_range)}` : ""}</p>`).join("")}</section>` : "";
-    dialog.innerHTML = `<article class="project-details-sheet"><button class="details-close" type="button" aria-label="Close project details">×</button><span class="badge">${({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kind]}</span><h2>${esc(project.project_name)}</h2><p class="details-owner"><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(owner.display_name || owner.company_name || "Stagerang member")}</a> · ${esc(project.location || "Remote")}</p><p>${esc(project.requirements)}</p>${budgetMarkup}<section><h3>Eligibility</h3><p>${esc((project.target_profile_types || project.creator_tiers || []).join(", ") || "Open to collaborators")}${project.platforms?.length ? ` · ${esc(project.platforms.join(", "))}` : ""}${project.required_skills?.length ? ` · Skills: ${esc(project.required_skills.join(", "))}` : ""}</p></section><section><h3>Timeline</h3><p>Applications close ${esc(formatDate(project.application_deadline))}; delivery ${esc(formatDate(project.delivery_date))}.</p></section>${project.usage_permissions ? `<section><h3>Usage permissions</h3><p>${esc(project.usage_permissions)}</p></section>` : ""}${project.reshare_permissions ? `<section><h3>Reshare permissions</h3><p>${esc(project.reshare_permissions)}</p></section>` : ""}<div class="details-actions"><a class="btn" href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">View profile</a>${project.owner_id !== user.id ? `<button class="btn" type="button" data-detail-apply="${esc(project.id)}">Express interest</button>` : `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit project</a>`}</div></article>`;
+    dialog.innerHTML = `<article class="project-details-sheet"><button class="details-close" type="button" aria-label="Close project details">×</button><span class="badge">${({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment", brand: "Brand project" })[kind]}</span><h2>${esc(project.project_name)}</h2><p class="details-owner"><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(owner.display_name || owner.company_name || "Stagerang member")}</a> · ${esc(project.location || "Remote")}</p><p>${esc(project.requirements)}</p>${budgetMarkup}<section><h3>Eligibility</h3><p>${esc((project.target_profile_types || project.creator_tiers || []).join(", ") || "Open to collaborators")}${project.platforms?.length ? ` · ${esc(project.platforms.join(", "))}` : ""}${project.required_skills?.length ? ` · Skills: ${esc(project.required_skills.join(", "))}` : ""}</p></section><section><h3>Timeline</h3><p>Applications close ${esc(formatDate(project.application_deadline))}; delivery ${esc(formatDate(project.delivery_date))}.</p></section>${project.usage_permissions ? `<section><h3>Usage permissions</h3><p>${esc(project.usage_permissions)}</p></section>` : ""}${project.reshare_permissions ? `<section><h3>Reshare permissions</h3><p>${esc(project.reshare_permissions)}</p></section>` : ""}<div class="details-actions"><a class="btn" href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">View profile</a>${project.owner_id !== user.id ? `<button class="btn" type="button" data-detail-apply="${esc(project.id)}">Express interest</button>` : `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit project</a>`}</div></article>`;
     document.body.append(dialog); dialog.showModal();
     $(".details-close", dialog).addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
@@ -195,10 +207,15 @@
       counts.celebrities = discoverable.filter((project) => projectKind(project) === "celebrity").length;
       counts.events = discoverable.filter((project) => projectKind(project) === "event").length;
       counts.media = discoverable.filter((project) => projectKind(project) === "media").length;
+      counts.communities = discoverable.filter((project) => projectKind(project) === "community").length;
+      counts.distributors = discoverable.filter((project) => projectKind(project) === "distributor").length;
+      counts.freelancers = discoverable.filter((project) => projectKind(project) === "freelancer").length;
       setCount("owned", counts.owned); setCount("applied", counts.applications); setCount("saved", counts.saved);
       setCount("ideas", counts.ideas); setCount("ideaTab", counts.ideas); setCount("brands", counts.brands); setCount("agency", counts.agencies); setCount("agencyTab", counts.agencies);
       setCount("celebrityTab", counts.celebrities); setCount("eventTab", counts.events); setCount("mediaTab", counts.media);
       setCount("celebrity", counts.celebrities); setCount("event", counts.events); setCount("media", counts.media);
+      setCount("communityTab", counts.communities); setCount("distributorTab", counts.distributors); setCount("freelancerTab", counts.freelancers);
+      setCount("community", counts.communities); setCount("distributor", counts.distributors); setCount("freelancer", counts.freelancers);
       renderFilterChoices();
       document.body.classList.add("bmc-projects-ready");
       if (appsResult.error || savedResult.error || profileResult.error) toast("Some activity details could not load. Project listings are still available.");

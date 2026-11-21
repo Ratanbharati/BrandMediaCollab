@@ -19,7 +19,7 @@
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
   </style>
   <style>body:not(.bmc-account-ready) .collabry-account{visibility:hidden}</style>
-</head>
+<link rel="stylesheet" href="/site/design-system.css"><script defer src="/site/design-system.js"></script></head>
 <body>
   <header class="collabry-nav">
     <a class="collabry-logo" href="feed.html" aria-label="Stagerang home"><span>SR</span> Stagerang</a>
@@ -36,7 +36,7 @@
       <div class="discovery-note">Profiles appear here only while discoverability is on.</div>
     </section>
     <div class="search-wrap"><label class="search-box"><span aria-hidden="true">⌕</span><input id="profile-search" type="search" autocomplete="off" placeholder="Search people, companies, niches, services, languages…" aria-label="Search profiles"></label><button class="clear-button" id="clear-filters" type="button">Clear</button></div>
-    <div class="role-tabs" role="group" aria-label="Profile type"><button class="active" type="button" data-type="all" aria-pressed="true">Everyone</button><button type="button" data-type="creator" aria-pressed="false">Creators</button><button type="button" data-type="brand" aria-pressed="false">Brands</button><button type="button" data-type="agency" aria-pressed="false">Agencies</button><button type="button" data-type="celebrity" aria-pressed="false">Celebrities</button><button type="button" data-type="event" aria-pressed="false">Events</button><button type="button" data-type="media" aria-pressed="false">Media</button></div>
+    <div class="role-tabs" role="group" aria-label="Profile type"><button class="active" type="button" data-type="all" aria-pressed="true">Everyone</button><button type="button" data-type="creator" aria-pressed="false">Creators</button><button type="button" data-type="brand" aria-pressed="false">Brands</button><button type="button" data-type="agency" aria-pressed="false">Agencies</button><button type="button" data-type="celebrity" aria-pressed="false">Celebrities</button><button type="button" data-type="event" aria-pressed="false">Events</button><button type="button" data-type="media" aria-pressed="false">Media</button><button type="button" data-type="community" aria-pressed="false">Communities</button><button type="button" data-type="distributor" aria-pressed="false">Distributors</button><button type="button" data-type="freelancer" aria-pressed="false">Freelancers</button></div>
     <details class="filter-panel" id="filter-panel"><summary>Refine your discovery</summary><div class="filters">
       <div class="filter-field" data-filter-field="industry"><label for="filter-industry">Industry</label><input id="filter-industry" type="search" placeholder="Beauty, food, tech…"></div>
       <div class="filter-field" data-filter-field="niche"><label for="filter-niche">Niche / expertise</label><input id="filter-niche" type="search" placeholder="Fashion, video, wellness…"></div>

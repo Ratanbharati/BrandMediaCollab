@@ -35,6 +35,10 @@
   function openChatButton(card, project, app) {
     card.querySelector("[data-open-chat]")?.addEventListener("click", async (event) => {
       const button = event.currentTarget;
+      if (app.status !== "working_together") {
+        toast("Private project chat opens after the project owner accepts your application.");
+        return;
+      }
       button.disabled = true;
       try {
         const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
@@ -77,7 +81,12 @@
     card.className = "card application";
     card.dataset.applicationId = app.id;
     card.dataset.status = app.status;
-    card.innerHTML = `<div class="topline"><div class="symbol">${esc((owner.display_name || owner.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="meta"><b><a class="row-link" href="my-profile.html?user=${encodeURIComponent(project.owner_id || "")}">${esc(owner.display_name || owner.company_name || "Project owner")}</a></b><span>Applied ${new Date(app.created_at).toLocaleDateString()} · ${esc(project.category || "Project")}</span></div><span class="status ${statusKey === "matched" ? "match" : statusKey === "passed" || statusKey === "withdrawn" ? "pass" : ""}">${statusKey === "pending" ? "Awaiting response" : statusKey === "matched" ? "Working together" : statusKey === "withdrawn" ? "Withdrawn" : "Not selected"}</span></div><h2><a class="row-link" href="projects.html?project=${encodeURIComponent(project.id || "")}">${esc(project.project_name || "Project")}</a></h2><p>${esc(app.message || "No note was added.")}</p><div class="actions">${app.status !== "withdrawn" ? '<button class="btn dark" type="button" data-open-chat>Open private project chat ↗</button>' : ""}${app.status === "interested" ? '<button class="btn" type="button" data-withdraw>Withdraw interest</button>' : ""}</div>`;
+    const chatAction = app.status === "working_together"
+      ? '<button class="btn dark" type="button" data-open-chat>Open private project chat ↗</button>'
+      : app.status === "interested"
+        ? '<span class="status-note">Chat opens after the project owner accepts.</span>'
+        : "";
+    card.innerHTML = `<div class="topline"><div class="symbol">${esc((owner.display_name || owner.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="meta"><b><a class="row-link" href="my-profile.html?user=${encodeURIComponent(project.owner_id || "")}">${esc(owner.display_name || owner.company_name || "Project owner")}</a></b><span>Applied ${new Date(app.created_at).toLocaleDateString()} · ${esc(project.category || "Project")}</span></div><span class="status ${statusKey === "matched" ? "match" : statusKey === "passed" || statusKey === "withdrawn" ? "pass" : ""}">${statusKey === "pending" ? "Awaiting response" : statusKey === "matched" ? "Working together" : statusKey === "withdrawn" ? "Withdrawn" : "Not selected"}</span></div><h2><a class="row-link" href="projects.html?project=${encodeURIComponent(project.id || "")}">${esc(project.project_name || "Project")}</a></h2><p>${esc(app.message || "No note was added.")}</p><div class="actions">${chatAction}${app.status === "interested" ? '<button class="btn" type="button" data-withdraw>Withdraw interest</button>' : ""}</div>`;
     openChatButton(card, project, app);
     card.querySelector("[data-withdraw]")?.addEventListener("click", async (event) => {
       const button = event.currentTarget;

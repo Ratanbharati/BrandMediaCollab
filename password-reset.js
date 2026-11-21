@@ -48,7 +48,7 @@
         event.preventDefault();
         const password = $("#new-password").value;
         const confirmation = $("#confirm-password").value;
-        if (password.length < 8) return show("Choose a password with at least 8 characters.", true);
+        if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return show("Choose a password with at least 8 characters, including a letter and a number.", true);
         if (password !== confirmation) return show("The two passwords do not match.", true);
         const button = updateForm.querySelector("button[type=submit]");
         if (!button.dataset.label) button.dataset.label = button.textContent;
@@ -56,9 +56,9 @@
         try {
           const { error } = await supabase.auth.updateUser({ password });
           if (error) throw error;
-          await supabase.auth.signOut();
+          const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
           updateForm.hidden = true;
-          show("Password updated. You can now log in with your new password.");
+          show(signOutError ? "Password updated. Close this page, then log in again with your new password." : "Password updated. You can now log in with your new password.");
         } catch (error) {
           show(error.message || "Could not update the password. Request a new reset link and try again.", true);
         } finally { setBusy(button, false); }

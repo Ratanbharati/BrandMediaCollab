@@ -137,7 +137,8 @@
     }
     [...threadNode.querySelectorAll(".thread")].forEach((node) => node.classList.toggle("active", node.dataset.id === item.id));
     await loadMessages(item.id);
-    await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).eq("type", "new_message").eq("conversation_id", item.id).is("read_at", null);
+    const { error: notificationReadError } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).eq("type", "new_message").eq("conversation_id", item.id).is("read_at", null);
+    if (notificationReadError) toast("Conversation opened, but unread notifications could not be updated.");
     await renderThreads();
     window.bmcRefreshMessageBadge?.();
     window.dispatchEvent(new CustomEvent("bmc-notifications-updated"));
