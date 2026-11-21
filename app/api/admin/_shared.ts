@@ -20,7 +20,7 @@ function config() {
 export async function requirePlatformAdmin(request: Request): Promise<AdminContext> {
   const { baseUrl, publishableKey, serviceKey } = config();
   const authorization = request.headers.get("authorization") || "";
-  if (!authorization.toLowerCase().startsWith("bearer ")) throw new AdminRouteError(401, "Sign in with your Stagerang owner account first.");
+  if (!authorization.toLowerCase().startsWith("bearer ")) throw new AdminRouteError(401, "Sign in with your Brand Media Collab owner account first.");
 
   const authResponse = await fetch(`${baseUrl}/auth/v1/user`, {
     headers: { apikey: publishableKey, Authorization: authorization }, cache: "no-store",
