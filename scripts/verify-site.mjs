@@ -53,6 +53,7 @@ const explore = fs.readFileSync(path.join(siteRoot, "explore.html"), "utf8");
 const exploreLive = fs.readFileSync(path.join(siteRoot, "explore-live.js"), "utf8");
 const projectLive = fs.readFileSync(path.join(siteRoot, "projects-live.js"), "utf8");
 const landing = fs.readFileSync(path.join(siteRoot, "index.html"), "utf8");
+const landingPreview = fs.readFileSync(path.join(siteRoot, "landing-preview.html"), "utf8");
 const profileSetup = fs.readFileSync(path.join(siteRoot, "profile-setup.html"), "utf8");
 const messages = fs.readFileSync(path.join(siteRoot, "messages.html"), "utf8");
 const notifications = fs.readFileSync(path.join(siteRoot, "notifications.html"), "utf8");
@@ -85,6 +86,7 @@ for (const role of roles) {
   if (!authMigration.includes(`'${role}'`)) errors.push(`Auth profile trigger migration: missing account type ${role}`);
 }
 if (!app.includes("`${accountLabel} account`")) errors.push("bmc-app.js: the home profile card does not display the actual account type");
+if (!/name=["']robots["'][^>]*content=["']noindex,\s*nofollow["']/i.test(landingPreview)) errors.push("Landing preview: duplicate prototype page must stay out of search indexes");
 if (!explore.includes("explore-live.js") || !exploreLive.includes('rpc("discover_profiles"')) errors.push("Explore page: live profile discovery RPC is missing");
 if (!projectLive.includes("postgres_changes")) errors.push("projects-live.js: project live updates are not subscribed");
 if (!app.includes('"notifications.html"') || !app.includes('data-notifications-link')) errors.push("Notifications: protected route or main-navigation entry is missing");
