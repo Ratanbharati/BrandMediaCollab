@@ -84,6 +84,22 @@
     .tag{width:62px;height:62px;font-size:10px}
     .proof-logos{font-size:15px}
   }
+  /* Landing navbar readability and responsive behavior. */
+  .collabry-nav .site-nav{gap:36px}
+  .collabry-nav .site-nav a{min-width:0;padding:5px 0 3px;color:#26332D;font:500 18px/1.25 'DM Sans',sans-serif;transition:color .15s ease}
+  .collabry-nav .site-nav a:hover,.collabry-nav .site-nav a:focus-visible,.collabry-account a:not(.button):hover,.collabry-account a:not(.button):focus-visible{color:#287b4d}
+  .collabry-account a:not(.button){color:#26332D;font:500 18px/1.25 'DM Sans',sans-serif;transition:color .15s ease}
+  @media(max-width:800px){
+    .collabry-nav{height:auto;min-height:66px;padding:7px 12px;gap:8px;flex-wrap:wrap}
+    .collabry-logo{min-width:0;font-size:15px}
+    .nav-toggle{display:flex;flex-direction:column;justify-content:center;gap:4px;order:2;width:42px;height:42px;margin-left:auto;border:1px solid #e4e8e4;border-radius:12px;background:#fff;cursor:pointer;flex-shrink:0}
+    .nav-toggle span{width:17px;height:2px;margin:0 auto;background:#24342a;border-radius:2px}
+    .collabry-nav .site-nav{display:none;order:4;flex-basis:100%;width:100%;margin:0;padding:8px 0 4px;flex-direction:column;align-items:stretch;gap:0}
+    .collabry-nav.menu-open .site-nav{display:flex}
+    .collabry-nav .site-nav a{display:flex;align-items:center;min-height:48px;padding:12px 10px;border-top:1px solid #e4e8e4}
+    .collabry-account{order:3;margin-left:0;gap:12px}
+    .collabry-account a:not(.button){display:inline-flex;align-items:center;min-height:44px;padding:8px 4px}
+  }
 </style>
 <style>
   .password-row{display:flex;align-items:center;gap:8px}.password-row input{min-width:0;flex:1}.password-toggle{border:1px solid var(--line);border-radius:9px;background:#fff;padding:10px 12px;color:#405d32;font:700 12px 'DM Sans',sans-serif}.consent-field{display:flex;align-items:flex-start;gap:9px;margin:15px 0;color:#667168;font-size:11px;line-height:1.5}.consent-field input{flex:0 0 auto;width:16px;height:16px;margin:1px 0 0;accent-color:#35573b}.auth-privacy-note{line-height:1.5}.confirm-field[hidden],.consent-field[hidden],.auth-privacy-note[hidden]{display:none}

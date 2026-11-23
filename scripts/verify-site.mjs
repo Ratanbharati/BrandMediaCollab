@@ -102,6 +102,12 @@ if (/localStorage|bmc_projects/.test(myProjects) || !app.includes('if (path.ends
 if (!applicationsPage.includes('app.status === "working_together"') || !applicationsPage.includes("Private project chat opens after the project owner accepts")) errors.push("Applications: project chat is not restricted to accepted collaborations");
 if (!messagesLive.includes("notificationReadError")) errors.push("Messages: notification read-update failures are silently ignored");
 const integrityMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261120120000_phase5_application_integrity.sql"), "utf8");
+const profileRealtimeMigrationPath = path.join(root, "supabase", "migrations", "20261119001000_enable_profile_discovery_realtime.sql");
+if (!fs.existsSync(profileRealtimeMigrationPath)) errors.push("Supabase migrations: canonical profile discovery Realtime migration is missing");
+else {
+  const profileRealtimeMigration = fs.readFileSync(profileRealtimeMigrationPath, "utf8").toLowerCase();
+  if (!profileRealtimeMigration.includes("supabase_realtime") || !profileRealtimeMigration.includes("public.profiles")) errors.push("Supabase migrations: profile discovery Realtime migration does not include public.profiles");
+}
 const adminHelperMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261118052016_platform_admin_private_helper.sql"), "utf8");
 if (!adminHelperMigration.includes("create or replace function app_private.is_platform_admin()") || !integrityMigration.includes("create or replace function app_private.is_platform_admin()")) errors.push("Admin authorization helper: migration-chain or existing-install repair is missing");
 for (const requirement of ["applications_guard_write", "guard_application_write", "target_profile_types", "application_deadline", "revoke update on public.applications", "with check ("]) {
