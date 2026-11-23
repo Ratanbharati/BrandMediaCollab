@@ -19,7 +19,7 @@ Active frontend pages in `public/site/`:
 - `dashboard.html`, `dashboard-preview.html`, `messages.html`, `notifications.html`, `settings.html`, `help.html`
 - `admin-dashboard.html`, `logout.html`, `reset-password.html`, `update-password.html`
 
-Reviewed supporting code: `app/` API routes and Next.js shell, `public/site/*.js`, `public/site/design-system.css`, `public/site/design-system.js`, all 29 SQL migration files, `scripts/verify-site.mjs`, and the README/setup/QA guidance.
+Reviewed supporting code: `app/` API routes and Next.js shell, `public/site/*.js`, `public/site/design-system.css`, `public/site/design-system.js`, all 30 canonical SQL migration files, `scripts/verify-site.mjs`, and the README/setup/QA guidance.
 
 ## Verification results
 
@@ -104,7 +104,7 @@ Page-specific styles define additional colors, including success, warning, and e
 - The migration chain enables RLS on the core profile, project, application, conversation, message, notification, and admin-related tables and adds ownership/participant policies. This is a source review only; hosted policy state was not queried.
 - The nine-role migration is additive in source, but applying it to the live project and validating compatibility remains an operator step.
 - Admin APIs call a backend authorization helper and use server-side service credentials. The newest local admin account-delete code additionally checks admin status, protects the signed-in account, confirms the target email, removes avatar bucket files, deletes the Auth user, and writes audit events. This code has not been run against Supabase; confirm cleanup across every bucket if additional user-owned buckets exist.
-- No SQL migration was added during this audit. No RLS policy was changed or disabled.
+- Added the idempotent `20261119001000_enable_profile_discovery_realtime.sql` to the canonical migration folder after finding that the existing update guide referenced only a root-level duplicate. No RLS policy was changed or disabled.
 
 ## Hygiene changes made during this audit
 

@@ -10,6 +10,8 @@ Brand Media Collab is a collaboration platform for creators, brands, agencies, c
 - `scripts/` — repository verification scripts.
 - `pnpm-lock.yaml` — locked package dependency versions.
 - `AUTH-SETUP.md`, `ADMIN-SETUP.md`, `SUPABASE-UPDATE-GUIDE.md`, `README-DEPLOY.md`, and `END-TO-END-QA-REPORT.md` — setup, deployment, security, and test guidance.
+- `MASTER_PROJECT_DOCUMENT.md` — product, feature, architecture and scope source of truth.
+- `PROJECT_AUDIT_REPORT.md`, `TECHNICAL_ARCHITECTURE.md`, `DATABASE_DOCUMENTATION.md`, `USER-JOURNEYS.md`, `SEO_CHECKLIST.md`, `ENVIRONMENT_SETUP.md`, `DEPLOYMENT_GUIDE.md`, and `CHANGELOG.md` — supporting project documentation.
 
 Older root-level HTML/JS/SQL copies and `brand-media-collab-supabase-ready/` are archived snapshots. They are not the active frontend. Make website changes in `public/site/`.
 
