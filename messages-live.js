@@ -124,7 +124,7 @@
     $("#chat-name").href = `my-profile.html?user=${encodeURIComponent(item.otherId)}`;
     $("#chat-title").textContent = item.accountType ? item.projectName + " · " + item.accountType.replaceAll("_", " ") : item.projectName;
     $("#context-title").textContent = item.projectName;
-    if ($("#context-subtitle")) $("#context-subtitle").textContent = item.isDirect ? "Connected on Stagerang · Private conversation" : item.projectType ? item.projectType.replaceAll("_", " ") + " · Private project chat" : "Private project chat";
+    if ($("#context-subtitle")) $("#context-subtitle").textContent = item.isDirect ? "Connected on Brand Media Collab · Private conversation" : item.projectType ? item.projectType.replaceAll("_", " ") + " · Private project chat" : "Private project chat";
     $("#chat-avatar").textContent = item.otherName.slice(0, 2).toUpperCase();
     $("#messages").classList.add("show-chat");
     $(".compose").style.display = "";
@@ -177,7 +177,7 @@
       if (error) throw error;
       conversations = data || [];
     }
-    if (!conversations.length) threadNode.innerHTML = '<div class="list-empty-state"><b>No conversations yet</b><span>Connect with someone or accept a project collaboration to start a private chat.</span><a href="explore.html">Explore profiles ↗</a></div>';
+    if (!conversations.length) threadNode.innerHTML = '<div class="list-empty-state"><b>No conversations yet</b><span>Connect with someone or express interest in a project to start a private chat.</span><a href="explore.html">Explore profiles ↗</a></div>';
     const projectIds = [...new Set(conversations.map((c) => c.project_id).filter(Boolean))];
     const { data: members } = ids.length ? await supabase.from("conversation_members").select("conversation_id,user_id").in("conversation_id", ids) : { data: [] };
     const otherIds = [...new Set((members || []).map((m) => m.user_id).filter((id) => id !== user.id))];
@@ -238,10 +238,10 @@
     const ownedIds = (owned || []).map((p) => p.id);
     let received = [];
     if (ownedIds.length) {
-      const { data, error } = await supabase.from("applications").select("project_id,applicant_id,status").in("project_id", ownedIds).eq("status", "working_together");
+      const { data, error } = await supabase.from("applications").select("project_id,applicant_id,status").in("project_id", ownedIds).in("status", ["interested", "working_together"]);
       if (error) throw error; received = data || [];
     }
-    const { data: myApps, error: appError } = await supabase.from("applications").select("project_id,status").eq("applicant_id", user.id).eq("status", "working_together");
+    const { data: myApps, error: appError } = await supabase.from("applications").select("project_id,status").eq("applicant_id", user.id).in("status", ["interested", "working_together"]);
     if (appError) throw appError;
     const appIds = [...new Set((myApps || []).map((a) => a.project_id).filter((id) => !ownedIds.includes(id)))];
     let appliedProjects = [];
@@ -271,7 +271,7 @@
     const { data: people, error: peopleError } = await supabase.from("profiles").select("id,display_name,company_name,account_type,avatar_url").in("id", otherIds);
     if (peopleError) throw peopleError;
     const byId = Object.fromEntries((people || []).map((p) => [p.id, p]));
-    const heading = document.createElement("div"); heading.className = "accepted-heading"; heading.textContent = "Accepted collaborations"; threadNode.append(heading);
+    const heading = document.createElement("div"); heading.className = "accepted-heading"; heading.textContent = "Project conversations"; threadNode.append(heading);
     for (const opportunity of filtered) {
       const person = byId[opportunity.otherId]; if (!person) continue;
       const otherName = person.display_name || person.company_name || "Member";
@@ -302,7 +302,7 @@
     const host = document.querySelector("#start-message-choices"); if (!host) return;
     const query = (document.querySelector("#start-message-search")?.value || "").trim().toLowerCase();
     const matches = eligibleCollabs.filter((item) => (item.otherName + " " + item.projectName).toLowerCase().includes(query));
-    host.innerHTML = matches.length ? matches.map((item, index) => '<button class="start-choice" type="button" data-choice="' + index + '"><span class="avatar">' + esc(item.otherName.slice(0, 2).toUpperCase()) + '</span><span><b>' + esc(item.otherName) + '</b><span>' + esc(item.projectName) + '</span></span></button>').join("") : '<div class="list-empty-state"><b>No eligible collaborators found</b><span>Direct chats open with accepted connections. Project chats open after a collaboration is accepted.</span></div>';
+    host.innerHTML = matches.length ? matches.map((item, index) => '<button class="start-choice" type="button" data-choice="' + index + '"><span class="avatar">' + esc(item.otherName.slice(0, 2).toUpperCase()) + '</span><span><b>' + esc(item.otherName) + '</b><span>' + esc(item.projectName) + '</span></span></button>').join("") : '<div class="list-empty-state"><b>No eligible collaborators found</b><span>Direct chats open with accepted connections. Project chats start when you express interest.</span></div>';
     host.querySelectorAll("[data-choice]").forEach((button) => button.addEventListener("click", () => {
       const item = matches[Number(button.dataset.choice)]; if (!item) return;
       document.querySelector("#start-message-modal")?.classList.remove("open");
@@ -311,7 +311,7 @@
   }
   async function sendMessage() {
     const body = input.value.trim();
-    if (!body || !activeId) { if (!activeId) toast("Open an accepted-collaboration chat first."); return; }
+    if (!body || !activeId) { if (!activeId) toast("Open a project conversation or accepted-connection chat first."); return; }
     sendButton.disabled = true;
     try {
       const { error } = await supabase.from("messages").insert({ conversation_id: activeId, sender_id: user.id, body });
@@ -345,6 +345,12 @@
     input?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
     await refreshActivity(); connectRealtime(); activityTimer = setInterval(() => { if (!realtimeConnected) { refreshActivity().catch((e) => { console.error("Project snapshot refresh failed:", e); $("#bmc-activity-context").textContent = `Could not refresh project counts: ${e.message || "Supabase error"}`; }); if (activeId && !document.hidden) loadMessages(activeId).catch(() => {}); renderThreads().catch(() => {}); } }, 30000);
     await renderThreads();
+    const entryParams = new URLSearchParams(location.search);
+    if (entryParams.get("interest") === "sent") {
+      toast("Your interest was sent. The project conversation is open.");
+      entryParams.delete("interest");
+      history.replaceState({}, "", location.pathname + (entryParams.size ? "?" + entryParams.toString() : ""));
+    }
     if (!activeId) {
       $("#chat-name").textContent = "No conversation selected"; $("#chat-name").removeAttribute("href");
       $("#chat-title").textContent = ""; $("#context-title").textContent = "Select a conversation";
