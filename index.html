@@ -1,19 +1,36 @@
 <!doctype html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<!-- Google tag (GTM-N843Z826) -->
+<script async src="https://www.googletagmanager.com/gtm.js?id=GTM-N843Z826"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+</script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#f7f5f0" />
-  <meta name="description" content="Brand Media Collab connects brands, creators, influencers, agencies, media professionals, production houses, event companies, and marketing partners to discover projects and grow through collaboration." />
+  <meta name="description" content="Find brand partnerships, creator and influencer campaigns, media opportunities, and trusted creative partners. Brand Media Collab helps teams discover projects and grow together." />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="keywords" content="brand collaborations, creator partnerships, influencer campaigns, media opportunities, agency partnerships, production companies, event collaborations" />
   <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Brand Media Collab" />
+  <meta property="og:image" content="https://www.brandmediacollab.com/site/images/brand-media-collab-hero.jpg" />
+  <meta property="og:image:alt" content="Creative professional working at a laptop" />
   <meta property="og:title" content="Brand Media Collab — Find your next creative partnership" />
   <meta property="og:description" content="Discover brand partnerships, creator campaigns, media opportunities, and the people who help great work happen." />
   <meta property="og:url" content="https://www.brandmediacollab.com/" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Brand Media Collab — Find your next creative partnership" />
   <meta name="twitter:description" content="A professional collaboration network for brands, creators, agencies, media, events, production, and marketing partners." />
+  <meta name="twitter:image" content="https://www.brandmediacollab.com/site/images/brand-media-collab-hero.jpg" />
   <link rel="canonical" href="https://www.brandmediacollab.com/" />
-  <title>Brand Media Collab — Where creative partnerships grow</title>
+  <title>Brand Media Collab | Brand, Creator &amp; Influencer Collaborations</title>
+  <script type="application/ld+json">
+    {"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://www.brandmediacollab.com/#organization","name":"Brand Media Collab","url":"https://www.brandmediacollab.com/","description":"A professional collaboration platform connecting brands, creators, influencers, agencies, media professionals, production houses, event companies, and marketing partners."},{"@type":"WebSite","@id":"https://www.brandmediacollab.com/#website","url":"https://www.brandmediacollab.com/","name":"Brand Media Collab","publisher":{"@id":"https://www.brandmediacollab.com/#organization"},"inLanguage":"en-IN"}]}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -67,11 +84,56 @@
     .tag{width:62px;height:62px;font-size:10px}
     .proof-logos{font-size:15px}
   }
+  /* Landing navbar readability and responsive behavior. */
+  .collabry-nav .site-nav{gap:36px}
+  .collabry-nav .site-nav a{min-width:0;padding:5px 0 3px;color:#26332D;font:500 18px/1.25 'DM Sans',sans-serif;transition:color .15s ease}
+  .collabry-nav .site-nav a:hover,.collabry-nav .site-nav a:focus-visible,.collabry-account a:not(.button):hover,.collabry-account a:not(.button):focus-visible{color:#287b4d}
+  .collabry-account a:not(.button){color:#26332D;font:500 18px/1.25 'DM Sans',sans-serif;transition:color .15s ease}
+  @media(max-width:800px){
+    .collabry-nav{height:auto;min-height:66px;padding:7px 12px;gap:8px;flex-wrap:wrap}
+    .collabry-logo{min-width:0;font-size:15px}
+    .nav-toggle{display:flex;flex-direction:column;justify-content:center;gap:4px;order:2;width:42px;height:42px;margin-left:auto;border:1px solid #e4e8e4;border-radius:12px;background:#fff;cursor:pointer;flex-shrink:0}
+    .nav-toggle span{width:17px;height:2px;margin:0 auto;background:#24342a;border-radius:2px}
+    .collabry-nav .site-nav{display:none;order:4;flex-basis:100%;width:100%;margin:0;padding:8px 0 4px;flex-direction:column;align-items:stretch;gap:0}
+    .collabry-nav.menu-open .site-nav{display:flex}
+    .collabry-nav .site-nav a{display:flex;align-items:center;min-height:48px;padding:12px 10px;border-top:1px solid #e4e8e4}
+    .collabry-account{order:3;margin-left:0;gap:12px}
+    .collabry-account a:not(.button){display:inline-flex;align-items:center;min-height:44px;padding:8px 4px}
+  }
 </style>
 <style>
   .password-row{display:flex;align-items:center;gap:8px}.password-row input{min-width:0;flex:1}.password-toggle{border:1px solid var(--line);border-radius:9px;background:#fff;padding:10px 12px;color:#405d32;font:700 12px 'DM Sans',sans-serif}.consent-field{display:flex;align-items:flex-start;gap:9px;margin:15px 0;color:#667168;font-size:11px;line-height:1.5}.consent-field input{flex:0 0 auto;width:16px;height:16px;margin:1px 0 0;accent-color:#35573b}.auth-privacy-note{line-height:1.5}.confirm-field[hidden],.consent-field[hidden],.auth-privacy-note[hidden]{display:none}
 </style>
-<link rel="stylesheet" href="/site/design-system.css"><script defer src="/site/design-system.js"></script></head>
+<style id="auth-dialog-viewport-fix">
+  /* Keep the signup/login dialog above the sticky header and usable on short screens. */
+  #auth.modal-back{z-index:1200;max-width:none;max-height:none;width:auto;height:auto;overflow-y:auto;overscroll-behavior:contain;padding:16px;align-items:flex-start;justify-content:center}
+  #auth .modal{width:min(475px,100%);max-width:100%;max-height:calc(100dvh - 32px);margin:auto;overflow-y:auto;overscroll-behavior:contain;padding:26px clamp(18px,5vw,30px);scrollbar-gutter:stable}
+  #auth .role-chip{min-height:44px}
+  #auth .field input{min-height:46px}
+  #auth .password-toggle{min-height:44px;flex:0 0 auto}
+  #auth .submit{min-height:48px}
+  @media(max-height:760px){
+    #auth.modal-back{padding-block:8px}
+    #auth .modal{max-height:calc(100dvh - 16px);padding-block:18px}
+    #auth .modal-sub{margin-bottom:14px}
+    #auth .tabs{margin-bottom:12px}
+    #auth .roles{gap:6px;margin-bottom:10px}
+    #auth .role-chip{min-height:40px;padding-block:8px}
+    #auth .field{margin:8px 0}
+    #auth .field label{margin-bottom:4px}
+    #auth .field input{min-height:42px;padding-block:10px}
+    #auth .consent-field{margin:10px 0}
+    #auth .submit{margin-top:4px}
+  }
+  @media(max-width:600px){
+    #auth.modal-back{padding:8px}
+    #auth .modal{width:100%;max-height:calc(100dvh - 16px);padding:20px 16px max(20px,env(safe-area-inset-bottom))}
+    #auth .modal h2{font-size:24px}
+    #auth .roles{gap:6px}
+    #auth .role-chip{padding-inline:4px;font-size:11px}
+  }
+</style>
+<link rel="stylesheet" href="/site/design-system.css"><script defer src="/site/design-system.js"></script><style id="bmc-rebrand-overrides">.collabry-logo span,.brand-mark,.bar .logo,.nav .logo b,.mark{font-size:11px!important;letter-spacing:-.5px!important;color:#32885a!important}.brand-mark,.bar .logo,.nav .logo b,.mark{background:#dff1e7!important}</style></head>
 <body>
   <header class="collabry-nav"><a class="collabry-logo" href="index.html" aria-label="Brand Media Collab home"><span>BMC</span> Brand Media Collab</a><button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" aria-label="Open navigation"><span></span><span></span><span></span></button><nav class="site-nav" id="primary-navigation" aria-label="Main navigation"><a href="#how">How it works</a><a href="#community">Who it’s for</a></nav><div class="collabry-account"><a href="#auth" data-open="login">Log in</a><a class="button" href="#auth" data-open="signup">Join the network</a></div></header>
   <main id="top">
@@ -84,7 +146,7 @@
         <div class="trust"><div class="avatars"><span>B</span><span>C</span><span>M</span><span>P</span></div> One network for ideas, opportunities, and business growth</div>
       </div>
       <div class="visual" aria-label="Brand and creator partnership preview">
-        <div class="photo"><img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1000&q=85" alt="Creative professional ready to collaborate"><div class="image-caption">Make collaborations count.</div></div>
+        <div class="photo"><img src="images/brand-media-collab-hero.jpg" alt="Creative professional working at a laptop"><div class="image-caption">Make collaborations count.</div></div>
         <div class="tag">Better<br>work<br>together</div>
         <article class="float-card campaign"><div class="card-label">Partnership brief</div><h3>Stories with impact</h3><p>Food & lifestyle · Influencer campaign</p><div class="budget"><span>Project scope</span><b>Set by the brief</b></div></article>
         <article class="float-card match"><div class="match-top"><div class="avatar" style="display:grid;place-items:center">✦</div><div><strong>Creative match</strong><small>Creator · Food & lifestyle</small></div></div><p>Audience, creative style, and campaign goals aligned.</p><span class="pill">✳ &nbsp; Good-fit opportunity</span></article>
