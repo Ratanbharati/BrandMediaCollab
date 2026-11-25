@@ -72,3 +72,11 @@ No live database rows, production credentials, or hosted settings were changed a
 - Positioned unread count badges at the navigation icons, including compact mobile navigation.
 - Preserved the existing homepage style as the platform design reference.
 
+## 2026-11-25 — Website-wide hierarchy and naming follow-up
+
+- Added a pre-implementation audit and prioritized plan in `WEBSITE_UX_AUDIT_AND_IMPROVEMENT_PLAN_2026-11-25.md` based on the latest repository and a limited live desktop accessibility snapshot.
+- Unified internal page-title and section-title scales with responsive tokens; increased shared desktop button minimum height to 40px and used a single 1440px content-width token.
+- Removed conflicting display rules that hid headings and mobile Home information before later rules restored them.
+- Rebranded the noindex landing preview and included all nine profile-type examples.
+- Extended the source verifier and documented remaining viewport/backend test gaps. No API or database contract changed.
+
