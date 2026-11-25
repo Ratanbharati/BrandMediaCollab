@@ -52,3 +52,13 @@ No live database rows, production credentials, or hosted settings were changed a
 - Corrected mobile landing navigation so logo, menu, and Join now stay in one row; Log in is available from the expanded menu. The mobile hero is shorter and stacks cleanly, keeps the photo, and hides the decorative sticker/cards/avatar dots. CTA styling and hero copy match the updated design.
 - Rechecked shared static site tests, TypeScript, syntax, and production build. All passed.
 - Browser screenshot capture was unavailable in this environment (headless Edge returned no image; browser automation package is not installed), so visual viewport checks remain unverified.
+
+## 2026-11-25 — Mobile and laptop usability pass
+
+- Restored clear page headings and short supporting descriptions on Projects, Explore, Dashboard, Notifications, and the home feed.
+- Separated nine project-type tabs from the category, creator tier, platform, location, and collaborator filters; removed the extra injected project-type dropdown that duplicated/confused filter choices.
+- Improved the responsive content width and touch-friendly stacking of filters and project cards.
+- Kept the profile, navigation, activity, and social information panels available when scrolling the mobile home feed.
+- Restored the landing-page partnership brief and creative-match information cards, clearly labeled as examples rather than live user/project data.
+- Verified with pnpm test and pnpm build; no live Supabase account workflows were exercised in this visual/layout pass.
+
