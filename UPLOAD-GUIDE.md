@@ -1,17 +1,17 @@
-# Brand Media Collab final project package
+# Stagerang final project package
 
-This ZIP contains the active project source at the archive root (there is no extra wrapper folder). The production pages are served from `public/site`; Next.js API routes live in `app/api`.
+This ZIP contains the active project source with the correct folder structure. The production pages are served from `public/site`; Next.js API routes live in `app/api`.
 
 ## Safest upload method: GitHub Desktop
 
-1. Download and extract the ZIP. At the top level, check for `app`, `public`, `supabase`, `package.json`, `pnpm-lock.yaml`, and this guide. Do not upload the ZIP file itself or an enclosing `brand-media-collab` folder.
+1. Download and extract the ZIP. At the top level, check for `app`, `public`, `supabase`, `package.json`, `tsconfig.json`, and this guide. Do not upload the ZIP file itself.
 2. In GitHub Desktop, clone `Ratanbharati/BrandMediaCollab` on `main` if it is not already cloned. Choose **Repository → Show in Explorer** to open its local folder.
-3. Copy the extracted package contents into the cloned repository root, keeping all folders in place and replacing files when asked. Do not copy a `.git` folder. The admin API files must stay under `app/api/admin/`; never place `route.ts` files loose at the repository root.
+3. Copy the extracted package contents into the cloned repository folder, keeping all folders in place and replacing files when asked. Do not copy a `.git` folder. The admin API files must stay under `app/api/admin/`; never place `route.ts` files loose at the repository root.
 4. Remove the obsolete `brand-media-collab-supabase-ready` nested backup folder and old root-level duplicate page/API files from the clone. The current app uses `public/site/` for pages and `app/api/` for APIs.
-5. In GitHub Desktop, confirm the changed-file list includes `public/site/design-system.css` and other updated files. If GitHub says there are zero changed files, stop: the extracted files were not copied over the repository’s active files. Commit to `main`, click **Push origin**, and wait for Vercel’s newest Production deployment to show **Ready**.
-6. Open `https://www.brandmediacollab.com` and hard-refresh with **Ctrl+Shift+R**.
+5. In GitHub Desktop, review the changed-file list, commit to `main`, and click **Push origin**. Wait for Vercel’s newest Production deployment to show **Ready**.
+6. Open `https://www.stagerang.com` and hard-refresh with **Ctrl+Shift+R**.
 
-Avoid uploading files from different subfolders together into the repository root with GitHub’s web uploader. That flattens paths and creates duplicates such as `route (1).ts`, which can break the build. After push, open `public/site/design-system.css` on GitHub and confirm it contains the `nine role tabs wrap cleanly` rule before checking Vercel.
+Avoid uploading files from different subfolders together into the repository root with GitHub’s web uploader. That flattens paths and creates duplicates such as `route (1).ts`, which can break the build.
 
 ## Admin console setup
 

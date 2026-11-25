@@ -1,6 +1,4 @@
-# Brand Media Collab — End-to-End QA Report
-
-> **Superseded:** This report is the historical 2026-11-20 snapshot. The current source now includes all nine profile types. See [FINAL-WEBSITE-AUDIT-2026-11-22.md](FINAL-WEBSITE-AUDIT-2026-11-22.md) for the latest local test/build results and current verified/blocked statuses.
+# Stagerang — End-to-End QA Report
 
 Date: 2026-11-20
 
