@@ -7,6 +7,34 @@
   const isOrganization = (type) => organizationTypes.has(type);
   const csvValues = (selector) => ($(selector)?.value || "").split(",").map((value) => value.trim()).filter(Boolean);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function projectUiState(project, application) {
+    const rawStatus = String(project?.status || "").trim().toLowerCase();
+    const deadline = String(project?.application_deadline || "").slice(0, 10);
+    const match = deadline.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const today = new Date();
+    const deadlinePassed = Boolean(match && new Date(+match[1], +match[2] - 1, +match[3]) < new Date(today.getFullYear(), today.getMonth(), today.getDate()));
+    const closed = rawStatus !== "open" || deadlinePassed;
+    const applicationStatus = String(application?.status || "").toLowerCase();
+    const action = applicationStatus === "working_together" ? "chat"
+      : applicationStatus === "interested" ? "sent"
+      : applicationStatus === "rejected" ? "passed"
+      : closed ? "closed" : "apply";
+    const label = action === "chat" ? "Working together"
+      : action === "sent" ? "Interest sent"
+      : action === "passed" ? "Not selected"
+      : action === "closed" ? "Closed" : "Open opportunity";
+    return { closed, deadlinePassed, applicationStatus, action, label, statusLabel: action === "chat" || action === "sent" || action === "passed" ? label : closed ? "Closed" : "Open" };
+  }
+  window.bmcProjectUiState = projectUiState;
+  window.bmcOpenProjectConversation = async (projectId) => {
+    const supabase = await client();
+    const { data: conversationId, error } = await supabase.rpc("submit_project_interest", { p_project_id: projectId, p_message: null });
+    if (error) throw error;
+    if (!conversationId) throw new Error("Could not find the project conversation.");
+    const url = new URL("messages.html", location.href);
+    url.searchParams.set("conversation", conversationId);
+    location.assign(url.href);
+  };
   async function client() {
     if (!window.bmcSupabaseReady) throw new Error("Supabase setup script is missing.");
     const supabase = await window.bmcSupabaseReady;
@@ -42,37 +70,10 @@
   }
   function setNavBadge(link, className, total, label) {
     link.style.position = "relative"; let badge = link.querySelector("." + className);
-    if (!badge) { badge = document.createElement("span"); badge.className = className; badge.style.cssText = "position:absolute;top:-3px;right:0;min-width:15px;height:15px;padding:0 4px;border-radius:9px;background:#d73535;color:#fff;font:700 9px/15px Arial;text-align:center"; link.append(badge); }
+    if (!badge) { badge = document.createElement("span"); badge.className = className; badge.style.cssText = "position:absolute;top:2px;right:2px;z-index:2;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:#d73535;color:#fff;font:700 9px/16px Arial;text-align:center"; link.append(badge); }
     badge.textContent = total > 9 ? "9+" : String(total); badge.hidden = total === 0; badge.setAttribute("aria-label", label + ": " + total);
   }
   window.bmcRefreshMessageBadge = refreshMessageBadge;
-  async function getOrCreateProjectChat(supabase, projectId, otherId, user, firstMessage) {
-    const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
-    if (membershipError) throw membershipError;
-    const ids = (memberships || []).map((row) => row.conversation_id);
-    if (ids.length) {
-      const { data: chats, error } = await supabase.from("conversations").select("id,project_id").eq("project_id", projectId).in("id", ids);
-      if (error) throw error;
-      for (const chat of chats || []) {
-        const { data: members, error: membersError } = await supabase.from("conversation_members").select("user_id").eq("conversation_id", chat.id);
-        if (membersError) throw membersError;
-        if ((members || []).some((m) => m.user_id === user.id) && (members || []).some((m) => m.user_id === otherId)) {
-          if (firstMessage) {
-            const { error: messageError } = await supabase.from("messages").insert({ conversation_id: chat.id, sender_id: user.id, body: firstMessage });
-            if (messageError) throw messageError;
-          }
-          return chat.id;
-        }
-      }
-    }
-    const { data: chat, error: chatError } = await supabase.from("conversations").insert({ project_id: projectId, created_by: user.id, is_group: false }).select("id").single();
-    if (chatError) throw chatError;
-    const { error: addMembersError } = await supabase.from("conversation_members").insert([{ conversation_id: chat.id, user_id: user.id }, { conversation_id: chat.id, user_id: otherId }]);
-    if (addMembersError) throw addMembersError;
-    const { error: messageError } = await supabase.from("messages").insert({ conversation_id: chat.id, sender_id: user.id, body: firstMessage || "Hi, I’m interested in this project. Let’s discuss it here." });
-    if (messageError) throw messageError;
-    return chat.id;
-  }
   function interestDialog(projectName) {
     let dialog = document.querySelector("#bmc-interest-dialog");
     if (!dialog) {
@@ -94,22 +95,20 @@
       send.onclick = async () => {
         send.disabled = true;
         try {
-          const supabase = await client(); const user = await signedIn(supabase);
-          const { data: project, error: projectError } = await supabase.from("projects").select("id,owner_id,project_name").eq("id", projectId).single();
-          if (projectError) throw projectError;
-          if (project.owner_id === user.id) throw new Error("You can’t express interest in your own project.");
-          const { data: prior, error: priorError } = await supabase.from("applications").select("id,status").eq("project_id", projectId).eq("applicant_id", user.id).maybeSingle();
-          if (priorError) throw priorError;
-          const message = note.value.trim() || `Hi, I’m interested in “${project.project_name}”. Let’s discuss it here.`;
-          const save = prior
-            ? await supabase.from("applications").update({ status: prior.status === "withdrawn" ? "interested" : prior.status, message, updated_at: new Date().toISOString() }).eq("id", prior.id)
-            : await supabase.from("applications").insert({ project_id: projectId, applicant_id: user.id, status: "interested", message });
-          if (save.error) throw save.error;
-          const conversationId = await getOrCreateProjectChat(supabase, projectId, project.owner_id, user, message);
+          const supabase = await client();
+          await signedIn(supabase);
+          const { data: conversationId, error } = await supabase.rpc("submit_project_interest", {
+            p_project_id: projectId,
+            p_message: note.value.trim() || null,
+          });
+          if (error) throw error;
+          if (!conversationId) throw new Error("The project chat was not created. Please try again.");
           dialog.remove();
           if (button) { button.textContent = "Interest sent ✓"; button.disabled = true; }
-          toast("Interest sent. Your private project chat is ready in Messages.");
-          if (location.pathname.endsWith("/messages.html")) location.href = `messages.html?conversation=${encodeURIComponent(conversationId)}`;
+          const messagesUrl = new URL("messages.html", location.href);
+          messagesUrl.searchParams.set("conversation", conversationId);
+          messagesUrl.searchParams.set("interest", "sent");
+          location.assign(messagesUrl.href);
           resolve(true);
         } catch (error) { send.disabled = false; toast(error.message || "Could not send interest."); }
       };
@@ -251,7 +250,7 @@
         if (!data.session) {
           sessionStorage.removeItem("bmc_signup_type");
           sessionStorage.removeItem("bmc_signup_name");
-          toast("If this address can be registered, a confirmation email will arrive shortly. Confirm it to continue setting up your profile.");
+          toast("Email confirmation is still enabled in Supabase. To allow signup without a confirmation email, disable Confirm email for the Email provider in your Supabase Auth settings, then try again.");
           return;
         }
         const user = data.user;
@@ -946,6 +945,9 @@
     }
     const { data: projects, error } = await supabase.from("projects").select("*").eq("status", "Open").order("created_at", { ascending: false });
     if (error) throw error;
+    const { data: ownApplications, error: applicationsError } = await supabase.from("applications").select("project_id,status").eq("applicant_id", user.id);
+    if (applicationsError) throw applicationsError;
+    const applicationByProject = Object.fromEntries((ownApplications || []).map((application) => [application.project_id, application]));
     const ownerIds = [...new Set(projects.map((p) => p.owner_id))];
     let owners = [];
     if (ownerIds.length) {
@@ -992,12 +994,21 @@
       const kind = kindOf(p);
       const type = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment" })[kind];
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
-      const canApply = user.id !== p.owner_id;
-      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions"><button class="btn view-project-details" type="button">View details</button>${canApply ? `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button><button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
+      const own = user.id === p.owner_id, app = applicationByProject[p.id], state = projectUiState(p, app);
+      const action = own ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`
+        : state.action === "apply" ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>`
+        : state.action === "chat" ? `<button class="btn interested" data-open-chat="${esc(p.id)}">Open chat ↗</button>`
+        : `<button class="btn interested" type="button" disabled>${state.action === "sent" ? "Interest sent ✓" : state.action === "passed" ? "Not selected" : "Closed"}</button>`;
+      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(state.statusLabel)}</span></div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${own ? "Your project" : state.label}</span><div class="actions"><button class="btn view-project-details" type="button">View details</button>${own ? "" : `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button>`}${action}</div></div></article>`;
     }).join("");
     live.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
       const card = button.closest(".post");
       submitInterest(button.dataset.apply, card?.querySelector(".project-title")?.textContent || "Project", button).catch((error) => toast(error.message));
+    }));
+    live.querySelectorAll("[data-open-chat]").forEach((button) => button.addEventListener("click", async () => {
+      button.disabled = true;
+      try { await window.bmcOpenProjectConversation(button.dataset.openChat); }
+      catch (error) { button.disabled = false; toast(error.message || "Could not open the project conversation."); }
     }));
     live.querySelectorAll("[data-save-project]").forEach((button) => button.addEventListener("click", async () => {
       const id = button.dataset.saveProject; button.disabled = true;
@@ -1020,6 +1031,8 @@
       const save = card.querySelector("[data-save-project]"); const apply = card.querySelector("[data-apply]"); const edit = card.querySelector('a[href^="project-form.html"]');
       if (save) { const saveCopy = save.cloneNode(true); saveCopy.addEventListener("click", () => { save.click(); dialog.close(); }); actions.append(saveCopy); }
       if (apply) { const applyCopy = apply.cloneNode(true); applyCopy.addEventListener("click", () => { dialog.close(); apply.click(); }); actions.append(applyCopy); }
+      const openChat = card.querySelector("[data-open-chat]");
+      if (openChat) { const chatCopy = openChat.cloneNode(true); chatCopy.addEventListener("click", () => { dialog.close(); openChat.click(); }); actions.append(chatCopy); }
       if (edit) { const editCopy = edit.cloneNode(true); editCopy.textContent = "Edit project"; actions.append(editCopy); }
       sheet.append(actions); dialog.append(sheet); document.body.append(dialog); dialog.showModal(); close.addEventListener("click", () => dialog.close()); dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); }); dialog.addEventListener("close", () => dialog.remove());
     }));

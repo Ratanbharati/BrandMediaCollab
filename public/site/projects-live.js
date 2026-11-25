@@ -39,6 +39,10 @@
     if (["brand_campaign", "brand", "campaign"].includes(type)) return owner === "agency" ? "agency" : "brand";
     return owner || "brand";
   }
+  function projectState(project) {
+    const application = applications.find((item) => item.project_id === project.id);
+    return window.bmcProjectUiState ? window.bmcProjectUiState(project, application) : { closed: String(project.status).toLowerCase() !== "open", action: application?.status === "working_together" ? "chat" : application?.status === "interested" ? "sent" : "apply", label: application?.status === "working_together" ? "Working together" : application?.status === "interested" ? "Interest sent" : "Open opportunity", statusLabel: String(project.status || "Open") };
+  }
   function filterValues(projects, field) {
     const values = new Set();
     projects.forEach((project) => {
@@ -149,22 +153,31 @@
     const owner = profilesById[project.owner_id] || {};
     const name = owner.display_name || owner.company_name || "Brand Media Collab member";
     const kind = projectKind(project), label = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment", brand: "Brand project" })[kind];
-    const applied = applications.some((item) => item.project_id === project.id && item.status !== "withdrawn");
+    const state = projectState(project);
     const isSaved = saved.has(project.id), own = project.owner_id === user.id;
     const card = document.createElement("article"); card.className = "panel project item"; card.dataset.projectId = project.id;
     const budgetRows = Array.isArray(project.budget_by_deliverable) ? project.budget_by_deliverable : [];
     const budgets = budgetRows.map((item) => `<span class="chip">${esc(item.deliverable || "Deliverable")}${item.amount_range ? ` · ${esc(item.amount_range)}` : ""}</span>`).join("");
-    card.innerHTML = `<div class="project-top"><div class="logo">${esc(name.slice(0, 2).toUpperCase())}</div><div class="meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(name)}</a></b><span>${label} · ${esc(project.location || "Remote")}</span></div><span class="badge">${esc(String(project.status || "Open"))}</span></div><button class="project-card-title" type="button" data-details="${esc(project.id)}">${esc(project.project_name)}</button><p>${esc(project.requirements)}</p><div class="chips"><span class="chip">${esc(project.category || "Other")}</span>${(project.platforms || []).map((item) => `<span class="chip">${esc(item)}</span>`).join("")}${(project.creator_tiers || []).map((item) => `<span class="chip">${esc(item)} creator</span>`).join("")}${budgets}</div><div class="chips"><span class="chip">Apply by ${esc(formatDate(project.application_deadline))}</span><span class="chip">Delivery ${esc(formatDate(project.delivery_date))}</span></div><div class="bottom"><small>${own ? "Your project" : applied ? "Interest already sent" : "Open opportunity"}</small><div class="actions">${own ? `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit</a>` : `<button class="btn save ${isSaved ? "active" : ""}" type="button" data-save="${esc(project.id)}" aria-pressed="${isSaved}">${isSaved ? "♥ Saved" : "♡ Save"}</button><button class="btn" type="button" data-details="${esc(project.id)}">View details</button><button class="btn" type="button" data-apply="${esc(project.id)}" data-project-name="${esc(project.project_name)}" ${applied ? "disabled" : ""}>${applied ? "Interest sent ✓" : "Interested ↗"}</button><button class="btn" type="button" data-share="${esc(project.id)}">Share</button>`}</div></div>`;
+    const primaryAction = own ? `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit</a>`
+      : state.action === "apply" ? `<button class="btn" type="button" data-apply="${esc(project.id)}" data-project-name="${esc(project.project_name)}">Interested ↗</button>`
+      : state.action === "chat" ? `<button class="btn" type="button" data-open-chat="${esc(project.id)}">Open chat ↗</button>`
+      : `<button class="btn" type="button" disabled>${state.action === "sent" ? "Interest sent ✓" : state.action === "passed" ? "Not selected" : "Closed"}</button>`;
+    card.innerHTML = `<div class="project-top"><div class="logo">${esc(name.slice(0, 2).toUpperCase())}</div><div class="meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(name)}</a></b><span>${label} · ${esc(project.location || "Remote")}</span></div><span class="badge">${esc(state.statusLabel)}</span></div><button class="project-card-title" type="button" data-details="${esc(project.id)}">${esc(project.project_name)}</button><p>${esc(project.requirements)}</p><div class="chips"><span class="chip">${esc(project.category || "Other")}</span>${(project.platforms || []).map((item) => `<span class="chip">${esc(item)}</span>`).join("")}${(project.creator_tiers || []).map((item) => `<span class="chip">${esc(item)} creator</span>`).join("")}${budgets}</div><div class="chips"><span class="chip">Apply by ${esc(formatDate(project.application_deadline))}</span><span class="chip">Delivery ${esc(formatDate(project.delivery_date))}</span></div><div class="bottom"><small>${own ? "Your project" : state.label}</small><div class="actions">${own ? "" : `<button class="btn save ${isSaved ? "active" : ""}" type="button" data-save="${esc(project.id)}" aria-pressed="${isSaved}">${isSaved ? "♥ Saved" : "♡ Save"}</button><button class="btn" type="button" data-details="${esc(project.id)}">View details</button>${primaryAction}<button class="btn" type="button" data-share="${esc(project.id)}">Share</button>`}${own ? primaryAction : ""}</div></div>`;
     if (!own) { const report = document.createElement("button"); report.type = "button"; report.className = "btn"; report.textContent = "Report"; report.onclick = async () => { report.disabled = true; try { await reportProject(project.id); } catch (error) { toast(error.message || "Could not submit this report."); } finally { report.disabled = false; } }; card.querySelector(".actions")?.append(report); }
     return card;
   }
   function openDetails(projectId) {
     const project = projects.find((item) => item.id === projectId); if (!project) return;
     const owner = profilesById[project.owner_id] || {}, kind = projectKind(project);
+    const state = projectState(project);
     const dialog = document.createElement("dialog"); dialog.className = "project-details-dialog";
     const budget = Array.isArray(project.budget_by_deliverable) ? project.budget_by_deliverable : [];
     const budgetMarkup = budget.length ? `<section><h3>Budget & deliverables</h3>${budget.map((item) => `<p><strong>${esc(item.deliverable || "Deliverable")}</strong>${item.amount_range ? ` · ${esc(item.amount_range)}` : ""}</p>`).join("")}</section>` : "";
-    dialog.innerHTML = `<article class="project-details-sheet"><button class="details-close" type="button" aria-label="Close project details">×</button><span class="badge">${({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment", brand: "Brand project" })[kind]}</span><h2>${esc(project.project_name)}</h2><p class="details-owner"><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(owner.display_name || owner.company_name || "Brand Media Collab member")}</a> · ${esc(project.location || "Remote")}</p><p>${esc(project.requirements)}</p>${budgetMarkup}<section><h3>Eligibility</h3><p>${esc((project.target_profile_types || project.creator_tiers || []).join(", ") || "Open to collaborators")}${project.platforms?.length ? ` · ${esc(project.platforms.join(", "))}` : ""}${project.required_skills?.length ? ` · Skills: ${esc(project.required_skills.join(", "))}` : ""}</p></section><section><h3>Timeline</h3><p>Applications close ${esc(formatDate(project.application_deadline))}; delivery ${esc(formatDate(project.delivery_date))}.</p></section>${project.usage_permissions ? `<section><h3>Usage permissions</h3><p>${esc(project.usage_permissions)}</p></section>` : ""}${project.reshare_permissions ? `<section><h3>Reshare permissions</h3><p>${esc(project.reshare_permissions)}</p></section>` : ""}<div class="details-actions"><a class="btn" href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">View profile</a>${project.owner_id !== user.id ? `<button class="btn" type="button" data-detail-apply="${esc(project.id)}">Express interest</button>` : `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit project</a>`}</div></article>`;
+    const detailAction = project.owner_id === user.id ? `<a class="btn" href="/site/project-form.html?id=${encodeURIComponent(project.id)}">Edit project</a>`
+      : state.action === "apply" ? `<button class="btn" type="button" data-detail-apply="${esc(project.id)}">Express interest</button>`
+      : state.action === "chat" ? `<button class="btn" type="button" data-detail-chat="${esc(project.id)}">Open project chat</button>`
+      : `<button class="btn" type="button" disabled>${state.action === "sent" ? "Interest sent" : state.action === "passed" ? "Not selected" : "Closed"}</button>`;
+    dialog.innerHTML = `<article class="project-details-sheet"><button class="details-close" type="button" aria-label="Close project details">×</button><span class="badge">${({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment", brand: "Brand project" })[kind]}</span><h2>${esc(project.project_name)}</h2><p class="details-owner"><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(owner.display_name || owner.company_name || "Brand Media Collab member")}</a> · ${esc(project.location || "Remote")}</p><p>${esc(project.requirements)}</p>${budgetMarkup}<section><h3>Eligibility</h3><p>${esc((project.target_profile_types || project.creator_tiers || []).join(", ") || "Open to collaborators")}${project.platforms?.length ? ` · ${esc(project.platforms.join(", "))}` : ""}${project.required_skills?.length ? ` · Skills: ${esc(project.required_skills.join(", "))}` : ""}</p></section><section><h3>Timeline</h3><p>Applications close ${esc(formatDate(project.application_deadline))}; delivery ${esc(formatDate(project.delivery_date))}.</p></section>${project.usage_permissions ? `<section><h3>Usage permissions</h3><p>${esc(project.usage_permissions)}</p></section>` : ""}${project.reshare_permissions ? `<section><h3>Reshare permissions</h3><p>${esc(project.reshare_permissions)}</p></section>` : ""}<div class="details-actions"><a class="btn" href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">View profile</a>${detailAction}</div></article>`;
     document.body.append(dialog); dialog.showModal();
     $(".details-close", dialog).addEventListener("click", () => dialog.close());
     dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
@@ -174,6 +187,11 @@
       try { const sent = await window.bmcSubmitInterest(project.id, project.project_name, button); if (sent) { await load(); dialog.close(); } }
       catch (error) { toast(error.message || "Could not send interest."); }
       finally { if (button.isConnected) button.disabled = false; }
+    });
+    $("[data-detail-chat]", dialog)?.addEventListener("click", async (event) => {
+      const button = event.currentTarget; button.disabled = true;
+      try { await window.bmcOpenProjectConversation(project.id); }
+      catch (error) { button.disabled = false; toast(error.message || "Could not open the project conversation."); }
     });
   }
   async function load() {
@@ -190,15 +208,18 @@
         db.from("projects").select("id", { count: "exact", head: true }).eq("owner_id", user.id),
       ]);
       if (postsResult.error) throw postsResult.error;
+      if (appsResult.error) throw appsResult.error;
+      if (savedResult.error) throw savedResult.error;
       projects = postsResult.data || [];
-      applications = appsResult.error ? [] : appsResult.data || [];
-      saved = new Set(savedResult.error ? [] : (savedResult.data || []).map((row) => row.project_id));
+      applications = appsResult.data || [];
+      saved = new Set((savedResult.data || []).map((row) => row.project_id));
       counts.owned = ownedResult.error ? projects.filter((project) => project.owner_id === user.id).length : ownedResult.count || 0;
       counts.applications = new Set(applications.filter((item) => item.status !== "withdrawn").map((item) => item.project_id)).size;
       counts.saved = saved.size;
 
       const owners = [...new Set(projects.map((project) => project.owner_id))];
       const profileResult = owners.length ? await db.from("profiles").select("id,display_name,company_name,account_type").in("id", owners) : { data: [], error: null };
+      if (profileResult.error) throw profileResult.error;
       profilesById = Object.fromEntries((profileResult.data || []).map((profile) => [profile.id, profile]));
       const discoverable = projects.filter((project) => String(project.status).toLowerCase() === "open" && project.owner_id !== user.id);
       counts.brands = discoverable.filter((project) => projectKind(project) === "brand").length;
@@ -218,7 +239,6 @@
       setCount("community", counts.communities); setCount("distributor", counts.distributors); setCount("freelancer", counts.freelancers);
       renderFilterChoices();
       document.body.classList.add("bmc-projects-ready");
-      if (appsResult.error || savedResult.error || profileResult.error) toast("Some activity details could not load. Project listings are still available.");
       renderFilters();
     } finally {
       loadInFlight = false;
@@ -263,7 +283,7 @@
     $("#clear")?.addEventListener("click", () => { ["q", "skill", "language", "cat", "tier", "platform", "location", "target-type"].forEach((id) => { const input = $("#" + id); if (input) input.value = ["q", "skill", "language"].includes(id) ? "" : "all"; }); renderFilters(); });
     host.addEventListener("click", async (event) => {
       const target = event.target.closest("button"); if (!target) return;
-      const project = projects.find((item) => item.id === target.dataset.save || item.id === target.dataset.apply || item.id === target.dataset.details || item.id === target.dataset.share);
+      const project = projects.find((item) => item.id === target.dataset.save || item.id === target.dataset.apply || item.id === target.dataset.details || item.id === target.dataset.share || item.id === target.dataset.openChat);
       if (target.dataset.details) return openDetails(target.dataset.details);
       if (target.dataset.share && project) {
         const url = new URL(`/site/projects.html?kind=${projectKind(project)}&project=${encodeURIComponent(project.id)}`, location.origin).href;
@@ -286,6 +306,11 @@
           if (sent) { await load(); }
         } catch (error) { toast(error.message || "Could not send interest."); }
         finally { if (target.isConnected) target.disabled = false; }
+      }
+      if (target.dataset.openChat && project) {
+        target.disabled = true;
+        try { await window.bmcOpenProjectConversation(project.id); }
+        catch (error) { target.disabled = false; toast(error.message || "Could not open the project conversation."); }
       }
     });
   }

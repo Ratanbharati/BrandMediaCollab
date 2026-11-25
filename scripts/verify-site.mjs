@@ -99,7 +99,12 @@ if (/table:\s*["']notifications["']|renderNotifications|notification-list|activi
 if (!dashboardLive.includes('table: "projects"') || !dashboardLive.includes('table: "applications"') || !dashboardLive.includes('table: "messages"')) errors.push("Dashboard: project/application/message Realtime refresh is incomplete");
 if (/localStorage|data-row|A little joy, in every bite|Send project update/.test(dashboard)) errors.push("Dashboard: hardcoded demo activity or fake action UI remains");
 if (/localStorage|bmc_projects/.test(myProjects) || !app.includes('if (path.endsWith("/my-projects.html")) loadMyProjects()')) errors.push("My projects: browser-only demo persistence or missing Supabase renderer remains");
-if (!applicationsPage.includes('app.status === "working_together"') || !applicationsPage.includes("Private project chat opens after the project owner accepts")) errors.push("Applications: project chat is not restricted to accepted collaborations");
+if (!applicationsPage.includes('["interested", "working_together"].includes(app.status)') || !applicationsPage.includes('supabase.rpc("submit_project_interest"')) errors.push("Applications: active project interests do not open their persisted conversation");
+if (!app.includes('messagesUrl.searchParams.set("conversation", conversationId)') || !app.includes('messagesUrl.searchParams.set("interest", "sent")')) errors.push("Project interest: successful send does not close the dialog and route to its conversation");
+const interestChatMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261123150000_interest_opens_project_chat.sql"), "utf8");
+if (!interestChatMigration.includes("submit_project_interest") || !interestChatMigration.includes("a.status in ('interested', 'working_together')")) errors.push("Project chat: Supabase migration does not authorize active-interest conversations");
+if (!dashboardLive.includes('app.status !== "working_together"') && !dashboardLive.includes('["interested", "working_together"].includes(app.status)')) errors.push("Dashboard: project chat actions are missing active-interest state handling");
+if (!messagesLive.includes('.in("status", ["interested", "working_together"])') || !messagesLive.includes('Project conversations')) errors.push("Messages: active interests are not available as project conversations");
 if (!messagesLive.includes("notificationReadError")) errors.push("Messages: notification read-update failures are silently ignored");
 const integrityMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261120120000_phase5_application_integrity.sql"), "utf8");
 const profileRealtimeMigrationPath = path.join(root, "supabase", "migrations", "20261119001000_enable_profile_discovery_realtime.sql");

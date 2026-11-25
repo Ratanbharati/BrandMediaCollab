@@ -104,6 +104,35 @@
 <style>
   .password-row{display:flex;align-items:center;gap:8px}.password-row input{min-width:0;flex:1}.password-toggle{border:1px solid var(--line);border-radius:9px;background:#fff;padding:10px 12px;color:#405d32;font:700 12px 'DM Sans',sans-serif}.consent-field{display:flex;align-items:flex-start;gap:9px;margin:15px 0;color:#667168;font-size:11px;line-height:1.5}.consent-field input{flex:0 0 auto;width:16px;height:16px;margin:1px 0 0;accent-color:#35573b}.auth-privacy-note{line-height:1.5}.confirm-field[hidden],.consent-field[hidden],.auth-privacy-note[hidden]{display:none}
 </style>
+<style id="auth-dialog-viewport-fix">
+  /* Keep the signup/login dialog above the sticky header and usable on short screens. */
+  #auth.modal-back{z-index:1200;max-width:none;max-height:none;width:auto;height:auto;overflow-y:auto;overscroll-behavior:contain;padding:16px;align-items:flex-start;justify-content:center}
+  #auth .modal{width:min(475px,100%);max-width:100%;max-height:calc(100dvh - 32px);margin:auto;overflow-y:auto;overscroll-behavior:contain;padding:26px clamp(18px,5vw,30px);scrollbar-gutter:stable}
+  #auth .role-chip{min-height:44px}
+  #auth .field input{min-height:46px}
+  #auth .password-toggle{min-height:44px;flex:0 0 auto}
+  #auth .submit{min-height:48px}
+  @media(max-height:760px){
+    #auth.modal-back{padding-block:8px}
+    #auth .modal{max-height:calc(100dvh - 16px);padding-block:18px}
+    #auth .modal-sub{margin-bottom:14px}
+    #auth .tabs{margin-bottom:12px}
+    #auth .roles{gap:6px;margin-bottom:10px}
+    #auth .role-chip{min-height:40px;padding-block:8px}
+    #auth .field{margin:8px 0}
+    #auth .field label{margin-bottom:4px}
+    #auth .field input{min-height:42px;padding-block:10px}
+    #auth .consent-field{margin:10px 0}
+    #auth .submit{margin-top:4px}
+  }
+  @media(max-width:600px){
+    #auth.modal-back{padding:8px}
+    #auth .modal{width:100%;max-height:calc(100dvh - 16px);padding:20px 16px max(20px,env(safe-area-inset-bottom))}
+    #auth .modal h2{font-size:24px}
+    #auth .roles{gap:6px}
+    #auth .role-chip{padding-inline:4px;font-size:11px}
+  }
+</style>
 <link rel="stylesheet" href="/site/design-system.css"><script defer src="/site/design-system.js"></script><style id="bmc-rebrand-overrides">.collabry-logo span,.brand-mark,.bar .logo,.nav .logo b,.mark{font-size:11px!important;letter-spacing:-.5px!important;color:#32885a!important}.brand-mark,.bar .logo,.nav .logo b,.mark{background:#dff1e7!important}</style></head>
 <body>
   <header class="collabry-nav"><a class="collabry-logo" href="index.html" aria-label="Brand Media Collab home"><span>BMC</span> Brand Media Collab</a><button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" aria-label="Open navigation"><span></span><span></span><span></span></button><nav class="site-nav" id="primary-navigation" aria-label="Main navigation"><a href="#how">How it works</a><a href="#community">Who it’s for</a></nav><div class="collabry-account"><a href="#auth" data-open="login">Log in</a><a class="button" href="#auth" data-open="signup">Join the network</a></div></header>
