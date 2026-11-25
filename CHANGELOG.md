@@ -62,3 +62,13 @@ No live database rows, production credentials, or hosted settings were changed a
 - Restored the landing-page partnership brief and creative-match information cards, clearly labeled as examples rather than live user/project data.
 - Verified with pnpm test and pnpm build; no live Supabase account workflows were exercised in this visual/layout pass.
 
+
+## 2026-11-25 — PDF-driven UX corrections
+
+- Removed the redundant Working together badge and card label from the Home feed and Discover Projects card presentations only. Chat actions and real collaboration status records remain intact.
+- Replaced project-type tabs with one accessible nine-type dropdown backed by the existing project filter state; Clear now resets type and all filters.
+- Added an explicit Search action to Explore while preserving live results and filters; mobile profile cards and filter inputs use a single-column, touch-friendly layout.
+- Aligned the Dashboard date-range and Post a project controls on desktop, with a compact two-column mobile arrangement.
+- Positioned unread count badges at the navigation icons, including compact mobile navigation.
+- Preserved the existing homepage style as the platform design reference.
+
