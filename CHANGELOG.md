@@ -34,3 +34,14 @@ No live database rows, production credentials, or hosted settings were changed a
 - Added static checks for the internal app shell and search handoff.
 - Validation: changed JS syntax checks passed; `pnpm test` passed; `pnpm build` passed after creating a missing generated `.next` output directory that Windows had denied on the first attempt.
 - No database/API schema changes. No browser screenshots, live Supabase tests, or full page-by-page UI rebuild were completed; remaining work is documented in `PROJECT_AUDIT_REPORT.md`.
+
+## 2026-11-25 — Round 3 category selector and dialog consistency
+
+- Added one canonical nine-role configuration and an accessible reusable CategorySelect. The same selector now replaces visible role tabs/chips on Home, Projects, Explore, Messages, Dashboard and signup. The project form also uses it for the project type field.
+- Keyboard support includes opening the list, Up/Down, Home/End, Enter/Space, Escape and label type-ahead. Mobile selector opens as a bottom sheet. Selections are written to `?category=` and restored on browser back/forward and refresh.
+- Dashboard category selection shows one account-type report at a time. The separate sent-applications report remains as a distinct workflow table; the underlying account-type report sections are still rendered but hidden as needed.
+- Updated auth dialog dimensions, typography and inner scrolling; converted password visibility controls to inline text toggles. Kept confirmation-password validation and consent acknowledgement because they are part of the existing signup flow. Kept the Terms/Privacy unpublished notice, as required until real reviewed documents exist.
+- Landing hero copy was shortened; added a filled Join now action with See how it works as the secondary text link. Removed decorative floating opportunity cards, sticker and avatar dots while retaining the existing hero photograph.
+- No database, SQL, API or authentication contract changes.
+
+**Verification performed:** `pnpm test` passed (site verifier and TypeScript). `pnpm build` passed on Next.js 15.5.29. Static checks now cover CategorySelect keyboard/URL/mobile behavior and the landing hero CTA. No browser screenshots at the requested viewport matrix, screen-reader audit, contrast measurements, or live Supabase end-to-end tests were run; those remain unverified. The dashboard remains a set of role-specific report sections with one selected section visible, not a single normalized backend table.

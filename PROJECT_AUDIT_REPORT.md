@@ -89,3 +89,11 @@ Implemented in the shared static-site shell:
 **Still incomplete / not verified:** This is a focused shared-shell implementation, not the full page-by-page redesign in the prompt. Existing Home, Projects, Explore, Dashboard, Messages, Notifications, signup, profile and admin layouts retain legacy page-specific markup and styles. The progressive three-step signup, project/person card unification, dashboard table redesign, message two-pane changes, date standardization, and zero-count More controls are not completed. No rendered screenshots at 1440/1280/1024/768/390px, keyboard walkthrough, contrast measurement, or live Supabase/browser E2E check was produced in this environment. Do not treat this as complete visual QA or production certification.
 
 **Verification performed:** `node --check` passed for the changed JavaScript files; `pnpm test` passed (static verifier and TypeScript); `pnpm build` passed on Next.js 15.5.29. On the first build attempt Windows denied creation of a generated `.next` output directory; after creating that missing build-output directory, the sequential production build completed. Live service behavior remains unverified.
+
+## Round 3 dropdown/dialog consistency — 25 November 2026
+
+**Implemented:** shared category selector across the listed pages and project form; URL-backed selection; keyboard navigation/type-ahead; mobile bottom sheet; one visible role-specific dashboard report; tighter auth dialog styling; inline password toggles; reduced landing hero copy/decorations and CTA count. Static verifier extended for the selector and hero CTA. No database/API changes.
+
+**Automated results:** `pnpm test` passed (site verifier and TypeScript). `pnpm build` passed (Next.js 15.5.29).
+
+**Not verified:** Requested 1440/1280/1024/768/390 screenshots, browser interaction walk-through, keyboard screen-reader testing, AA contrast measurements, and hosted Supabase workflows. The dashboard still has separate role-specific report sections in the DOM, toggled to display one at a time, plus the distinct applications-sent report. Signup confirmation-password validation and the legal-document notice were retained. This is a focused Round 3 pass, not a complete implementation of every item in the brief.
