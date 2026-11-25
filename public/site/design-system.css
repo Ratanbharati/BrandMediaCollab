@@ -540,3 +540,31 @@ body.sr-explore-page .profile-actions :is(button, a) { min-height: 40px; font-si
   body.sr-explore-page .clear-button { width: 100%; }
 }
 
+
+/* Follow-up fixes: consistent bell, dependable project type filter, and LinkedIn-style discovery cards. */
+body.sr-projects-page .project-type-filter { display: grid; gap: 5px; width: min(100%, 320px); margin: 0 0 14px; color: #58655c; font: 500 12px/16px var(--sr-font-body); }
+body.sr-projects-page .project-type-filter select { width: 100%; min-height: 44px; padding: 0 38px 0 14px; border: 1px solid var(--sr-line); border-radius: 8px; background: #fff; color: var(--sr-ink); font: 500 14px/20px var(--sr-font-body); }
+body.sr-projects-page .project-type-filter select:focus-visible { outline: 3px solid rgb(105 153 69 / 28%); outline-offset: 2px; }
+body.sr-explore-page .intro h1 { font-size: clamp(24px, 3vw, 38px) !important; letter-spacing: -1px !important; white-space: nowrap; }
+body.sr-explore-page .profile-card { overflow: hidden; }
+body.sr-explore-page .profile-cover { height: 100px; justify-content: center; padding-inline: 0; }
+body.sr-explore-page .profile-avatar { width: 82px; height: 82px; flex: 0 0 82px; transform: translateY(48%); border: 4px solid #fffefa; border-radius: 50%; background: #e7e3dc; color: #687f91; font: 600 30px/1 var(--sr-font-body); box-shadow: none; }
+body.sr-explore-page .profile-content { padding: 48px 16px 8px; text-align: center; }
+body.sr-explore-page .profile-title-row { justify-content: center; flex-wrap: wrap; }
+body.sr-explore-page .profile-title-row h3 { font-size: 17px !important; line-height: 23px !important; }
+body.sr-explore-page .profile-kind { margin-top: 4px; color: #68736b; font-size: 13px !important; line-height: 18px !important; }
+body.sr-explore-page .profile-description { min-height: 44px; margin: 8px 0; font-size: 12px !important; }
+body.sr-explore-page .profile-place, body.sr-explore-page .profile-content .tags { justify-content: center; }
+body.sr-explore-page .profile-actions { padding: 12px 16px 16px; }
+body.sr-explore-page .profile-actions .connect-action, body.sr-explore-page .profile-actions .message-action { flex: 1 1 auto; min-height: 40px; height: auto; font-size: 13px !important; }
+@media (min-width: 1200px) {
+  body.sr-explore-page .profile-grid, body.sr-explore-page .loading-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  body.sr-projects-page .project-type-filter { width: 100%; }
+  body.sr-explore-page .intro h1 { font-size: clamp(20px, 5.8vw, 25px) !important; letter-spacing: -.4px !important; }
+  body.sr-explore-page .profile-grid, body.sr-explore-page .loading-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  body.sr-explore-page .profile-cover { height: 110px; }
+  body.sr-explore-page .profile-avatar { width: 88px; height: 88px; flex-basis: 88px; }
+  body.sr-explore-page .profile-content { padding-top: 52px; }
+}

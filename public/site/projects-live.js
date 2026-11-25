@@ -121,6 +121,8 @@
   function setKind(kind) {
     if (kind !== "all" && !projectKinds.includes(kind)) return;
     activeKind = kind;
+    const typeFilter = $("#project-type-filter");
+    if (typeFilter) typeFilter.value = kind;
     document.querySelector('.bmc-category-select[data-category-select="projects"]')?.bmcSetCategory(kind);
     document.querySelectorAll(".segmented [data-kind]").forEach((button) => {
       const active = button.dataset.kind === kind;

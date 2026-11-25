@@ -87,6 +87,15 @@
     const params = new URLSearchParams(location.search);
     const legacy = categories.some((item) => item.id === params.get("category")) ? params.get("category") : "all";
     const selected = params.get("kind") || legacy;
+    const nativeSelect = page.querySelector("#project-type-filter");
+    if (nativeSelect) {
+      nativeSelect.value = categories.some((item) => item.id === selected) || selected === "all" ? selected : "all";
+      if (!nativeSelect.dataset.categorySelectBound) {
+        nativeSelect.addEventListener("change", () => window.bmcSetProjectKind?.(nativeSelect.value));
+        nativeSelect.dataset.categorySelectBound = "true";
+      }
+      return;
+    }
     const options = [{ id: "all", label: "All project types", shortLabel: "All project types" }, ...categories.map((item) => ({ id: item.id, label: item.projectLabel }))];
     const controls = [...page.querySelectorAll('.bmc-category-select[data-category-select="projects"]')];
     let instance = controls.shift();

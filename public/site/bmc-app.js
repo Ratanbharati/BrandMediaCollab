@@ -205,7 +205,7 @@
     const nav = document.querySelector(".collabry-nav nav");
     if (nav && !nav.querySelector("a[data-notifications-link]")) {
       const link = document.createElement("a"); link.href = "notifications.html"; link.dataset.notificationsLink = "true"; link.setAttribute("aria-label", "Notifications");
-      link.innerHTML = "<span>♧</span><small>Notifications</small>";
+      link.innerHTML = '<span class="sr-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></span><small>Notifications</small>';
       if (location.pathname.endsWith("/notifications.html")) { link.classList.add("active"); link.setAttribute("aria-current", "page"); }
       const messages = nav.querySelector('a[href$="messages.html"]'); if (messages) messages.after(link); else nav.append(link);
     }
