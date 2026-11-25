@@ -97,3 +97,11 @@ Implemented in the shared static-site shell:
 **Automated results:** `pnpm test` passed (site verifier and TypeScript). `pnpm build` passed (Next.js 15.5.29).
 
 **Not verified:** Requested 1440/1280/1024/768/390 screenshots, browser interaction walk-through, keyboard screen-reader testing, AA contrast measurements, and hosted Supabase workflows. The dashboard still has separate role-specific report sections in the DOM, toggled to display one at a time, plus the distinct applications-sent report. Signup confirmation-password validation and the legal-document notice were retained. This is a focused Round 3 pass, not a complete implementation of every item in the brief.
+
+## Mobile and category selector regression fix — 25 November 2026
+
+The user supplied screenshots showing a vertically expanded mobile landing header/hero and dozens of duplicate Category selectors on Projects. Root cause for Projects: the selector was inserted under `.projects-content` and moved into `.filter-row`, while subsequent MutationObserver setup looked only for a direct child under `.projects-content`. Each pass therefore made another selector. Lookup now searches the whole Projects page subtree and reuses the same instance.
+
+Mobile landing styles now keep the brand, menu, and Join now action on a single row; Log in is available in the opened mobile menu. Hero content is shorter and single-column, its CTAs align with the updated intended design, and decorative overlaid cards/dots remain removed. The requested screen sizes could not be verified with screenshots: headless Edge did not produce an image and browser automation dependencies are unavailable. No live hosted workflow was tested.
+
+Automated checks: `pnpm test` passed; JS syntax checks passed; `pnpm build` passed with Next.js 15.5.29.

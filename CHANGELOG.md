@@ -45,3 +45,10 @@ No live database rows, production credentials, or hosted settings were changed a
 - No database, SQL, API or authentication contract changes.
 
 **Verification performed:** `pnpm test` passed (site verifier and TypeScript). `pnpm build` passed on Next.js 15.5.29. Static checks now cover CategorySelect keyboard/URL/mobile behavior and the landing hero CTA. No browser screenshots at the requested viewport matrix, screen-reader audit, contrast measurements, or live Supabase end-to-end tests were run; those remain unverified. The dashboard remains a set of role-specific report sections with one selected section visible, not a single normalized backend table.
+
+## Mobile and selector regression fix — 25 November 2026
+
+- Fixed the Projects category selector duplication: the component was moved into the filter row after setup while the observer searched only as a direct child of the content wrapper. It now searches the full Projects content subtree and reuses the moved instance.
+- Corrected mobile landing navigation so logo, menu, and Join now stay in one row; Log in is available from the expanded menu. The mobile hero is shorter and stacks cleanly, keeps the photo, and hides the decorative sticker/cards/avatar dots. CTA styling and hero copy match the updated design.
+- Rechecked shared static site tests, TypeScript, syntax, and production build. All passed.
+- Browser screenshot capture was unavailable in this environment (headless Edge returned no image; browser automation package is not installed), so visual viewport checks remain unverified.
