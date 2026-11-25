@@ -86,7 +86,9 @@
     const row = page?.querySelector(".filter-row"); if (!tabs || !row) return;
     const opts = sourceOptions(tabs, "All categories");
     const selected = queryCategory(new URLSearchParams(location.search).get("kind") || "all");
-    const existing = page.querySelector(':scope > .bmc-category-select[data-category-select="projects"]');
+    // The control is moved from the content wrapper into the filter row below;
+    // search the whole Projects page so the observer never creates duplicates.
+    const existing = page.querySelector('.bmc-category-select[data-category-select="projects"]');
     const instance = existing || makeSelect(page, { label: "Category", allLabel: "All categories", options: opts, initial: selected, idPrefix: "projects", onSelect(value) { if (value === "all") window.bmcSetProjectKind?.("all"); else tabs.querySelector(`[data-kind="${value}"]`)?.click(); } });
     if (instance && existing) { instance.bmcSetOptions(opts); instance.bmcSetCategory(selected); const active = findSourceValue(tabs, "[data-kind]", "data-kind", "all"); if (active !== selected) { if (selected === "all") window.bmcSetProjectKind?.("all"); else tabs.querySelector(`[data-kind="${selected}"]`)?.click(); } }
     if (instance && !existing) { if (selected === "all") window.bmcSetProjectKind?.("all"); else tabs.querySelector(`[data-kind="${selected}"]`)?.click(); }
