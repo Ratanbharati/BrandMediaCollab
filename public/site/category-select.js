@@ -6,10 +6,10 @@
   const byId = Object.fromEntries(categories.map((item) => [item.id, item]));
   let idSequence = 0;
 
-  function setUrl(value) {
+  function setUrl(value, queryParam = "category") {
     const url = new URL(location.href);
-    if (value && value !== "all") url.searchParams.set("category", value);
-    else url.searchParams.delete("category");
+    if (value && value !== "all") url.searchParams.set(queryParam, value);
+    else url.searchParams.delete(queryParam);
     history.pushState({}, "", url);
   }
   function sourceOptions(source, allLabel, includeAll = true) {
@@ -21,7 +21,7 @@
     }
     return options;
   }
-  function makeSelect(host, { label = "Category", allLabel = "All categories", options, initial = "all", description = false, onSelect, idPrefix = "bmc-category" }) {
+  function makeSelect(host, { label = "Category", allLabel = "All categories", options, initial = "all", description = false, onSelect, idPrefix = "bmc-category", queryParam = "category" }) {
     if (!host || host.querySelector(":scope > .bmc-category-select")) return host?.querySelector(":scope > .bmc-category-select");
     const root = document.createElement("div"); root.className = "bmc-category-select"; root.dataset.categorySelect = idPrefix;
     const uid = `${idPrefix}-${++idSequence}`;
@@ -50,7 +50,7 @@
     }
     function close(restoreFocus = false) { root.classList.remove("open"); trigger.setAttribute("aria-expanded", "false"); if (restoreFocus) trigger.focus(); }
     function open() { root.classList.add("open"); trigger.setAttribute("aria-expanded", "true"); activeIndex = Math.max(0, options.findIndex((option) => option.id === current)); menu.querySelectorAll('[role="option"]')[activeIndex]?.focus(); }
-    function choose(value) { current = value; render(); close(true); setUrl(value); onSelect?.(value); root.dispatchEvent(new CustomEvent("bmc:category-change", { bubbles: true, detail: { value } })); }
+    function choose(value) { current = value; render(); close(true); setUrl(value, queryParam); onSelect?.(value); root.dispatchEvent(new CustomEvent("bmc:category-change", { bubbles: true, detail: { value } })); }
     function setOptions(next) { if (JSON.stringify(options) === JSON.stringify(next)) return; options = next; if (!options.some((option) => option.id === current)) current = options[0]?.id || "all"; render(); }
     root.bmcSetCategory = (value) => { if (current !== value && options.some((option) => option.id === value)) { current = value; render(); } };
     root.bmcSetOptions = setOptions;
@@ -83,18 +83,25 @@
   }
   function projectsPage() {
     const page = document.querySelector(".projects-content"), tabs = page?.querySelector(".segmented");
-    if (!tabs) return;
-    // Project type tabs and the native project-category filter are separate
-    // controls. Older builds injected a second “All categories” control here,
-    // which made the filters look duplicated and conflated two URL values.
-    page.querySelectorAll('.bmc-category-select[data-category-select="projects"]').forEach((node) => node.remove());
+    if (!page || !tabs) return;
     const params = new URLSearchParams(location.search);
-    const selected = params.get("kind") || params.get("category") || "all";
-    const valid = selected === "all" || categories.some((item) => item.id === selected);
-    if (valid && selected !== "all" && tabs.querySelector(`[data-kind="${selected}"]`)) {
-      const active = findSourceValue(tabs, "[data-kind]", "data-kind", "all");
-      if (active !== selected) tabs.querySelector(`[data-kind="${selected}"]`)?.click();
-    }
+    const legacy = categories.some((item) => item.id === params.get("category")) ? params.get("category") : "all";
+    const selected = params.get("kind") || legacy;
+    const options = [{ id: "all", label: "All project types", shortLabel: "All project types" }, ...categories.map((item) => ({ id: item.id, label: item.projectLabel }))];
+    const controls = [...page.querySelectorAll('.bmc-category-select[data-category-select="projects"]')];
+    let instance = controls.shift();
+    controls.forEach((node) => node.remove());
+    if (!instance) instance = makeSelect(page, {
+      label: "Project type", allLabel: "All project types", options, initial: selected,
+      idPrefix: "projects", queryParam: "kind",
+      onSelect(value) { window.bmcSetProjectKind?.(value); },
+    });
+    if (!instance) return;
+    instance.bmcSetOptions(options);
+    instance.bmcSetCategory(selected);
+    const active = findSourceValue(tabs, "[data-kind]", "data-kind", "all");
+    if (active !== selected && selected !== "all") tabs.querySelector(`[data-kind="${selected}"]`)?.click();
+    if (instance.previousElementSibling !== tabs) tabs.before(instance);
   }
   function explorePage() {
     const tabs = document.querySelector(".role-tabs"); if (!tabs) return;

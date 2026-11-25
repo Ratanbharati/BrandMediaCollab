@@ -82,6 +82,12 @@ for (const requirement of ["aria-haspopup", "role", "ArrowDown", "ArrowUp", "Esc
 if (!designSystemCss.includes(".bmc-category-menu") || !designSystemCss.includes("max-width: 767px") || !designSystemCss.includes("scrollbar-gutter: stable")) errors.push("Category selector: menu sizing, mobile sheet, or scroll behavior is missing");
 if (!landing.includes('data-open="signup">Join now</button>') || landing.includes('Find your next partnership')) errors.push("Landing hero: Join now and the secondary how-it-works link are not the only hero CTAs");
 if (landing.includes('class="float-card') && (!landing.includes("Example partnership brief") || !landing.includes('aria-label="How a creative match works"'))) errors.push("Landing hero: illustrative partnership cards must be clearly labeled as examples");
+if (!categorySelect.includes('label: "Project type"') || !categorySelect.includes('All project types') || !categorySelect.includes('queryParam: "kind"') || !categorySelect.includes('controls.forEach((node) => node.remove())')) errors.push("Projects: one deduplicated project-type dropdown must filter through the existing kind logic");
+if (!projectLive.includes('state.action === "chat" ? ""') || !app.includes('state.action === "chat" ? ""')) errors.push("Project cards: the redundant Working together label should be hidden while chat actions and state remain");
+if (!projectLive.includes('setKind("all")')) errors.push("Projects: Clear filters must reset the project-type selection");
+if (!explore.includes('id="search-submit"') || !exploreLive.includes('$("#search-submit")?.addEventListener("click"')) errors.push("Explore: the search action must submit the current real profile filters");
+if (!designSystemCss.includes('body.sr-dashboard-page .heading-row .date-wrap { grid-column: 2;') || !designSystemCss.includes('body.sr-dashboard-page .heading-row #create-project { grid-column: 3;')) errors.push("Dashboard: date range and project creation controls must share a desktop row");
+if (!app.includes('.bmc-mobile-tabs a[href$="notifications.html"]') || !app.includes('top:-5px;right:-7px')) errors.push("Navigation: notification badges must sit beside the icon and reach mobile navigation");
 for (const icon of ["home", "projects", "explore", "dashboard", "messages", "notifications", "settings", "logout"]) {
   if (!designSystemJs.includes(`"${icon}"`)) errors.push(`Design system icons: missing ${icon}`);
 }

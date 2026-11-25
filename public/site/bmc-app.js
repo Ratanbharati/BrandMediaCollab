@@ -64,14 +64,18 @@
       ]);
       if (messages.error) throw messages.error; if (notifications.error) throw notifications.error;
       const unreadMessages = messages.count || 0, unreadNotifications = notifications.count || 0; window.bmcUnreadMessages = unreadMessages; window.bmcUnreadNotifications = unreadNotifications;
-      document.querySelectorAll('a[href$="messages.html"],a[href*="messages.html?"]').forEach((link) => setNavBadge(link, "bmc-message-badge", unreadMessages, "Unread messages"));
-      document.querySelectorAll('a[data-notifications-link]').forEach((link) => setNavBadge(link, "bmc-notification-badge", unreadNotifications, "Unread notifications"));
+      document.querySelectorAll('a[href$="messages.html"],a[href*="messages.html?"],.bmc-mobile-message').forEach((link) => setNavBadge(link, "bmc-message-badge", unreadMessages, "Unread messages"));
+      document.querySelectorAll('a[data-notifications-link],.bmc-mobile-tabs a[href$="notifications.html"]').forEach((link) => setNavBadge(link, "bmc-notification-badge", unreadNotifications, "Unread notifications"));
     } catch (_) { /* Badge counts are available after the activity migration is installed. */ }
   }
   function setNavBadge(link, className, total, label) {
-    link.style.position = "relative"; let badge = link.querySelector("." + className);
-    if (!badge) { badge = document.createElement("span"); badge.className = className; badge.style.cssText = "position:absolute;top:2px;right:2px;z-index:2;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:#d73535;color:#fff;font:700 9px/16px Arial;text-align:center"; link.append(badge); }
-    badge.textContent = total > 9 ? "9+" : String(total); badge.hidden = total === 0; badge.setAttribute("aria-label", label + ": " + total);
+    const icon = link.querySelector(".sr-nav-icon"), target = icon || link;
+    target.style.position = "relative";
+    let badge = link.querySelector("." + className);
+    if (!badge) { badge = document.createElement("span"); badge.className = className; }
+    badge.style.cssText = "position:absolute;top:-5px;right:-7px;z-index:2;display:grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border:2px solid #fff;border-radius:99px;background:#d73535;color:#fff;font:700 10px/1 Arial,sans-serif;text-align:center;white-space:nowrap";
+    if (badge.parentElement !== target) target.append(badge);
+    badge.textContent = total > 9 ? "9+" : String(total); badge.hidden = total === 0; badge.style.display = total === 0 ? "none" : "grid"; badge.setAttribute("aria-label", label + ": " + total);
   }
   window.bmcRefreshMessageBadge = refreshMessageBadge;
   function interestDialog(projectName) {
@@ -868,7 +872,7 @@
       .subscribe((status) => { window.bmcFeedRealtimeConnected = status === "SUBSCRIBED"; });
   }
   async function openProjectsForFeed() {
-    let selectedKind = window.bmcSelectedFeedKind || "all";
+    let selectedKind = window.bmcSelectedFeedKind || new URLSearchParams(location.search).get("category") || "all";
     if (selectedKind !== "all" && !accountTypes.includes(selectedKind)) selectedKind = "all";
     document.querySelectorAll(".center-col > .post").forEach((node) => node.remove());
     const supabase = await client(); const user = await signedIn(supabase);
@@ -967,15 +971,16 @@
     const allFeedKinds = accountTypes;
     if (selectedKind !== "all" && !allFeedKinds.includes(selectedKind)) selectedKind = "all";
     const counts = Object.fromEntries(allFeedKinds.map((kind) => [kind, feedKinds.filter((value) => value === kind).length]));
-    const kindLabels = { brand: "Brand projects", creator: "Creator ideas", agency: "Agency projects", celebrity: "Celebrity projects", event: "Event projects", media: "Media projects", community: "Community projects", distributor: "Distribution projects", freelancer: "Freelance projects" };
-    const visibleKinds = allFeedKinds.filter((kind) => counts[kind] > 0), zeroKinds = allFeedKinds.filter((kind) => counts[kind] === 0);
+    const kindLabels = Object.fromEntries((window.BMCCategories || []).map((category) => [category.id, category.projectLabel]));
+    const visibleKinds = allFeedKinds;
     const tabs = $("#bmc-feed-tabs");
-    tabs.innerHTML = `<button type="button" data-feed-kind="all" class="${selectedKind === "all" ? "active" : ""}">All <span>${projects.length}</span></button>${visibleKinds.map((kind) => `<button type="button" data-feed-kind="${kind}" class="${selectedKind === kind ? "active" : ""}">${kindLabels[kind]} <span>${counts[kind]}</span></button>`).join("")}<label class="bmc-feed-more ${zeroKinds.includes(selectedKind) ? "active" : ""}"><span>More</span><select data-feed-more aria-label="More project categories"><option value="">Choose a category</option>${zeroKinds.map((kind) => `<option value="${kind}" ${selectedKind === kind ? "selected" : ""}>${kindLabels[kind]} · 0</option>`).join("")}</select></label>`;
+    tabs.innerHTML = `<button type="button" data-feed-kind="all" class="${selectedKind === "all" ? "active" : ""}">All categories <span>${projects.length}</span></button>${visibleKinds.map((kind) => `<button type="button" data-feed-kind="${kind}" class="${selectedKind === kind ? "active" : ""}">${kindLabels[kind] || kind} <span>${counts[kind]}</span></button>`).join("")}`;
     if (!tabs.dataset.bound) {
       tabs.dataset.bound = "true";
       tabs.addEventListener("click", (event) => {
         const button = event.target.closest("[data-feed-kind]"); if (!button) return;
         window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind;
+        const url = new URL(location.href); if (button.dataset.feedKind === "all") url.searchParams.delete("category"); else url.searchParams.set("category", button.dataset.feedKind); history.replaceState({}, "", url);
         tabs.querySelectorAll("[data-feed-kind]").forEach((item) => item.classList.toggle("active", item === button));
         tabs.querySelector(".bmc-feed-more")?.classList.remove("active"); applyFeedVisibility();
       });
@@ -997,7 +1002,7 @@
         : state.action === "apply" ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested</button>`
         : state.action === "chat" ? `<button class="btn interested" data-open-chat="${esc(p.id)}">Open chat</button>`
         : `<button class="btn interested" type="button" disabled>${state.action === "sent" ? "Interest sent ✓" : state.action === "passed" ? "Not selected" : "Closed"}</button>`;
-      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(state.statusLabel)}</span></div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${own ? "Your project" : state.label}</span><div class="actions"><button class="btn view-project-details" type="button">View details</button>${own ? "" : `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button>`}${action}</div></div></article>`;
+      return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div>${state.action === "chat" ? "" : `<span class="type-label">${esc(state.statusLabel)}</span>`}</div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom">${own || state.action !== "chat" ? `<span class="applications">${own ? "Your project" : state.label}</span>` : ""}<div class="actions"><button class="btn view-project-details" type="button">View details</button>${own ? "" : `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button>`}${action}</div></div></article>`;
     }).join("");
     live.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {
       const card = button.closest(".post");

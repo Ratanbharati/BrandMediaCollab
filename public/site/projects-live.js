@@ -10,9 +10,9 @@
 
   let db, user, projects = [], applications = [], saved = new Set(), profilesById = {};
   let scope = ["owned", "applied", "saved"].includes(new URLSearchParams(location.search).get("scope")) ? new URLSearchParams(location.search).get("scope") : "discover";
-  let activeKind = new URLSearchParams(location.search).get("kind");
+  let activeKind = new URLSearchParams(location.search).get("kind") || new URLSearchParams(location.search).get("category");
   const projectKinds = ["brand", "creator", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"];
-  if (!projectKinds.includes(activeKind)) activeKind = "brand";
+  if (activeKind !== "all" && !projectKinds.includes(activeKind)) activeKind = "all";
   let channel, refreshTimer, loadInFlight = false, refreshQueued = false, realtimeConnected = false, deepLinkOpened = false;
   const counts = { owned: 0, applications: 0, saved: 0, ideas: 0, brands: 0, agencies: 0, celebrities: 0, events: 0, media: 0, communities: 0, distributors: 0, freelancers: 0 };
 
@@ -61,7 +61,7 @@
   }
   function renderFilterChoices() {
     const available = projects.filter((project) => {
-      if (projectKind(project) !== activeKind) return false;
+      if (activeKind !== "all" && projectKind(project) !== activeKind) return false;
       if (scope === "owned") return project.owner_id === user.id;
       if (scope === "applied") return applications.some((item) => item.project_id === project.id && item.status !== "withdrawn");
       if (scope === "saved") return saved.has(project.id);
@@ -89,7 +89,7 @@
       : scope === "applied" ? applications.some((item) => item.project_id === project.id && item.status !== "withdrawn")
       : scope === "saved" ? saved.has(project.id)
       : project.owner_id !== user.id && String(project.status).toLowerCase() === "open";
-    return projectKind(project) === activeKind && scopeMatches
+    return (activeKind === "all" || projectKind(project) === activeKind) && scopeMatches
       && query.every((term) => haystack.includes(term))
       && (category === "all" || String(project.category || "").toLowerCase() === category)
       && (tier === "all" || (project.creator_tiers || []).some((value) => String(value).toLowerCase() === tier))
@@ -119,8 +119,9 @@
     if (!deepLinkOpened && deepLink && visible.some((project) => project.id === deepLink)) { deepLinkOpened = true; openDetails(deepLink); }
   }
   function setKind(kind) {
-    if (!projectKinds.includes(kind)) return;
+    if (kind !== "all" && !projectKinds.includes(kind)) return;
     activeKind = kind;
+    document.querySelector('.bmc-category-select[data-category-select="projects"]')?.bmcSetCategory(kind);
     document.querySelectorAll(".segmented [data-kind]").forEach((button) => {
       const active = button.dataset.kind === kind;
       button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active));
@@ -129,9 +130,10 @@
       document.querySelectorAll(".side-link[data-status]").forEach((link) => link.classList.toggle("active", link.dataset.status === (kind === "creator" ? "collab" : kind === "agency" ? "agency" : "discover")));
       document.querySelectorAll(".side-link[data-side-kind]").forEach((link) => link.classList.toggle("active", link.dataset.sideKind === kind));
     }
-    const url = new URL(location.href); url.searchParams.set("kind", kind); history.replaceState({}, "", url);
+    const url = new URL(location.href); url.searchParams.delete("category"); if (kind === "all") url.searchParams.delete("kind"); else url.searchParams.set("kind", kind); history.replaceState({}, "", url);
     renderFilters();
   }
+  window.bmcSetProjectKind = setKind;
   function setScope(next) {
     if (!["discover", "owned", "applied", "saved"].includes(next)) return;
     scope = next;
@@ -164,7 +166,7 @@
       : state.action === "apply" ? `<button class="btn" type="button" data-apply="${esc(project.id)}" data-project-name="${esc(project.project_name)}">Interested</button>`
       : state.action === "chat" ? `<button class="btn" type="button" data-open-chat="${esc(project.id)}">Open chat</button>`
       : `<button class="btn" type="button" disabled>${state.action === "sent" ? "Interest sent ✓" : state.action === "passed" ? "Not selected" : "Closed"}</button>`;
-    card.innerHTML = `<div class="project-top"><div class="logo">${esc(name.slice(0, 2).toUpperCase())}</div><div class="meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(name)}</a></b><span>${label} · ${esc(project.location || "Remote")}</span></div><span class="badge">${esc(state.statusLabel)}</span></div><button class="project-card-title" type="button" data-details="${esc(project.id)}">${esc(project.project_name)}</button><p>${esc(project.requirements)}</p><div class="chips"><span class="chip">${esc(project.category || "Other")}</span>${(project.platforms || []).map((item) => `<span class="chip">${esc(item)}</span>`).join("")}${(project.creator_tiers || []).map((item) => `<span class="chip">${esc(item)} creator</span>`).join("")}${budgets}</div><div class="chips"><span class="chip">Apply by ${esc(formatDate(project.application_deadline))}</span><span class="chip">Delivery ${esc(formatDate(project.delivery_date))}</span></div><div class="bottom"><small>${own ? "Your project" : state.label}</small><div class="actions">${own ? "" : `<button class="btn save ${isSaved ? "active" : ""}" type="button" data-save="${esc(project.id)}" aria-pressed="${isSaved}">${isSaved ? "♥ Saved" : "♡ Save"}</button><button class="btn" type="button" data-details="${esc(project.id)}">View details</button>${primaryAction}<button class="btn" type="button" data-share="${esc(project.id)}">Share</button>`}${own ? primaryAction : ""}</div></div>`;
+    card.innerHTML = `<div class="project-top"><div class="logo">${esc(name.slice(0, 2).toUpperCase())}</div><div class="meta"><b><a href="/site/my-profile.html?user=${encodeURIComponent(project.owner_id)}">${esc(name)}</a></b><span>${label} · ${esc(project.location || "Remote")}</span></div>${state.action === "chat" ? "" : `<span class="badge">${esc(state.statusLabel)}</span>`}</div><button class="project-card-title" type="button" data-details="${esc(project.id)}">${esc(project.project_name)}</button><p>${esc(project.requirements)}</p><div class="chips"><span class="chip">${esc(project.category || "Other")}</span>${(project.platforms || []).map((item) => `<span class="chip">${esc(item)}</span>`).join("")}${(project.creator_tiers || []).map((item) => `<span class="chip">${esc(item)} creator</span>`).join("")}${budgets}</div><div class="chips"><span class="chip">Apply by ${esc(formatDate(project.application_deadline))}</span><span class="chip">Delivery ${esc(formatDate(project.delivery_date))}</span></div><div class="bottom">${own || state.action !== "chat" ? `<small>${own ? "Your project" : state.label}</small>` : ""}<div class="actions">${own ? "" : `<button class="btn save ${isSaved ? "active" : ""}" type="button" data-save="${esc(project.id)}" aria-pressed="${isSaved}">${isSaved ? "♥ Saved" : "♡ Save"}</button><button class="btn" type="button" data-details="${esc(project.id)}">View details</button>${primaryAction}<button class="btn" type="button" data-share="${esc(project.id)}">Share</button>`}${own ? primaryAction : ""}</div></div>`;
     if (!own) { const report = document.createElement("button"); report.type = "button"; report.className = "btn"; report.textContent = "Report"; report.onclick = async () => { report.disabled = true; try { await reportProject(project.id); } catch (error) { toast(error.message || "Could not submit this report."); } finally { report.disabled = false; } }; card.querySelector(".actions")?.append(report); }
     return card;
   }
@@ -282,7 +284,7 @@
     }));
     $("[data-mobile-scope='discover']")?.addEventListener("click", () => { $(".mobile-project-menu")?.removeAttribute("open"); setScope("discover"); setKind("brand"); });
     ["q", "skill", "language", "cat", "tier", "platform", "location", "target-type"].forEach((id) => $("#" + id)?.addEventListener(["q", "skill", "language"].includes(id) ? "input" : "change", renderFilters));
-    $("#clear")?.addEventListener("click", () => { ["q", "skill", "language", "cat", "tier", "platform", "location", "target-type"].forEach((id) => { const input = $("#" + id); if (input) input.value = ["q", "skill", "language"].includes(id) ? "" : "all"; }); renderFilters(); });
+    $("#clear")?.addEventListener("click", () => { ["q", "skill", "language", "cat", "tier", "platform", "location", "target-type"].forEach((id) => { const input = $("#" + id); if (input) input.value = ["q", "skill", "language"].includes(id) ? "" : "all"; }); setKind("all"); });
     host.addEventListener("click", async (event) => {
       const target = event.target.closest("button"); if (!target) return;
       const project = projects.find((item) => item.id === target.dataset.save || item.id === target.dataset.apply || item.id === target.dataset.details || item.id === target.dataset.share || item.id === target.dataset.openChat);
