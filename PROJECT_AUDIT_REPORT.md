@@ -47,3 +47,15 @@ The codebase contains a working-shaped product architecture and source for the n
 ## Deployment assessment
 
 **Staging candidate with significant verification limits; not production-certified.** The source builds, but production readiness depends on checking the deployed commit, hosted migrations/policies, test-user journeys, responsive rendering, and domain behavior. See [END-TO-END-QA-REPORT.md](END-TO-END-QA-REPORT.md) and [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
+
+## Follow-up audit — 25 November 2026
+
+Reviewed the attached implementation and UI/UX audit prompts against the active source and applied a focused consistency fix to project interest states.
+
+- Home feed and project discovery now derive availability from the same project status, application deadline, and the signed-in user's application status.
+- Existing interested applications show a non-repeatable “Interest sent” state; accepted/working-together applications link to the project conversation; rejected applications show “Not selected”; closed projects do not offer a new application.
+- The project conversation action calls the existing `submit_project_interest` RPC and opens its returned conversation. The required SQL migration is `supabase/migrations/20261123150000_interest_opens_project_chat.sql`; it must be applied to the hosted Supabase project for this action to work.
+- Project save button markup syntax was corrected during the follow-up verification.
+- Navigation unread badge placement remains within the nav item bounds.
+
+**Follow-up verification:** Node syntax checks passed for the five touched/live browser scripts. `pnpm test` passed, including the static site verifier and TypeScript check. The production build passed (Next.js 15.5.29). No browser-driven or hosted Supabase end-to-end test was possible, so conversation creation, realtime delivery, and database state are still **not live-verified**. Do not treat this report as production certification.

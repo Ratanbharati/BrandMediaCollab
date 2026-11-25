@@ -9,7 +9,7 @@ In Supabase Dashboard → Authentication → URL Configuration:
 - Set the Site URL to the canonical production origin, `https://www.brandmediacollab.com`.
 - Add the exact production redirect URLs `https://www.brandmediacollab.com/site/profile-setup.html` and `https://www.brandmediacollab.com/site/update-password.html`.
 - Add the matching preview-deployment URLs used for manual testing, and local development URLs such as `http://localhost:3000/site/profile-setup.html` and `http://localhost:3000/site/update-password.html` only where needed.
-- Keep email/password sign-in enabled. For a public production signup flow, keep email confirmation enabled and configure a verified sending domain/provider with appropriate deliverability and rate limits.
+- Keep email/password sign-in enabled. To require verification, leave the Email provider’s “Confirm email” setting enabled. To create accounts without sending a confirmation email, open Authentication → Sign In / Providers → Email and turn “Confirm email” off. With confirmation off, Supabase creates an authenticated session immediately; this also treats the submitted email as confirmed even when the user does not control it, so use this only if that tradeoff is acceptable.
 - Enable Supabase Auth leaked-password protection and review the configured minimum password length/strength so it is consistent with the client checks (8+ characters, at least one letter and one number).
 
 The confirmation email and password-reset links must use the URLs above. If a redirect is not allow-listed, Supabase can reject or redirect the flow to a different site URL.

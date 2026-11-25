@@ -12,3 +12,12 @@
 - Ran repository static checks and production build; see `PROJECT_AUDIT_REPORT.md` for exact outcome and limitations.
 
 No live database rows, production credentials, or hosted settings were changed as part of this repository documentation/delivery task.
+
+## 2026-11-25 — Project state and deadline consistency
+
+- Made the home feed and project directory show actions from the same project status, application status, and application deadline logic.
+- Existing accepted applications open their project conversation through `submit_project_interest`; sent, rejected, expired, and closed states no longer offer an inappropriate new-interest action.
+- Fixed malformed project-card save-button markup found during JavaScript syntax validation.
+- Adjusted the unread badge position to keep it inside the navigation item.
+- Re-ran Node syntax checks, `pnpm test` (site verifier and TypeScript), and `pnpm build`; all passed. Live Supabase/browser workflows remain unverified without hosted access and test accounts.
+- Packaged a clean source ZIP without dependencies, build cache, browser profiles, archived duplicate source folders, or real environment files.
