@@ -73,3 +73,19 @@ Applied a focused shared-style and home-feed pass from `BMC-Codex-Addendum-Calm-
 **Design-system completion is partial.** Many page templates still contain inline, legacy type declarations, and not every card, CTA, sidebar row, notification row, message snapshot, date format, and AppShell/PageHeader was refactored to the requested shared component. Source scans still find page-specific values. Five viewport screenshots, rendered contrast measurements, and browser interaction checks were not performed. The table and CTA rules in the addendum therefore remain follow-up work rather than verified completion.
 
 **Verification after this follow-up:** Node syntax checks passed for the modified browser scripts. `pnpm test:site` passed after the latest home-feed and token changes. A production build and full `pnpm test` passed after the typography and feed changes; the first concurrent build/test attempt raced on generated `.next/types`, then the sequential build passed. Live Supabase and browser-level verification remain blocked by unavailable hosted access and test accounts.
+
+## Follow-up — LinkedIn-grade internal UI pass (25 November 2026)
+
+The latest rework brief supersedes the earlier 28px internal-title target: internal H1/section headings now use 20/28px; landing-page hero scale remains separate. Existing design tokens use DM Sans for body text and Manrope for display headings, with the current cream/forest/lime palette retained.
+
+Implemented in the shared static-site shell:
+
+- Added a compact 56px internal header search field, account “Me” menu styling, desktop Notifications navigation, and mobile header search/messages controls.
+- Added a fixed five-destination mobile bar (Home, Projects, Explore, Notifications, More) with a compact More menu for Dashboard, Messages, profile, settings, Help, and Log out. Kept link targets on existing pages.
+- Connected global search submission to the existing Projects or Explore query field through the `q` URL parameter.
+- Added shell and query-handoff assertions to `scripts/verify-site.mjs`.
+- Preserved current auth, Supabase, project and messaging contracts; no schema or API changes were made.
+
+**Still incomplete / not verified:** This is a focused shared-shell implementation, not the full page-by-page redesign in the prompt. Existing Home, Projects, Explore, Dashboard, Messages, Notifications, signup, profile and admin layouts retain legacy page-specific markup and styles. The progressive three-step signup, project/person card unification, dashboard table redesign, message two-pane changes, date standardization, and zero-count More controls are not completed. No rendered screenshots at 1440/1280/1024/768/390px, keyboard walkthrough, contrast measurement, or live Supabase/browser E2E check was produced in this environment. Do not treat this as complete visual QA or production certification.
+
+**Verification performed:** `node --check` passed for the changed JavaScript files; `pnpm test` passed (static verifier and TypeScript); `pnpm build` passed on Next.js 15.5.29. On the first build attempt Windows denied creation of a generated `.next` output directory; after creating that missing build-output directory, the sequential production build completed. Live service behavior remains unverified.

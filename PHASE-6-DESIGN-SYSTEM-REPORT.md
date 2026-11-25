@@ -62,3 +62,11 @@ The internal-page tokens now defined in `public/site/design-system.css` are:
 DM Sans remains the body/UI stack and Manrope remains the display/heading stack. Explore now uses the 28px internal page title instead of the landing hero scale. Desktop internal navigation is 14px and mobile nav remains 12px to fit the current one-row six-item layout. The home feed category row is now horizontally scrollable with All and active categories; zero-count categories are in More. The redundant non-creator account-type statistic and untracked profile-view statistic were removed, as were the composer’s extra profile/availability actions.
 
 This is not a complete replacement of legacy inline style declarations. Page-specific font sizes, page shells, card and CTA variants, dashboard/message/notification details, and date formats still need a component-by-component pass. The exact five-width before/after screenshot review and rendered contrast measurements in the addendum were not performed. See [PROJECT_AUDIT_REPORT.md](PROJECT_AUDIT_REPORT.md) for remaining scope and tested/blocked status.
+
+## LinkedIn-grade internal shell update — 25 November 2026
+
+The latest rework prompt supersedes prior internal title sizing: internal page titles/section titles are 20px/28px at weight 600; card titles 16px/24px; body and labels 14px/20px; secondary/captions 12px/16px; stats 20px/28px. Heading font is Manrope; body font is DM Sans. Existing palette tokens remain: ink `#1b2b22`, muted `#788078`, paper `#f6f5f0`, surface `#fffefa`, border `#e9e7df`, lime `#b9ee73`, deep green `#293d30`; supplemental muted text uses `#68736b`.
+
+The shell CSS now defines a 56px app header, 1128px internal content maximum, 300px preferred search width, and 60px mobile bottom bar. Tablet shell compacts the logo/navigation labels between 721px and 1023px; the existing small-screen breakpoint remains 720px. These are implementation values from source, not a full design-system convergence: legacy inline styles and page-specific sizes remain, so the requested seven-size maximum has not been verified.
+
+The mobile and desktop navigation/search controls were implemented in the shared static shell. Full component unification and visual viewport verification are still outstanding; see the latest section in `PROJECT_AUDIT_REPORT.md`.

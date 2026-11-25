@@ -25,3 +25,12 @@ No live database rows, production credentials, or hosted settings were changed a
 - Replaced the home feed's three-row category tabs with a one-row All/active-category filter and a More menu for zero-count categories; reduced the composer to one project/idea action.
 - Removed untracked/redundant home profile stats and decorative arrows from the requested internal actions; added static regression checks.
 - Full internal-page component unification and five-viewport visual audit remain incomplete and are called out in `PROJECT_AUDIT_REPORT.md`.
+
+## 2026-11-25 — LinkedIn-grade internal shell follow-up
+
+- Replaced the prior 28px internal-title token with 20/28px per the newer rework prompt; landing headline sizing remains separate.
+- Added shared compact search, desktop Notifications navigation, Me/account menu styles, and a five-item mobile bottom navigation with More destinations.
+- Routed global search terms into existing Explore/Projects search inputs using the `q` URL parameter.
+- Added static checks for the internal app shell and search handoff.
+- Validation: changed JS syntax checks passed; `pnpm test` passed; `pnpm build` passed after creating a missing generated `.next` output directory that Windows had denied on the first attempt.
+- No database/API schema changes. No browser screenshots, live Supabase tests, or full page-by-page UI rebuild were completed; remaining work is documented in `PROJECT_AUDIT_REPORT.md`.
