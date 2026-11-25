@@ -69,7 +69,11 @@ for (const token of ["--sr-heading-page", "--sr-heading-section", "--sr-heading-
   if (!designSystemCss.includes(token)) errors.push(`Design system CSS: missing ${token}`);
 }
 if (/\["index\.html",\s*"landing-preview\.html",\s*"explore\.html"\]/.test(designSystemJs)) errors.push("Design system: Explore must use the internal page title scale, not the landing hero scale");
-if (!/--text-title:\s*28px/.test(designSystemCss) || !/--text-caption:\s*12px/.test(designSystemCss) || !/font-size:\s*12px\s*!important;\s*line-height:\s*16px\s*!important/.test(designSystemCss)) errors.push("Design system: internal title, caption minimum, or mobile title tokens are missing");
+if (!/--text-title:\s*20px/.test(designSystemCss) || !/--text-caption:\s*12px/.test(designSystemCss) || !/font-size:\s*20px\s*!important;\s*line-height:\s*28px\s*!important/.test(designSystemCss)) errors.push("Design system: internal title, caption minimum, or mobile title tokens are missing");
+for (const requirement of [".bmc-global-search", ".bmc-mobile-tabs", ".bmc-mobile-more-menu", "height: 56px", "max-width: 1128px"]) {
+  if (!designSystemCss.includes(requirement)) errors.push(`App shell: missing compact responsive shell rule ${requirement}`);
+}
+if (!designSystemJs.includes("data-notifications-link") || !designSystemJs.includes("Search people, projects") || !projectLive.includes('new URLSearchParams(location.search).get("q")') || !exploreLive.includes('new URLSearchParams(location.search).get("q")')) errors.push("App shell: notification navigation or global search handoff is missing");
 if (!app.includes('data-feed-kind="all"') || !app.includes('bmc-feed-more') || !app.includes('composer.querySelector(".composer-actions")?.remove()')) errors.push("Home feed: All/More category row or single project composer action is missing");
 for (const icon of ["home", "projects", "explore", "dashboard", "messages", "notifications", "settings", "logout"]) {
   if (!designSystemJs.includes(`"${icon}"`)) errors.push(`Design system icons: missing ${icon}`);

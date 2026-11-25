@@ -5,6 +5,8 @@
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const host = $("#list"), empty = $("#empty");
   if (!host || !empty) return;
+  const initialSearch = new URLSearchParams(location.search).get("q");
+  if (initialSearch && $("#q")) $("#q").value = initialSearch;
 
   let db, user, projects = [], applications = [], saved = new Set(), profilesById = {};
   let scope = ["owned", "applied", "saved"].includes(new URLSearchParams(location.search).get("scope")) ? new URLSearchParams(location.search).get("scope") : "discover";

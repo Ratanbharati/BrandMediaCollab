@@ -215,6 +215,8 @@
   try {
     const { supabase: client, user: currentUser } = await window.bmcConnections.ready();
     supabase = client; user = currentUser;
+    const initialSearch = new URLSearchParams(location.search).get("q");
+    if (initialSearch) $("#profile-search").value = initialSearch;
     if (window.matchMedia("(min-width:721px)").matches) $("#filter-panel").open = true;
     setRoleFilter("all");
     $(".role-tabs").addEventListener("click", (event) => {

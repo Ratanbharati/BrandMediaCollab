@@ -16,21 +16,21 @@
   --sr-heading-page: clamp(1.625rem, 2.5vw, 2.125rem);
   --sr-heading-section: clamp(1.25rem, 1.8vw, 1.5rem);
   --sr-heading-card: 1.125rem;
-  --text-title: 28px;
-  --text-title-line: 36px;
-  --text-section: 18px;
+  --text-title: 20px;
+  --text-title-line: 28px;
+  --text-section: 20px;
   --text-section-line: 28px;
   --text-card-title: 16px;
   --text-card-title-line: 24px;
   --text-body: 14px;
-  --text-body-line: 22px;
+  --text-body-line: 20px;
   --text-label: 14px;
   --text-label-line: 20px;
   --text-caption: 12px;
   --text-caption-line: 16px;
   --text-eyebrow: 12px;
-  --text-stat: 24px;
-  --text-stat-line: 32px;
+  --text-stat: 20px;
+  --text-stat-line: 28px;
   --sr-space-1: 0.25rem;
   --sr-space-2: 0.5rem;
   --sr-space-3: 0.75rem;
@@ -59,20 +59,20 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.025em;
   text-wrap: pretty;
 }
-body:not(.sr-hero-page) h1 { font-size: var(--sr-heading-page) !important; }
-body.sr-hero-page h1 { font-size: clamp(2.25rem, 5.5vw, 4.5rem) !important; }
-body h2 { font-size: var(--sr-heading-section) !important; }
-body :is(.card, .panel, .post, .project, .notification, .profile-card) h2 { font-size: var(--sr-heading-card) !important; }
-body h3 { font-size: var(--sr-text-lg) !important; }
+body:not(.sr-hero-page) h1 { font-size: var(--text-title) !important; }
+body.sr-hero-page h1 { font-size: clamp(40px, 4vw, 48px) !important; }
+body h2 { font-size: var(--text-section) !important; }
+body :is(.card, .panel, .post, .project, .notification, .profile-card) h2 { font-size: var(--text-card-title) !important; }
+body h3 { font-size: var(--text-card-title) !important; }
 @media (max-width: 720px) {
-  body.sr-hero-page h1 { font-size: clamp(2rem, 10vw, 3.25rem) !important; }
+  body.sr-hero-page h1 { font-size: clamp(36px, 9vw, 42px) !important; }
 }
 
 /* Calm, shared type roles for authenticated product pages. Landing headlines keep their own scale. */
 body:not(.sr-hero-page) { font-size: var(--text-body) !important; line-height: var(--text-body-line) !important; font-weight: 400; }
-body:not(.sr-hero-page) h1 { font-size: var(--text-title) !important; line-height: var(--text-title-line) !important; font-weight: 600 !important; letter-spacing: -0.01em !important; }
+body:not(.sr-hero-page) h1 { font-size: var(--text-title) !important; line-height: var(--text-title-line) !important; font-weight: 600 !important; letter-spacing: 0 !important; }
 body:not(.sr-hero-page) h2 { font-size: var(--text-section) !important; line-height: var(--text-section-line) !important; font-weight: 600 !important; letter-spacing: normal !important; }
-body:not(.sr-hero-page) :is(.card, .panel, .post, .project, .notification, .profile-card) :is(h2, h3) { font-size: var(--text-card-title) !important; line-height: var(--text-card-title-line) !important; font-weight: 600 !important; letter-spacing: normal !important; }
+body:not(.sr-hero-page) :is(.card, .panel, .post, .project, .notification, .profile-card) :is(h2, h3) { font-size: var(--text-card-title) !important; line-height: var(--text-card-title-line) !important; font-weight: 600 !important; letter-spacing: 0 !important; }
 body:not(.sr-hero-page) :is(button, .button, .btn, .primary, .secondary, .action, [role="button"]) { font-size: var(--text-label) !important; line-height: var(--text-label-line) !important; font-weight: 600 !important; }
 body:not(.sr-hero-page) :is(nav a, nav a small, .collabry-account, .collabry-account a, .tabs button, .chip, .badge, .side-link, .side-links a, .filter-chip) { font-size: var(--text-label) !important; line-height: var(--text-label-line) !important; font-weight: 500 !important; }
 body:not(.sr-hero-page) :is(small, time, .caption, .helper, .hint, .meta, .project-meta, .muted, .footnote) { font-size: var(--text-caption) !important; line-height: var(--text-caption-line) !important; }
@@ -116,10 +116,35 @@ body:not(.sr-hero-page) .collabry-nav nav a .sr-nav-icon svg { width: 20px; heig
 
 /* Align the shared app navigation without changing each page's content grid. */
 body:not(.sr-hero-page) .collabry-nav { font-family: var(--sr-font-body) !important; }
-body:not(.sr-hero-page) .collabry-nav nav a { gap: var(--sr-space-1); font: 500 var(--text-label)/var(--text-label-line) var(--sr-font-body) !important; }
+body:not(.sr-hero-page) .collabry-nav nav a { gap: var(--sr-space-1); font: 400 var(--text-caption)/var(--text-caption-line) var(--sr-font-body) !important; }
 body:not(.sr-hero-page) .collabry-nav nav a small { font: inherit !important; }
 body:not(.sr-hero-page) .collabry-account { font: 500 var(--text-label)/var(--text-label-line) var(--sr-font-body) !important; }
 body:not(.sr-hero-page) .collabry-logo { font-family: var(--sr-font-display) !important; }
+.bmc-me-menu { position: relative; }
+.bmc-me-menu summary { display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font: 400 var(--text-label)/var(--text-label-line) var(--sr-font-body); }
+.bmc-me-menu summary::-webkit-details-marker { display: none; }
+.bmc-me-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #dff1e7; color: var(--sr-deep); font-size: 14px; font-weight: 600; }
+.bmc-me-options { position: absolute; top: calc(100% + 8px); right: 0; z-index: 1200; display: grid; min-width: 190px; padding: 6px; border: 1px solid rgb(0 0 0 / 10%); border-radius: 8px; background: var(--sr-surface); box-shadow: 0 8px 24px rgb(0 0 0 / 12%); }
+.bmc-me-menu:not([open]) > .bmc-me-options, .bmc-mobile-more:not([open]) .bmc-mobile-more-menu { display: none; }
+.bmc-me-options a { padding: 8px 10px; color: var(--sr-ink); font-size: 14px; line-height: 20px; text-decoration: none; }
+.bmc-me-options a:hover { background: #f0f5e9; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Shared compact app shell: search, account menu and touch navigation. */
+.bmc-global-search { display: flex; align-items: center; flex: 0 1 300px; min-width: 180px; height: 36px; position: relative; }
+.bmc-global-search input { width: 100%; min-width: 0; height: 36px; min-height: 36px !important; padding: 0 12px 0 34px; border: 1px solid var(--sr-line); border-radius: 18px; background: #f7f8f6; color: var(--sr-ink); font: 400 14px/20px var(--sr-font-body) !important; }
+.bmc-global-search input:focus { background: #fff; border-color: #8ea891; }
+.bmc-global-search-icon { position: absolute; left: 11px; top: 50%; display: inline-flex; width: 16px; height: 16px; transform: translateY(-50%); color: #68736b; pointer-events: none; }
+.bmc-global-search-icon svg { width: 16px; height: 16px; }
+body:not(.sr-hero-page) .collabry-nav { gap: 16px !important; }
+body:not(.sr-hero-page) .collabry-nav nav { flex: 0 1 auto; gap: 0; }
+body:not(.sr-hero-page) .collabry-nav nav a { min-width: 62px; padding-inline: 7px; color: #68736b; }
+body:not(.sr-hero-page) .collabry-nav nav a:hover { color: var(--sr-deep); background: #f7f8f6; }
+body:not(.sr-hero-page) .collabry-nav nav a.active { color: var(--sr-deep); border-bottom: 2px solid var(--sr-deep); }
+body:not(.sr-hero-page) .collabry-account { margin-left: auto; }
+.collabry-account > span, .collabry-account > a[href$="logout.html"] { display: none !important; }
+.collabry-account .bmc-me-menu { display: block; }
+.bmc-mobile-message, .bmc-mobile-tabs { display: none; }
+.bmc-me-options a:focus-visible, .bmc-mobile-more-menu a:focus-visible { outline: 2px solid var(--sr-deep); outline-offset: 2px; }
 
 /* Nine role tabs wrap cleanly instead of exposing a horizontal scrollbar. */
 .bmc-feed-tabs {
@@ -169,6 +194,31 @@ button, .button, .btn, .primary, .secondary, .action {
 input.sr-field, select.sr-field, textarea.sr-field { font-size: 0.875rem !important; }
 .collabry-account select.sr-field { font-size: 0.75rem !important; }
 .sr-card { min-width: 0; border-radius: var(--sr-radius-card); }
+body:not(.sr-hero-page) .collabry-nav { height: 56px !important; padding-inline: max(12px, calc((100vw - 1128px)/2)) !important; }
+body:not(.sr-hero-page) :is(.panel, .card, .post, .project-card, .notification, .profile-card) { border-radius: 8px !important; box-shadow: none !important; border-color: rgb(0 0 0 / 8%) !important; }
+body:not(.sr-hero-page) main { max-width: 1128px !important; margin-inline: auto !important; }
+body:not(.sr-hero-page) :is(.feed-head h1, .main-heading h1, .heading > div > h1, .intro h1) { font-size: 20px !important; line-height: 28px !important; font-weight: 600 !important; letter-spacing: 0 !important; }
+body.sr-home-page .feed-head { display: none !important; }
+body.sr-projects-page .main-heading h1 { display: none !important; }
+body.sr-projects-page .main-heading > a.primary { display: none !important; }
+body.sr-projects-page .left > button[data-status]:not([data-status="discover"]),
+body.sr-projects-page .left > button[data-side-kind],
+body.sr-projects-page .mobile-project-menu [data-mobile-kind] { display: none !important; }
+body.sr-explore-page .intro { display: none !important; }
+body.sr-explore-page .search-wrap::after { content: "Profiles appear here only while discoverability is on."; grid-column: 1 / -1; color: #68736b; font-size: var(--text-caption); line-height: var(--text-caption-line); }
+body.sr-dashboard-page .heading > div > h1,
+body.sr-dashboard-page .heading > div > a,
+body.sr-dashboard-page .heading > div > p { display: none !important; }
+body.sr-notifications-page .heading { display: none !important; }
+body.sr-notifications-page .panel[aria-label="Notification center"]::before { content: "Notifications"; display: block; padding: 14px 16px 8px; color: var(--sr-ink); font: 600 16px/24px var(--sr-font-display); }
+body.sr-home-page .layout { max-width: 1128px !important; grid-template-columns: 225px minmax(0, 1fr) 300px !important; gap: 24px !important; padding-top: 16px !important; }
+body.sr-home-page #bmc-live-posts > .post { margin-bottom: 8px !important; }
+.sr-button { min-height: 32px; border-radius: 999px !important; }
+body:not(.sr-hero-page) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+body:not(.sr-hero-page) select { min-height: 40px !important; }
+body:not(.sr-hero-page) .segmented button,
+body:not(.sr-hero-page) .role-tabs button,
+body:not(.sr-hero-page) .tabs button { min-height: 32px !important; border-radius: 999px !important; }
 .sr-empty, .sr-error { line-height: 1.5; overflow-wrap: anywhere; }
 .sr-tab { min-height: 40px; touch-action: manipulation; }
 label { line-height: 1.4; }
@@ -179,8 +229,32 @@ label { line-height: 1.4; }
 .table-wrap, .table-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 @media (max-width: 720px) {
+  body:not(.sr-hero-page) .collabry-nav { height: 56px !important; min-height: 56px !important; flex-wrap: nowrap !important; gap: 8px !important; padding: 0 12px !important; }
+  body:not(.sr-hero-page) .collabry-logo { min-width: 30px !important; width: 30px; overflow: hidden; gap: 0; font-size: 0 !important; }
+  body:not(.sr-hero-page) .collabry-logo > span { flex: 0 0 30px; width: 30px; height: 30px; font-size: 11px !important; letter-spacing: -.5px; }
+  body:not(.sr-hero-page) .collabry-nav nav { display: none !important; }
+  .bmc-global-search { flex: 1 1 auto; min-width: 0; height: 36px; }
+  .bmc-global-search input { min-width: 0; padding-right: 6px; font-size: 16px !important; }
+  .bmc-global-search input::placeholder { font-size: 13px; }
+  .bmc-mobile-message { position: relative; display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 44px; color: var(--sr-ink); text-decoration: none; }
+  .bmc-mobile-message svg { width: 20px; height: 20px; }
+  body:not(.sr-hero-page) .collabry-account { margin-left: 0 !important; }
+  .bmc-me-menu summary { min-width: 36px; min-height: 44px; justify-content: center; }
+  .bmc-me-menu summary > span:not(.bmc-me-avatar) { display: none; }
+  .bmc-me-avatar { width: 28px; height: 28px; }
+  .bmc-mobile-tabs { position: fixed; z-index: 1200; right: 0; bottom: 0; left: 0; display: flex; align-items: stretch; justify-content: space-around; height: calc(60px + env(safe-area-inset-bottom)); padding: 3px 4px env(safe-area-inset-bottom); border-top: 1px solid var(--sr-line); background: #fff; }
+  .bmc-mobile-tabs > a, .bmc-mobile-more > summary { display: flex; min-width: 0; min-height: 44px; flex: 1 1 20%; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 3px 2px; border: 0; color: #68736b; background: transparent; text-decoration: none; cursor: pointer; list-style: none; }
+  .bmc-mobile-tabs > a[aria-current="page"] { color: var(--sr-deep); font-weight: 600; }
+  .bmc-mobile-tabs .sr-nav-icon, .bmc-mobile-tabs .sr-nav-icon svg { width: 20px; height: 20px; flex-basis: 20px; }
+  .bmc-mobile-tabs small { overflow: hidden; max-width: 100%; color: inherit; font: 400 11px/14px var(--sr-font-body) !important; white-space: nowrap; text-overflow: ellipsis; }
+  .bmc-mobile-more { position: relative; display: flex; min-width: 0; flex: 1 1 20%; }
+  .bmc-mobile-more > summary::-webkit-details-marker { display: none; }
+  .bmc-mobile-more-menu { position: absolute; right: 4px; bottom: calc(100% + 8px); display: grid; width: min(240px, calc(100vw - 24px)); padding: 6px; border: 1px solid rgb(0 0 0 / 10%); border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgb(0 0 0 / 12%); }
+  .bmc-mobile-more-menu a { min-height: 44px; display: flex; align-items: center; padding: 8px 12px; border-radius: 6px; color: var(--sr-ink); font: 400 14px/20px var(--sr-font-body); text-decoration: none; }
+  .bmc-mobile-more-menu a:hover { background: #f2f5f0; }
+  body:not(.sr-hero-page) { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
   body { font-size: 16px; }
-  body:not(.sr-hero-page) h1 { font-size: 24px !important; line-height: 32px !important; }
+  body:not(.sr-hero-page) h1 { font-size: 20px !important; line-height: 28px !important; }
   body:not(.sr-hero-page) .collabry-nav nav a { min-height: 44px; font-size: 12px !important; line-height: 16px !important; text-align: center; white-space: normal; }
   body:not(.sr-hero-page) .collabry-nav nav a small { font-size: inherit !important; }
   button, .button, .btn, .primary, .secondary, .action { min-height: 40px; }
@@ -192,6 +266,29 @@ label { line-height: 1.4; }
   main, section, article, aside, header, nav, footer { min-width: 0; }
   .modal, [role="dialog"] { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; }
   .bmc-feed-tabs button { min-height: 36px !important; }
+  body.sr-home-page .layout { grid-template-columns: minmax(0,1fr) !important; gap: 8px !important; padding: 8px 12px 70px !important; }
+  body.sr-home-page .left-col { display: block !important; position: static !important; }
+  body.sr-home-page .right-col { position: static !important; }
+  body.sr-home-page .left-col > .side-links,
+  body.sr-home-page .left-col > .panel:not(.identity) { display: none !important; }
+  body.sr-home-page .cover { height: 40px; }
+  body.sr-home-page .portrait { width: 48px; height: 48px; margin-top: -24px; }
+}
+
+@media (min-width: 721px) and (max-width: 1023px) {
+  body:not(.sr-hero-page) .collabry-nav { gap: 8px !important; }
+  body:not(.sr-hero-page) .collabry-logo { min-width: 30px !important; width: 30px; overflow: hidden; gap: 0; font-size: 0 !important; }
+  body:not(.sr-hero-page) .collabry-logo > span { flex: 0 0 30px; }
+  body:not(.sr-hero-page) .collabry-nav nav a { min-width: 42px; padding-inline: 5px; }
+  body:not(.sr-hero-page) .collabry-nav nav a small { display: none; }
+  body:not(.sr-hero-page) .collabry-nav nav a .sr-nav-icon { width: 20px; height: 20px; }
+  .bmc-global-search { flex: 1 1 220px; min-width: 140px; }
+  .collabry-account { flex: 0 0 auto; }
+}
+
+@media (min-width: 721px) and (max-width: 1023px) {
+  body.sr-home-page .layout { grid-template-columns: 225px minmax(0,1fr) !important; gap: 16px !important; }
+  body.sr-home-page .right-col { display: grid !important; grid-column: 2; grid-row: 2; position: static !important; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

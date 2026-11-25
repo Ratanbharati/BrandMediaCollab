@@ -187,6 +187,17 @@
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
     const label = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[type] || "Creator";
     headerName.textContent = `${name} · ${label}`;
+    const accountMenu = $(".collabry-account");
+    if (accountMenu && !accountMenu.querySelector(".bmc-me-menu")) {
+      const details = document.createElement("details"); details.className = "bmc-me-menu";
+      const summary = document.createElement("summary"); summary.setAttribute("aria-label", "Open your account menu");
+      const avatar = document.createElement("span"); avatar.className = "bmc-me-avatar"; avatar.textContent = String(name).trim().slice(0, 1).toUpperCase(); avatar.setAttribute("aria-hidden", "true");
+      const me = document.createElement("span"); me.textContent = "Me";
+      const chevron = document.createElement("span"); chevron.textContent = "▾"; chevron.setAttribute("aria-hidden", "true"); summary.append(avatar, me, chevron);
+      const menu = document.createElement("div"); menu.className = "bmc-me-options";
+      for (const [href, text] of [["my-profile.html", "View profile"], ["settings.html", "Settings & privacy"], ["help.html", "Help"], ["logout.html", "Log out"]]) { const link = document.createElement("a"); link.href = href; link.textContent = text; menu.append(link); }
+      details.append(summary, menu); accountMenu.replaceChildren(details);
+    }
     const nav = document.querySelector(".collabry-nav nav");
     if (nav && !nav.querySelector("a[data-notifications-link]")) {
       const link = document.createElement("a"); link.href = "notifications.html"; link.dataset.notificationsLink = "true"; link.setAttribute("aria-label", "Notifications");
