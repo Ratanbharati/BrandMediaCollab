@@ -2,8 +2,8 @@
 // Uses the publishable key only; authorization is enforced by Supabase RLS.
 (function () {
   const $ = (selector) => document.querySelector(selector);
-  const accountTypes = ["creator", "brand", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"];
-  const organizationTypes = new Set(["brand", "agency", "event", "media", "community", "distributor"]);
+  const accountTypes = ["creator", "brand", "agency", "celebrity", "event", "media"];
+  const organizationTypes = new Set(["brand", "agency", "event", "media"]);
   const isOrganization = (type) => organizationTypes.has(type);
   const csvValues = (selector) => ($(selector)?.value || "").split(",").map((value) => value.trim()).filter(Boolean);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -30,22 +30,45 @@
   async function refreshMessageBadge() {
     try {
       const supabase = await client(); const user = await signedIn(supabase);
-      const [messages, notifications] = await Promise.all([
-        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("type", "new_message").is("read_at", null),
-        supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null),
-      ]);
-      if (messages.error) throw messages.error; if (notifications.error) throw notifications.error;
-      const unreadMessages = messages.count || 0, unreadNotifications = notifications.count || 0; window.bmcUnreadMessages = unreadMessages; window.bmcUnreadNotifications = unreadNotifications;
-      document.querySelectorAll('a[href$="messages.html"],a[href*="messages.html?"]').forEach((link) => setNavBadge(link, "bmc-message-badge", unreadMessages, "Unread messages"));
-      document.querySelectorAll('a[data-notifications-link]').forEach((link) => setNavBadge(link, "bmc-notification-badge", unreadNotifications, "Unread notifications"));
-    } catch (_) { /* Badge counts are available after the activity migration is installed. */ }
-  }
-  function setNavBadge(link, className, total, label) {
-    link.style.position = "relative"; let badge = link.querySelector("." + className);
-    if (!badge) { badge = document.createElement("span"); badge.className = className; badge.style.cssText = "position:absolute;top:-3px;right:0;min-width:15px;height:15px;padding:0 4px;border-radius:9px;background:#d73535;color:#fff;font:700 9px/15px Arial;text-align:center"; link.append(badge); }
-    badge.textContent = total > 9 ? "9+" : String(total); badge.hidden = total === 0; badge.setAttribute("aria-label", label + ": " + total);
+      const { count, error } = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("type", "new_message").is("read_at", null);
+      if (error) throw error;
+      const total = count || 0; window.bmcUnreadMessages = total;
+      document.querySelectorAll('a[href$="messages.html"],a[href*="messages.html?"]').forEach((link) => {
+        link.style.position = "relative";
+        let badge = link.querySelector(".bmc-message-badge");
+        if (!badge) { badge = document.createElement("span"); badge.className = "bmc-message-badge"; badge.setAttribute("aria-label", "Unread messages"); badge.style.cssText = "position:absolute;top:-3px;right:0;min-width:15px;height:15px;padding:0 4px;border-radius:9px;background:#d73535;color:#fff;font:700 9px/15px Arial;text-align:center"; link.append(badge); }
+        badge.textContent = total > 9 ? "9+" : String(total); badge.hidden = total === 0;
+      });
+    } catch (_) { /* Badge is available after the activity migration is installed. */ }
   }
   window.bmcRefreshMessageBadge = refreshMessageBadge;
+  async function getOrCreateProjectChat(supabase, projectId, otherId, user, firstMessage) {
+    const { data: memberships, error: membershipError } = await supabase.from("conversation_members").select("conversation_id").eq("user_id", user.id);
+    if (membershipError) throw membershipError;
+    const ids = (memberships || []).map((row) => row.conversation_id);
+    if (ids.length) {
+      const { data: chats, error } = await supabase.from("conversations").select("id,project_id").eq("project_id", projectId).in("id", ids);
+      if (error) throw error;
+      for (const chat of chats || []) {
+        const { data: members, error: membersError } = await supabase.from("conversation_members").select("user_id").eq("conversation_id", chat.id);
+        if (membersError) throw membersError;
+        if ((members || []).some((m) => m.user_id === user.id) && (members || []).some((m) => m.user_id === otherId)) {
+          if (firstMessage) {
+            const { error: messageError } = await supabase.from("messages").insert({ conversation_id: chat.id, sender_id: user.id, body: firstMessage });
+            if (messageError) throw messageError;
+          }
+          return chat.id;
+        }
+      }
+    }
+    const { data: chat, error: chatError } = await supabase.from("conversations").insert({ project_id: projectId, created_by: user.id, is_group: false }).select("id").single();
+    if (chatError) throw chatError;
+    const { error: addMembersError } = await supabase.from("conversation_members").insert([{ conversation_id: chat.id, user_id: user.id }, { conversation_id: chat.id, user_id: otherId }]);
+    if (addMembersError) throw addMembersError;
+    const { error: messageError } = await supabase.from("messages").insert({ conversation_id: chat.id, sender_id: user.id, body: firstMessage || "Hi, I’m interested in this project. Let’s discuss it here." });
+    if (messageError) throw messageError;
+    return chat.id;
+  }
   function interestDialog(projectName) {
     let dialog = document.querySelector("#bmc-interest-dialog");
     if (!dialog) {
@@ -67,20 +90,22 @@
       send.onclick = async () => {
         send.disabled = true;
         try {
-          const supabase = await client();
-          await signedIn(supabase);
-          const { data: conversationId, error } = await supabase.rpc("submit_project_interest", {
-            p_project_id: projectId,
-            p_message: note.value.trim() || null,
-          });
-          if (error) throw error;
-          if (!conversationId) throw new Error("The project chat was not created. Please try again.");
+          const supabase = await client(); const user = await signedIn(supabase);
+          const { data: project, error: projectError } = await supabase.from("projects").select("id,owner_id,project_name").eq("id", projectId).single();
+          if (projectError) throw projectError;
+          if (project.owner_id === user.id) throw new Error("You can’t express interest in your own project.");
+          const { data: prior, error: priorError } = await supabase.from("applications").select("id,status").eq("project_id", projectId).eq("applicant_id", user.id).maybeSingle();
+          if (priorError) throw priorError;
+          const message = note.value.trim() || `Hi, I’m interested in “${project.project_name}”. Let’s discuss it here.`;
+          const save = prior
+            ? await supabase.from("applications").update({ status: prior.status === "withdrawn" ? "interested" : prior.status, message, updated_at: new Date().toISOString() }).eq("id", prior.id)
+            : await supabase.from("applications").insert({ project_id: projectId, applicant_id: user.id, status: "interested", message });
+          if (save.error) throw save.error;
+          const conversationId = await getOrCreateProjectChat(supabase, projectId, project.owner_id, user, message);
           dialog.remove();
           if (button) { button.textContent = "Interest sent ✓"; button.disabled = true; }
-          const messagesUrl = new URL("messages.html", location.href);
-          messagesUrl.searchParams.set("conversation", conversationId);
-          messagesUrl.searchParams.set("interest", "sent");
-          location.assign(messagesUrl.href);
+          toast("Interest sent. Your private project chat is ready in Messages.");
+          if (location.pathname.endsWith("/messages.html")) location.href = `messages.html?conversation=${encodeURIComponent(conversationId)}`;
           resolve(true);
         } catch (error) { send.disabled = false; toast(error.message || "Could not send interest."); }
       };
@@ -92,62 +117,6 @@
     if (error || !user) throw new Error("Please log in first, then try again.");
     return user;
   }
-  async function ensureInitializedProfile(supabase, user) {
-    const { data: existing, error: readError } = await supabase.from("profiles").select("id,account_type,onboarding_completed").eq("id", user.id).maybeSingle();
-    if (readError) throw readError;
-    const rawType = String(user.user_metadata?.account_type || "creator").toLowerCase();
-    const accountType = rawType === "influencer" ? "creator" : rawType;
-    if (!accountTypes.includes(accountType)) throw new Error("Your account type could not be verified. Contact support before continuing.");
-    const displayName = String(user.user_metadata?.display_name || "").trim().slice(0, 100);
-    let initialized = existing;
-    if (!initialized) {
-      const { error: insertError } = await supabase.from("profiles").insert({
-        id: user.id, account_type: accountType, display_name: displayName,
-        onboarding_completed: false, is_discoverable: false,
-      });
-      if (insertError && insertError.code !== "23505") throw insertError;
-      const { data: verified, error: verifyError } = await supabase.from("profiles").select("id,account_type,onboarding_completed").eq("id", user.id).maybeSingle();
-      if (verifyError) throw verifyError;
-      initialized = verified;
-    }
-    if (!initialized) throw new Error("Your account is ready, but its profile could not be initialized. Please try again or contact support.");
-    if (initialized.account_type !== accountType) throw new Error("Your saved profile type does not match this account. Contact support before continuing.");
-    const { data: privateContact, error: contactReadError } = await supabase.from("private_contacts").select("full_name").eq("user_id", user.id).maybeSingle();
-    if (contactReadError) throw contactReadError;
-    const fullName = String(user.user_metadata?.full_name || privateContact?.full_name || sessionStorage.getItem("bmc_signup_name") || "").trim();
-    const { error: contactError } = await supabase.from("private_contacts").upsert({ user_id: user.id, email: user.email || null, full_name: fullName || null }, { onConflict: "user_id" });
-    if (contactError) throw contactError;
-    return initialized;
-  }
-  const protectedPages = new Set([
-    "feed.html", "projects.html", "explore.html", "dashboard.html", "messages.html",
-    "applications.html", "saved-opportunities.html", "settings.html", "my-projects.html", "notifications.html",
-    "my-profile.html", "profile-setup.html", "project-form.html",
-  ]);
-  async function requirePageSession(supabase, file) {
-    let user;
-    try {
-      const { data: { user: currentUser }, error } = await supabase.auth.getUser();
-      if (error) throw error;
-      user = currentUser;
-    } catch (error) {
-      const next = `${file}${location.search}${location.hash}`;
-      const expired = /refresh token|invalid jwt|session missing|session not found|invalid token|not authenticated/i.test(String(error?.message || ""));
-      if (expired) { try { await supabase.auth.signOut({ scope: "local" }); } catch (_) { /* The local session is already unusable. */ } }
-      location.replace(`index.html?next=${encodeURIComponent(next)}&auth_error=${expired ? "session" : "connection"}`);
-      return false;
-    }
-    if (user) {
-      supabase.auth.onAuthStateChange((event, session) => {
-        if (event === "SIGNED_OUT" && !session) location.replace(`index.html?next=${encodeURIComponent(file)}&auth_error=session`);
-      });
-      return true;
-    }
-    try { await supabase.auth.signOut({ scope: "local" }); } catch (_) { /* Clear stale local auth state when possible. */ }
-    const next = `${file}${location.search}${location.hash}`;
-    location.replace(`index.html?next=${encodeURIComponent(next)}&auth_error=session`);
-    return false;
-  }
   async function loadAccountHeader() {
     const headerName = $(".collabry-account > span");
     if (!headerName) return;
@@ -157,19 +126,12 @@
     if (error) throw error;
     const name = profile?.display_name || profile?.company_name || user.user_metadata?.display_name || user.email?.split("@")[0] || "Member";
     const type = profile?.account_type || user.user_metadata?.account_type || "creator";
-    const label = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[type] || "Creator";
+    const label = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[type] || "Creator";
     headerName.textContent = `${name} · ${label}`;
-    const nav = document.querySelector(".collabry-nav nav");
-    if (nav && !nav.querySelector("a[data-notifications-link]")) {
-      const link = document.createElement("a"); link.href = "notifications.html"; link.dataset.notificationsLink = "true"; link.setAttribute("aria-label", "Notifications");
-      link.innerHTML = "<span>♧</span><small>Notifications</small>";
-      if (location.pathname.endsWith("/notifications.html")) { link.classList.add("active"); link.setAttribute("aria-current", "page"); }
-      const messages = nav.querySelector('a[href$="messages.html"]'); if (messages) messages.after(link); else nav.append(link);
-    }
     if (location.pathname.endsWith("/project-form.html") && !new URLSearchParams(location.search).has("id")) {
       const kind = $("#kind");
       if (kind) {
-        kind.value = ({ creator: "creator", brand: "brand", agency: "agency", celebrity: "celebrity", event: "event", media: "media", community: "community", distributor: "distributor", freelancer: "freelancer" })[type] || "brand";
+        kind.value = ({ creator: "creator", brand: "brand", agency: "agency", celebrity: "celebrity", event: "event", media: "media" })[type] || "brand";
         const brandOption = kind.querySelector('option[value="brand"]');
         if (type === "creator") brandOption?.remove();
         else if (type === "agency" && brandOption) brandOption.textContent = "Agency campaign";
@@ -187,89 +149,36 @@
   async function authSubmit(event) {
     event.preventDefault(); event.stopImmediatePropagation();
     const form = event.currentTarget;
-    const emailInput = $("#email"), passwordInput = $("#password");
-    const email = emailInput.value.trim().toLowerCase();
-    const password = passwordInput.value;
+    const email = $("#email").value.trim();
+    const password = $("#password").value;
     const isSignup = $(".tab.active")?.dataset.mode !== "login";
     const button = form.querySelector('[type="submit"]');
-    if (!emailInput.checkValidity()) { emailInput.reportValidity(); return; }
-    if (isSignup) {
-      const nameInput = $("#full-name"), confirmation = $("#confirm-password"), selectedRole = $(".role-chip.selected")?.dataset.role;
-      if (nameInput.value.trim().length < 2) { nameInput.setCustomValidity("Enter your full name."); nameInput.reportValidity(); nameInput.setCustomValidity(""); return; }
-      if (!accountTypes.includes(selectedRole)) { toast("Choose one of the available account types."); return; }
-      if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) { passwordInput.setCustomValidity("Use at least 8 characters, including a letter and a number."); passwordInput.reportValidity(); passwordInput.setCustomValidity(""); return; }
-      if (confirmation.value !== password) { confirmation.setCustomValidity("The passwords do not match."); confirmation.reportValidity(); confirmation.setCustomValidity(""); return; }
-      if (!$("#account-consent").checked) { $("#account-consent").focus(); toast("Please acknowledge how Brand Media Collab uses your account details before creating an account."); return; }
-    } else if (!password) { passwordInput.reportValidity(); return; }
     button.disabled = true;
-    const originalButtonText = button.textContent;
-    button.textContent = isSignup ? "Creating your account…" : "Signing in…";
     try {
       const supabase = await client();
       if (isSignup) {
         const displayName = $("#full-name").value.trim();
-        const accountType = $(".role-chip.selected").dataset.role;
+        const chosen = $(".role-chip.selected")?.dataset.role || "Influencer";
+        const accountType = chosen.toLowerCase() === "influencer" ? "creator" : chosen.toLowerCase();
         sessionStorage.setItem("bmc_signup_type", accountType);
         sessionStorage.setItem("bmc_signup_name", displayName);
         const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: {
-            data: { account_type: accountType, display_name: displayName, full_name: displayName, account_data_acknowledged_at: new Date().toISOString() },
-            emailRedirectTo: `${location.origin}/site/profile-setup.html`,
-          },
+          options: { data: { account_type: accountType, display_name: displayName }, emailRedirectTo: `${location.origin}/site/profile-setup.html` },
         });
         if (error) throw error;
         if (!data.session) {
-          sessionStorage.removeItem("bmc_signup_type");
-          sessionStorage.removeItem("bmc_signup_name");
-          toast("Email confirmation is still enabled in Supabase. To allow signup without a confirmation email, disable Confirm email for the Email provider in your Supabase Auth settings, then try again.");
+          toast("Account created. Check your email to confirm it, then log in to finish your profile.");
           return;
         }
-        const user = data.user;
-        if (!user) throw new Error("Supabase did not return the new account. Please try again.");
-        const { data: profile, error: profileError } = await supabase.from("profiles").select("id,account_type,onboarding_completed").eq("id", user.id).maybeSingle();
-        if (profileError) throw profileError;
-        if (!profile) {
-          const { error: initError } = await supabase.from("profiles").insert({ id: user.id, account_type: accountType, display_name: displayName, onboarding_completed: false, is_discoverable: false });
-          if (initError && initError.code !== "23505") throw initError;
-        } else if (profile.account_type !== accountType) {
-          throw new Error("Your account was created, but its profile type did not match the selection. Contact support before continuing.");
-        }
-        location.replace("profile-setup.html");
+        location.href = "profile-setup.html";
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        if (!data.user) throw new Error("Sign in did not return an authenticated user. Please try again.");
-        const { data: profile, error: profileError } = await supabase.from("profiles").select("id,account_type,onboarding_completed").eq("id", data.user.id).maybeSingle();
-        if (profileError) throw profileError;
-        if (!profile) location.replace("profile-setup.html");
-        else if (!profile.onboarding_completed) location.replace("profile-setup.html");
-        else location.replace(authNextPage() || "feed.html");
+        location.href = "feed.html";
       }
-    } catch (error) {
-      const message = authErrorMessage(error);
-      toast(message);
-    } finally { button.disabled = false; button.innerHTML = originalButtonText; }
-  }
-  function authErrorMessage(error) {
-    const message = String(error?.message || "");
-    if (/invalid login credentials|invalid email or password/i.test(message)) return "Email or password is incorrect. Check your details and try again.";
-    if (/email not confirmed/i.test(message)) return "Confirm your email from the link we sent before signing in.";
-    if (/password should be at least|password.*weak|weak password/i.test(message)) return "Choose a stronger password with at least 8 characters, including a letter and a number.";
-    if (/user already registered|already been registered/i.test(message)) return "We couldn’t create an account with those details. If you already registered, log in or use Forgot password.";
-    if (/failed to fetch|networkerror|load failed/i.test(message)) return "Brand Media Collab could not reach the sign-in service. Check your connection and try again.";
-    return message || "We could not complete that account request. Please try again.";
-  }
-  function authNextPage() {
-    const requested = new URLSearchParams(location.search).get("next");
-    const safePages = new Set(["feed.html", "projects.html", "explore.html", "dashboard.html", "messages.html", "applications.html", "saved-opportunities.html", "settings.html", "my-projects.html", "my-profile.html", "project-form.html"]);
-    if (!requested) return "";
-    try {
-      const candidate = new URL(requested, location.href);
-      const file = candidate.pathname.split("/").pop();
-      if (candidate.origin !== location.origin || !safePages.has(file) || !candidate.pathname.endsWith(`/site/${file}`)) return "";
-      return `${file}${candidate.search}${candidate.hash}`;
-    } catch (_) { return ""; }
+    } catch (error) { toast(error.message || "Account request failed."); }
+    finally { button.disabled = false; }
   }
   async function saveProfile(complete) {
     const supabase = await client();
@@ -278,7 +187,7 @@
     const accountType = editingProfile
       ? sessionStorage.getItem("bmc_edit_account_type") || $("[data-type].selected")?.dataset.type || "creator"
       : sessionStorage.getItem("bmc_signup_type") || $("[data-type].selected")?.dataset.type || "creator";
-    if (!accountTypes.includes(accountType)) throw new Error("Choose a supported Brand Media Collab account type.");
+    if (!accountTypes.includes(accountType)) throw new Error("Choose a supported Stagerang account type.");
     const isOrg = isOrganization(accountType);
     const markComplete = complete || editingProfile;
     const displayName = (isOrg ? $("#company")?.value : $("#display-name")?.value)?.trim() || sessionStorage.getItem("bmc_signup_name") || "";
@@ -286,7 +195,7 @@
     const orgTagGroups = [...document.querySelectorAll(".brand-only .tags")];
     const selectedTags = (group) => [...(group?.querySelectorAll(".tag.selected") || [])].map((tag) => tag.textContent.trim()).filter(Boolean);
     const contentCategories = ["creator", "celebrity"].includes(accountType) ? selectedTags(creatorTagGroups[0]) : [];
-    const collaborationCategories = ["creator", "celebrity"].includes(accountType) ? selectedTags(creatorTagGroups[1]) : ["brand", "community"].includes(accountType) ? selectedTags(orgTagGroups[0]) : [];
+    const collaborationCategories = ["creator", "celebrity"].includes(accountType) ? selectedTags(creatorTagGroups[1]) : accountType === "brand" ? selectedTags(orgTagGroups[0]) : [];
     const agencyServices = accountType === "agency" ? selectedTags($(".agency-services-field .tags")) : [];
     const agencySpecialisations = accountType === "agency" ? selectedTags(orgTagGroups[0]) : [];
     const phone = $("#phone")?.value?.trim() || "";
@@ -295,17 +204,10 @@
     const fullPhone = normalizedPhone.startsWith("+") ? normalizedPhone : `${countryCode}${normalizedPhone.replace(/^0+/, "")}`;
     if (phone && !/^\+[1-9]\d{7,14}$/.test(fullPhone)) profileFieldError("#phone", "Enter a valid mobile number with country code.");
     if (markComplete && !phone) profileFieldError("#phone", "Mobile number is required to complete your profile.");
-    const creatorFullName = ["creator", "freelancer"].includes(accountType) ? $("#full-name")?.value?.trim() || "" : "";
-    const creatorCategory = accountType === "creator" ? $("#creator-category")?.value?.trim() || "" : "";
     const required = isOrg
-      ? [["#company", accountType === "community" ? "Community name" : accountType === "event" ? "Organisation or event business name" : accountType === "media" ? "Media organisation name" : accountType === "distributor" ? "Distributor / company name" : "Company name"], ["#category", accountType === "distributor" ? "Product category / industry" : accountType === "community" ? "Community category" : "Industry / category"], ["#company-bio", accountType === "community" ? "About the community" : "About the organisation"], ["#manager", "Owner / primary contact name"], ["#market", "Location"], ...(accountType === "agency" ? [["#agency-type", "Agency type"]] : []), ...(accountType === "community" ? [["#community-type", "Community format"]] : []), ...(accountType === "distributor" ? [["#distributor-type", "Distributor type"]] : [])]
-      : [...(["creator", "freelancer"].includes(accountType) ? [["#full-name", "Full name"]] : []), ["#display-name", accountType === "celebrity" ? "Public or stage name" : accountType === "freelancer" ? "Professional / display name" : "Display name"], ["#location", "Location"], ["#bio", accountType === "freelancer" ? "Professional description" : "Bio"], ...(accountType === "creator" ? [["#creator-category", "Primary creator category / niche"]] : []), ...(accountType === "celebrity" ? [["#profession", "Profession / talent category"]] : []), ...(accountType === "freelancer" ? [["#freelancer-profession", "Primary service / profession"]] : [])];
+      ? [["#company", accountType === "event" ? "Organisation or event business name" : accountType === "media" ? "Media organisation name" : "Company name"], ["#category", "Industry / category"], ["#company-bio", "About your organisation"], ...(["brand", "agency"].includes(accountType) ? [["#manager", "Project contact name"]] : []), ...(accountType === "agency" ? [["#agency-type", "Agency type"]] : [])]
+      : [["#display-name", accountType === "celebrity" ? "Public or stage name" : "Display name"], ["#location", "Location"], ["#bio", "Bio"], ...(accountType === "celebrity" ? [["#profession", "Profession / talent category"]] : [])];
     if (markComplete) for (const [selector, label] of required) if (!$(selector)?.value?.trim()) profileFieldError(selector, `${label} is required.`);
-    if (markComplete && ["creator", "freelancer", "community", "distributor"].includes(accountType) && !(window.bmcAvatarUrl || window.bmcExistingAvatarUrl)) {
-      document.querySelector(".creator-only .profile-pic")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      toast("Upload a profile photo or logo to complete your profile.");
-      throw new Error("A profile photo is required.");
-    }
     const availabilitySelect = !isOrg ? $("#availability") : null;
     const availabilityStatus = availabilitySelect?.value || null;
     const availabilityDate = availabilityStatus === "Available from a date" ? $("#availability-date")?.value || null : null;
@@ -317,11 +219,10 @@
     const languages = !isOrg ? [...($("#language")?.selectedOptions || [])].map((option) => option.value === "Other" ? $("#language-other")?.value.trim() || "Other" : option.value) : [];
     const selectedValues = (selector) => [...($(selector)?.selectedOptions || [])].map((option) => option.value).filter(Boolean);
     if (markComplete && accountType === "media" && !selectedValues("#media-types").length) profileFieldError("#media-types", "Choose at least one media type.");
-    if (markComplete && accountType === "freelancer" && !csvValues("#freelancer-skills").length) profileFieldError("#freelancer-skills", "Add at least one skill.");
-    const dynamicServices = ["event", "media"].includes(accountType) ? csvValues(`#${accountType}-services`) : accountType === "freelancer" ? csvValues("#freelancer-services") : accountType === "distributor" ? csvValues("#distribution-capabilities") : accountType === "community" ? csvValues("#community-activities") : [];
-    const clientIndustries = accountType === "agency" ? csvValues("#agency-client-industries") : accountType === "media" ? csvValues("#media-client-industries") : accountType === "distributor" ? csvValues("#distribution-industries") : [];
-    const profession = accountType === "freelancer" ? $("#freelancer-profession")?.value || null : $("#profession")?.value || null;
-    const profileSkills = accountType === "celebrity" ? csvValues("#celebrity-skills") : accountType === "creator" ? csvValues("#creator-skills") : accountType === "freelancer" ? csvValues("#freelancer-skills") : [];
+    const dynamicServices = ["event", "media"].includes(accountType) ? csvValues(`#${accountType}-services`) : [];
+    const clientIndustries = accountType === "agency" ? csvValues("#agency-client-industries") : accountType === "media" ? csvValues("#media-client-industries") : [];
+    const profession = $("#profession")?.value || null;
+    const profileSkills = accountType === "celebrity" ? csvValues("#celebrity-skills") : accountType === "creator" ? csvValues("#creator-skills") : [];
     const profileFormats = accountType === "celebrity" ? csvValues("#celebrity-content-formats") : accountType === "creator" ? csvValues("#creator-content-formats") : [];
     const audienceType = accountType === "event" ? $("#event-audience-type")?.value.trim() : accountType === "media" ? $("#media-audience-type")?.value.trim() : "";
     const payload = {
@@ -329,10 +230,10 @@
       avatar_url: window.bmcAvatarUrl || window.bmcExistingAvatarUrl || null,
       company_name: isOrg ? displayName : null,
       agency_type: accountType === "agency" ? $("#agency-type")?.value || null : null,
-      manager_name: isOrg ? $("#manager")?.value.trim() || null : null,
-      manager_title: isOrg ? $("#manager-title")?.value.trim() || null : null,
+      manager_name: ["brand", "agency"].includes(accountType) ? $("#manager")?.value.trim() || null : null,
+      manager_title: ["brand", "agency"].includes(accountType) ? $("#manager-title")?.value.trim() || null : null,
       bio: (isOrg ? $("#company-bio")?.value : $("#bio")?.value)?.trim() || "",
-      category: creatorCategory || $("#category")?.value || profession || null,
+      category: $("#category")?.value || profession || null,
       location: $(isOrg ? "#market" : "#location")?.value?.trim() || null,
       website_url: (isOrg ? $("#company-site")?.value : $("#website")?.value)?.trim() || null,
       content_categories: contentCategories,
@@ -345,13 +246,7 @@
       media_types: selectedValues("#media-types"),
       event_types: selectedValues("#event-types"),
       client_industries: clientIndustries,
-      company_type: accountType === "community" ? $("#community-type")?.value || null : accountType === "distributor" ? $("#distributor-type")?.value || null : $("#company-type")?.value || null,
-      community_type: accountType === "community" ? $("#community-type")?.value || null : null,
-      membership_type: accountType === "community" ? $("#membership-type")?.value || null : null,
-      member_range: accountType === "community" ? $("#member-range")?.value || null : null,
-      distribution_regions: accountType === "distributor" ? csvValues("#distribution-regions") : [],
-      business_capabilities: accountType === "distributor" ? selectedTags($("#distributor-capabilities")) : [],
-      work_preference: accountType === "freelancer" ? $("#work-preference")?.value || null : null,
+      company_type: $("#company-type")?.value || null,
       audience_type: audienceType || null,
       event_scale: $("#event-scale")?.value.trim() || null,
       representation_status: $("#representation-status")?.value || null,
@@ -367,9 +262,7 @@
       payload.availability_status = availabilityStatus;
       payload.availability_date = availabilityDate;
     }
-    const { data: existingContact, error: existingContactError } = await supabase.from("private_contacts").select("full_name").eq("user_id", user.id).maybeSingle();
-    if (existingContactError) throw existingContactError;
-    const contact = { user_id: user.id, email: user.email || null, phone: phone ? fullPhone : null, full_name: ["creator", "freelancer"].includes(accountType) ? creatorFullName || null : existingContact?.full_name || user.user_metadata?.full_name || null };
+    const contact = { user_id: user.id, email: user.email || null, phone: phone ? fullPhone : null };
     const { error: contactError } = await supabase.from("private_contacts").upsert(contact);
     if (contactError) throw contactError;
     const { error } = await supabase.from("profiles").upsert(payload);
@@ -395,7 +288,7 @@
     }
     if (complete) {
       sessionStorage.removeItem("bmc_signup_type"); sessionStorage.removeItem("bmc_signup_name"); sessionStorage.removeItem("bmc_edit_account_type");
-      location.href = "dashboard.html";
+      location.href = "my-profile.html";
     } else toast("Profile saved to your account.");
   }
   function profileClick(event) {
@@ -431,8 +324,7 @@
       input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true; document.body.append(input);
       input.addEventListener("change", async () => {
         const file = input.files?.[0]; if (!file) return;
-          if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) return toast("Choose a JPG, PNG, or WebP image.");
-          if (file.size > 5 * 1024 * 1024) return toast("Choose an image smaller than 5 MB.");
+        if (file.size > 5 * 1024 * 1024) return toast("Choose an image smaller than 5 MB.");
         try {
           const supabase = await client(); const user = await signedIn(supabase);
           const ext = file.name.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
@@ -442,40 +334,34 @@
           const { data } = supabase.storage.from("avatars").getPublicUrl(path);
           window.bmcAvatarUrl = data.publicUrl;
           let preview = window.bmcProfileAvatarTarget; if (preview) preview.innerHTML = `<img src="${esc(data.publicUrl)}" alt="Profile photo preview" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
-          window.bmcUpdateProfileCompletion?.();
           toast("Photo uploaded. Save your profile to keep it.");
         } catch (error) { toast(error.message || "Photo upload failed."); }
-        finally { input.value = ""; }
       });
     }
     input.click();
   }
-  function ensureNineTypeProfileFields() {
-    if ($("#nine-type-profile-fields")) return;
+  function ensureSixTypeProfileFields() {
+    if ($("#six-type-profile-fields")) return;
     const socialCard = [...document.querySelectorAll(".card")].find((card) => card.querySelector(".card-title h3")?.textContent.trim() === "Social accounts");
     if (!socialCard) return;
-    const host = document.createElement("div"); host.id = "nine-type-profile-fields";
+    const host = document.createElement("div"); host.id = "six-type-profile-fields";
     host.innerHTML = `
       <section class="card role-fields" data-role-fields="creator"><div class="card-title"><h3>Creator details</h3><span>OPTIONAL</span></div><div class="grid"><div class="field"><label for="creator-skills">Skills</label><input id="creator-skills" placeholder="Photography, editing, writing"></div><div class="field"><label for="creator-content-formats">Content formats</label><input id="creator-content-formats" placeholder="Reels, stories, interviews"></div></div></section>
       <section class="card role-fields" data-role-fields="celebrity"><div class="card-title"><h3>Talent profile</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="profession">Profession / talent category *</label><select id="profession"><option value="">Choose a talent category</option><option>Actor / actress</option><option>Musician / singer</option><option>Athlete / sports personality</option><option>Comedian</option><option>Author</option><option>Celebrity chef</option><option>Television host</option><option>Public figure</option><option>Other talent</option></select></div><div class="field"><label for="representation-status">Representation</label><select id="representation-status"><option value="">Choose one</option><option value="self_managed">Self-managed</option><option value="represented">Managed by an authorised representative</option></select></div></div><div class="grid"><div class="field"><label for="celebrity-skills">Talent skills</label><input id="celebrity-skills" placeholder="Acting, singing, hosting"></div><div class="field"><label for="celebrity-content-formats">Available formats</label><input id="celebrity-content-formats" placeholder="Interviews, appearances, campaigns"></div></div><p class="metric-note">Personal mobile numbers and private management contact details are never shown on your public profile.</p></section>
       <section class="card role-fields" data-role-fields="brand"><div class="card-title"><h3>Company details</h3><span>OPTIONAL</span></div><div class="field"><label for="company-type">Company type</label><select id="company-type"><option value="">Choose company type</option><option>Consumer brand</option><option>Startup</option><option>Small business</option><option>Enterprise</option><option>Non-profit</option><option>Other</option></select></div></section>
       <section class="card role-fields" data-role-fields="agency"><div class="card-title"><h3>Agency expertise</h3><span>OPTIONAL</span></div><div class="field"><label for="agency-client-industries">Client industries</label><input id="agency-client-industries" placeholder="Fashion, food, technology"></div></section>
       <section class="card role-fields" data-role-fields="event"><div class="card-title"><h3>Event organisation details</h3><span>OPTIONAL</span></div><div class="grid"><div class="field"><label for="event-types">Event specialisations</label><select id="event-types" multiple size="5"><option>Concerts & live music</option><option>Festivals</option><option>Exhibitions & trade fairs</option><option>Conferences & summits</option><option>Corporate events</option><option>Sports events</option><option>College events</option><option>Fashion & experiential events</option><option>Brand activations</option><option>Other</option></select><small>Use Ctrl or Command to select more than one.</small></div><div><div class="field"><label for="event-audience-type">Audience type</label><input id="event-audience-type" placeholder="Families, professionals, fans"></div><div class="field"><label for="event-scale">Event scale or capacity</label><input id="event-scale" placeholder="Optional, for example 500–1,000 attendees"></div></div></div><div class="field"><label for="event-services">Capabilities / services</label><input id="event-services" placeholder="Production, sponsorship, talent booking"></div></section>
-      <section class="card role-fields" data-role-fields="media"><div class="card-title"><h3>Media organisation details</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="media-types">Media type *</label><select id="media-types" multiple size="5"><option>Newspaper</option><option>Television / TV channel</option><option>Radio</option><option>Podcast</option><option>Magazine</option><option>Digital news / publisher</option><option>Print media</option><option>Online publication</option><option>Entertainment media</option><option>Film / video media</option><option>Media production</option><option>News portal</option><option>Photography / editorial</option><option>Other</option></select><small>Select every relevant medium.</small></div><div><div class="field"><label for="media-audience-type">Audience / readership</label><input id="media-audience-type" placeholder="Audience, readership or listener profile"></div><div class="field"><label for="media-client-industries">Editorial industries</label><input id="media-client-industries" placeholder="Culture, business, food"></div></div></div><div class="field"><label for="media-services">Platforms or production capabilities</label><input id="media-services" placeholder="Broadcast, editorial, video production"></div></section>
-      <section class="card role-fields" data-role-fields="community"><div class="card-title"><h3>Community profile</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="community-type">Community format *</label><select id="community-type"><option value="">Choose a format</option><option>Interest-based community</option><option>Professional network</option><option>Local community</option><option>Student community</option><option>Non-profit community</option><option>Online community</option><option>Other</option></select></div><div class="field"><label for="membership-type">Membership</label><select id="membership-type"><option value="">Choose membership access</option><option>Open to join</option><option>Application required</option><option>Invitation only</option><option>Member organisation</option></select></div></div><div class="grid"><div class="field"><label for="member-range">Community size</label><select id="member-range"><option value="">Choose approximate size</option><option>Under 100</option><option>100–999</option><option>1,000–9,999</option><option>10,000+</option></select></div><div class="field"><label for="community-activities">Activities / interests</label><input id="community-activities" placeholder="Meetups, education, arts, advocacy"></div></div></section>
-      <section class="card role-fields" data-role-fields="distributor"><div class="card-title"><h3>Distribution profile</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="distributor-type">Distributor type *</label><select id="distributor-type"><option value="">Choose a type</option><option>Retail distributor</option><option>Wholesale distributor</option><option>Regional distributor</option><option>Importer / exporter</option><option>Marketplace</option><option>Logistics / fulfilment</option><option>Other</option></select></div><div class="field"><label for="distribution-regions">Coverage regions</label><input id="distribution-regions" placeholder="West India, Maharashtra, nationwide"></div></div><div class="grid"><div class="field"><label for="distribution-industries">Industries / product categories</label><input id="distribution-industries" placeholder="Fashion, food, consumer goods"></div><div class="field"><label for="distribution-capabilities">Business capabilities</label><input id="distribution-capabilities" placeholder="Retail network, fulfilment, import/export"></div></div></section>
-      <section class="card role-fields" data-role-fields="freelancer"><div class="card-title"><h3>Freelance services</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="freelancer-profession">Primary service / profession *</label><select id="freelancer-profession"><option value="">Choose a profession</option><option>Photographer</option><option>Videographer</option><option>Editor</option><option>Designer</option><option>Writer / copywriter</option><option>Social media manager</option><option>Producer</option><option>Make-up artist / stylist</option><option>Marketing consultant</option><option>Other</option></select></div><div class="field"><label for="freelancer-skills">Skills *</label><input id="freelancer-skills" placeholder="Editing, motion graphics, copywriting"></div></div><div class="grid"><div class="field"><label for="freelancer-services">Services</label><input id="freelancer-services" placeholder="Campaign production, editing, consulting"></div><div class="field"><label for="work-preference">Work preference</label><select id="work-preference"><option value="">Choose a preference</option><option>Remote</option><option>On-site</option><option>Hybrid</option><option>Project-based</option></select></div></div></section>`;
+      <section class="card role-fields" data-role-fields="media"><div class="card-title"><h3>Media organisation details</h3><span>PUBLIC PROFILE</span></div><div class="grid"><div class="field"><label for="media-types">Media type *</label><select id="media-types" multiple size="5"><option>Newspaper</option><option>Television / TV channel</option><option>Radio</option><option>Podcast</option><option>Magazine</option><option>Digital news / publisher</option><option>Print media</option><option>Online publication</option><option>Entertainment media</option><option>Film / video media</option><option>Media production</option><option>News portal</option><option>Photography / editorial</option><option>Other</option></select><small>Select every relevant medium.</small></div><div><div class="field"><label for="media-audience-type">Audience / readership</label><input id="media-audience-type" placeholder="Audience, readership or listener profile"></div><div class="field"><label for="media-client-industries">Editorial industries</label><input id="media-client-industries" placeholder="Culture, business, food"></div></div></div><div class="field"><label for="media-services">Platforms or production capabilities</label><input id="media-services" placeholder="Broadcast, editorial, video production"></div></section>`;
     socialCard.before(host);
   }
   async function loadProfileSetup() {
     const supabase = await client(); const user = await signedIn(supabase);
-    await ensureInitializedProfile(supabase, user);
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     if (error) throw error;
     const editingProfile = new URLSearchParams(location.search).get("edit") === "1";
     if (editingProfile && !profile) { location.replace("profile-setup.html"); return; }
     const accountType = editingProfile ? profile.account_type : profile?.account_type || sessionStorage.getItem("bmc_signup_type") || user.user_metadata?.account_type || "creator";
-    ensureNineTypeProfileFields();
+    ensureSixTypeProfileFields();
     document.querySelectorAll("[data-role-fields]").forEach((section) => { section.hidden = section.dataset.roleFields !== accountType; });
     sessionStorage.setItem("bmc_signup_type", accountType);
     if (editingProfile) sessionStorage.setItem("bmc_edit_account_type", accountType);
@@ -486,7 +372,7 @@
     document.querySelectorAll(".brand-only").forEach((section) => section.classList.toggle("hidden", !isOrg));
     const typeLabel = accountType === "creator" ? "Creator" : accountType[0].toUpperCase() + accountType.slice(1);
     const pageHeading = $("h1"); if (pageHeading) pageHeading.textContent = editingProfile ? `Edit your ${typeLabel.toLowerCase()} profile` : `Let’s build your ${typeLabel.toLowerCase()} profile.`;
-    const formHeading = $(".main h2"); if (formHeading) formHeading.textContent = isOrg ? `Build your ${accountType === "agency" ? "agency" : accountType === "media" ? "media organisation" : accountType === "event" ? "event organisation" : accountType === "community" ? "community" : accountType === "distributor" ? "distribution" : "company"} profile` : `Build your ${typeLabel.toLowerCase()} profile`;
+    const formHeading = $(".main h2"); if (formHeading) formHeading.textContent = isOrg ? `Build your ${accountType === "agency" ? "agency" : accountType === "media" ? "media organisation" : accountType === "event" ? "event organisation" : "company"} profile` : `Build your ${typeLabel.toLowerCase()} profile`;
     const formSub = $(".main .sub"); if (formSub) formSub.textContent = isOrg ? "Give potential collaborators the context they need to find a good fit. Private contact details stay private." : `Share the details that help the right ${accountType === "celebrity" ? "brands, agencies, events and media partners" : "collaborators"} find you. You can edit everything later.`;
     if (!editingProfile) {
       const switcher = $(".account-switch");
@@ -557,7 +443,7 @@
     }
     const updateProfileCompletion = initProfileCompletion(accountType);
     const [{ data: contact, error: contactError }, { data: socials, error: socialError }] = await Promise.all([
-      supabase.from("private_contacts").select("phone,full_name").eq("user_id", user.id).maybeSingle(),
+      supabase.from("private_contacts").select("phone").eq("user_id", user.id).maybeSingle(),
       supabase.from("social_accounts").select("id,platform,profile_url,follower_count").eq("user_id", user.id),
     ]);
     if (contactError) throw contactError;
@@ -567,8 +453,6 @@
       if (callingCode) { if ($("#phone-country")) $("#phone-country").value = callingCode; phoneInput.value = contact.phone.slice(callingCode.length); }
       else phoneInput.value = contact.phone;
     }
-    const fullNameInput = $("#full-name");
-    if (fullNameInput) fullNameInput.value = String(contact?.full_name || user.user_metadata?.full_name || "").trim();
     document.querySelectorAll(".connected").forEach((row) => {
       const platform = row.querySelector(".social-meta b")?.textContent.trim() || "Other";
       row.dataset.platform = platform;
@@ -592,9 +476,9 @@
     });
     if (!profile) { updateProfileCompletion(); return; }
     const values = {
-      "#display-name": profile.display_name, "#full-name": contact?.full_name || user.user_metadata?.full_name || "", "#company": profile.company_name,
+      "#display-name": profile.display_name, "#company": profile.company_name,
       "#agency-type": profile.agency_type, "#bio": profile.bio, "#company-bio": profile.bio,
-      "#category": profile.category, "#creator-category": accountType === "creator" ? profile.category : "", "#location": profile.location, "#market": profile.location,
+      "#category": profile.category, "#location": profile.location, "#market": profile.location,
       "#website": profile.website_url, "#company-site": profile.website_url,
       "#manager": profile.manager_name, "#manager-title": profile.manager_title,
       "#creator-skills": accountType === "creator" ? (profile.skills || []).join(", ") : "",
@@ -602,18 +486,6 @@
       "#creator-content-formats": accountType === "creator" ? (profile.content_formats || []).join(", ") : "",
       "#celebrity-content-formats": accountType === "celebrity" ? (profile.content_formats || []).join(", ") : "",
       "#profession": profile.profession, "#company-type": profile.company_type,
-      "#freelancer-profession": accountType === "freelancer" ? profile.profession : "",
-      "#freelancer-skills": accountType === "freelancer" ? (profile.skills || []).join(", ") : "",
-      "#freelancer-services": accountType === "freelancer" ? (profile.services || []).join(", ") : "",
-      "#work-preference": profile.work_preference,
-      "#community-type": profile.community_type || profile.company_type,
-      "#membership-type": profile.membership_type,
-      "#member-range": profile.member_range,
-      "#community-activities": accountType === "community" ? (profile.services || []).join(", ") : "",
-      "#distributor-type": profile.company_type,
-      "#distribution-regions": (profile.distribution_regions || []).join(", "),
-      "#distribution-industries": accountType === "distributor" ? (profile.client_industries || []).join(", ") : "",
-      "#distribution-capabilities": (profile.business_capabilities || []).join(", "),
       "#agency-client-industries": accountType === "agency" ? (profile.client_industries || []).join(", ") : "",
       "#media-client-industries": accountType === "media" ? (profile.client_industries || []).join(", ") : "",
       "#event-audience-type": accountType === "event" ? profile.audience_type : "",
@@ -633,7 +505,6 @@
       window.bmcExistingAvatarUrl = profile.avatar_url;
       document.querySelectorAll(".profile-pic .pic").forEach((preview) => { preview.innerHTML = `<img src="${esc(profile.avatar_url)}" alt="Current profile image" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`; });
     }
-    updateProfileCompletion();
     [...document.querySelectorAll(".creator-only .tags")].forEach((group, index) => {
       const values = index === 0 ? profile.content_categories || [] : profile.collaboration_categories || [];
       group.querySelectorAll(".tag").forEach((tag) => tag.classList.toggle("selected", values.includes(tag.textContent.trim())));
@@ -661,16 +532,13 @@
   }
   function initProfileCompletion(accountType) {
     const progress = $(".progress div"); if (!progress) return;
-    const required = ["#phone", ...(["creator", "freelancer"].includes(accountType) ? ["#full-name", "#display-name", "#location", "#bio"] : accountType === "celebrity" ? ["#display-name", "#location", "#bio", "#profession"] : ["#company", "#category", "#company-bio", ...(["brand", "agency"].includes(accountType) ? ["#manager"] : []), ...(accountType === "agency" ? ["#agency-type"] : [])]), ...(accountType === "creator" ? ["#creator-category"] : []), ...(accountType === "freelancer" ? ["#freelancer-profession", "#freelancer-skills"] : []), ...(accountType === "community" ? ["#community-type"] : []), ...(accountType === "distributor" ? ["#distributor-type"] : [])];
+    const required = ["#phone", ...(accountType === "creator" ? ["#display-name", "#location", "#bio"] : accountType === "celebrity" ? ["#display-name", "#location", "#bio", "#profession"] : ["#company", "#category", "#company-bio", ...(["brand", "agency"].includes(accountType) ? ["#manager"] : []), ...(accountType === "agency" ? ["#agency-type"] : [])])];
     const update = () => {
-      const needsAvatar = ["creator", "freelancer", "community", "distributor"].includes(accountType);
-      const completeCount = required.filter((selector) => !!$(selector)?.value?.trim()).length + (needsAvatar && (window.bmcAvatarUrl || window.bmcExistingAvatarUrl) ? 1 : 0);
-      const total = required.length + (needsAvatar ? 1 : 0);
-      const percent = Math.round(completeCount / total * 100);
+      const completeCount = required.filter((selector) => !!$(selector)?.value?.trim()).length;
+      const percent = Math.round(completeCount / required.length * 100);
       progress.style.width = `${percent}%`; progress.setAttribute("role", "progressbar"); progress.setAttribute("aria-valuemin", "0"); progress.setAttribute("aria-valuemax", "100"); progress.setAttribute("aria-valuenow", String(percent));
       const label = $(".step-label"); if (label) label.textContent = `PROFILE COMPLETION · ${percent}%`;
     };
-    window.bmcUpdateProfileCompletion = update;
     required.forEach((selector) => { const input = $(selector); input?.addEventListener("input", () => { input.removeAttribute("aria-invalid"); input.closest(".field")?.querySelector(".field-error")?.remove(); update(); }); input?.addEventListener("change", update); });
     update();
     return update;
@@ -684,7 +552,7 @@
       const root = $("#dynamic-profile"); if (!root) return;
       if (error || !profile || (current.data.user?.id !== targetId && profile.is_discoverable !== true)) {
         root.innerHTML = `<section class="card profile-unavailable"><div class="profile-body"><span class="role">Profile unavailable</span><h1>This profile isn’t available</h1><p>This member may have turned off Explore visibility or removed their profile.</p><a class="edit" href="explore.html">Back to Explore</a></div></section>`;
-        document.title = "Profile unavailable — Brand Media Collab";
+        document.title = "Profile unavailable — Stagerang";
         return;
       }
     const { data: socialAccounts, error: socialError } = await supabase.from("social_accounts").select("platform,profile_url").eq("user_id", targetId).order("platform");
@@ -695,19 +563,9 @@
     const socialLinks = (socialAccounts || []).map((account) => { const url = publicLink(account.profile_url); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>` : ""; }).join("");
     const portfolioLinks = (profile.portfolio_links || []).map((value) => { const url = publicLink(value); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Featured work</a>` : ""; }).join("");
     const social = socialLinks || portfolioLinks ? `<div class="public-social-links">${socialLinks}${portfolioLinks}</div>` : "";
-    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || profile.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}${profile.is_verified ? " · Verified" : ""}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.agency_type || profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "This member is still completing their public profile.")}</p>${profile.website_url && publicLink(profile.website_url) ? `<a href="${esc(publicLink(profile.website_url))}" target="_blank" rel="noopener noreferrer">${esc(profile.website_url)}</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>${social}${isOwner ? `<p class="profile-discovery-status">${profile.is_discoverable ? "Your profile is visible in Explore." : "Your profile is hidden from Explore."}</p><a class="edit" href="profile-setup.html?edit=1">Edit my profile</a><section id="verification-box" style="margin-top:20px;padding:16px;border:1px solid #e9e7df;border-radius:12px"><b>Profile verification</b><p id="verification-status" class="profile-discovery-status">Checking request status…</p>${profile.is_verified ? "" : '<button id="verification-toggle" class="edit" type="button">Request verification</button><form id="verification-form" hidden style="margin-top:12px"><label for="verification-statement">Tell us why your profile should be verified</label><textarea id="verification-statement" minlength="20" maxlength="2000" required style="display:block;width:100%;min-height:100px;margin:8px 0;padding:10px;border:1px solid #e9e7df;border-radius:8px;font:inherit"></textarea><button class="edit" type="submit">Send request</button></form>'}</section>` : '<div id="profile-connection-actions" class="profile-connection-actions" aria-live="polite"><span>Loading connection options…</span></div>'}</div></section>`;
-    if (!isOwner) {
-      await window.bmcConnections?.renderProfileActions(profile.id, false);
-      const actions = $("#profile-connection-actions");
-      if (actions) { const report = document.createElement("button"); report.type = "button"; report.className = "block-profile"; report.textContent = "Report profile"; report.onclick = async () => { const reasons=["spam","harassment","impersonation","unsafe_content","fraud","other"];const reason=(prompt(`Choose a reason: ${reasons.join(", ")}`,"other")||"").trim().toLowerCase();if(!reasons.includes(reason))return toast("Enter one of the listed reasons.");const description=(prompt("Describe the concern (at least 10 characters):")||"").trim();if(description.length<10)return toast("Add a little more detail before submitting.");const{data:{session}}=await supabase.auth.getSession();const response=await fetch("/api/reports",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session?.access_token||""}`},body:JSON.stringify({targetUserId:profile.id,reason,description})});const result=await response.json().catch(()=>({}));if(!response.ok)return toast(result.error||"Could not submit the report.");toast("Report sent to the moderation team.");}; actions.append(report); }
-    } else if (!profile.is_verified) {
-      const status = $("#verification-status"), form = $("#verification-form"), toggle = $("#verification-toggle");
-      toggle?.addEventListener("click", () => { form.hidden = !form.hidden; });
-      try { const { data: { session } } = await supabase.auth.getSession(); const response = await fetch("/api/verification-requests", { headers: { Authorization: `Bearer ${session?.access_token || ""}` }, cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error); const latest = result.requests?.[0]; status.textContent = latest ? `Latest request: ${latest.status}${latest.review_note ? ` · ${latest.review_note}` : ""}` : "No verification request submitted yet."; if (latest?.status === "pending") { toggle.disabled = true; toggle.textContent = "Request pending"; } }
-      catch (requestError) { status.textContent = requestError.message || "Verification status could not load."; }
-      form?.addEventListener("submit", async (event) => { event.preventDefault(); const statement = $("#verification-statement").value.trim(); const button = form.querySelector("button[type=submit]"); button.disabled = true; try { const { data: { session } } = await supabase.auth.getSession(); const response = await fetch("/api/verification-requests", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }, body: JSON.stringify({ statement }) }); const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not submit the request."); status.textContent = "Latest request: pending"; toggle.disabled = true; toggle.textContent = "Request pending"; form.hidden = true; toast("Verification request sent."); } catch (requestError) { toast(requestError.message || "Could not submit the request."); } finally { button.disabled = false; } });
-    }
-    document.title = `${profile.display_name || "Profile"} — Brand Media Collab`;
+    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || profile.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.agency_type || profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "This member is still completing their public profile.")}</p>${profile.website_url && publicLink(profile.website_url) ? `<a href="${esc(publicLink(profile.website_url))}" target="_blank" rel="noopener noreferrer">${esc(profile.website_url)}</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>${social}${isOwner ? `<p class="profile-discovery-status">${profile.is_discoverable ? "Your profile is visible in Explore." : "Your profile is hidden from Explore."}</p><a class="edit" href="profile-setup.html?edit=1">Edit my profile</a>` : '<div id="profile-connection-actions" class="profile-connection-actions" aria-live="polite"><span>Loading connection options…</span></div>'}</div></section>`;
+    if (!isOwner) await window.bmcConnections?.renderProfileActions(profile.id, false);
+    document.title = `${profile.display_name || "Profile"} — Stagerang`;
   }
   function projectPayload(user, accountType) {
     const budget = [...document.querySelectorAll(".delivery")].map((row) => ({
@@ -716,7 +574,7 @@
     })).filter((x) => x.amount_range);
     return {
       owner_id: user.id, owner_type: accountType,
-      project_type: ({ creator: "creator_idea", brand: "brand_campaign", agency: "agency_project", celebrity: "celebrity_project", event: "event_project", media: "media_project", community: "community_project", distributor: "distribution_project", freelancer: "freelance_project" })[accountType] || "brand_campaign",
+      project_type: ({ creator: "creator_idea", brand: "brand_campaign", agency: "agency_project", celebrity: "celebrity_project", event: "event_project", media: "media_project" })[accountType] || "brand_campaign",
       project_name: $("#name").value.trim(), category: $("#category").value,
       location: $("#location").value.trim() || null,
       requirements: $("#requirements").value.trim(),
@@ -791,7 +649,7 @@
     $("#empty").hidden = data.length > 0;
     data.forEach((p) => {
       const row = document.createElement("article"); row.className = "card project";
-      const projectLabel = ({ agency: "Agency project", creator: "Creator collaboration idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand campaign", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment" })[profile.account_type] || "Project";
+      const projectLabel = ({ agency: "Agency project", creator: "Creator collaboration idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand campaign" })[profile.account_type] || "Project";
       row.innerHTML = `<div><h2>${esc(p.project_name)}</h2><div class="meta">${projectLabel} · ${esc(p.category)} · ${new Date(p.updated_at || p.created_at).toLocaleDateString()}</div><div class="chips"><span class="chip">Apply by ${esc(p.application_deadline || "Not set")}</span><span class="chip">Delivery ${esc(p.delivery_date || "Not set")}</span><span class="chip">${esc(p.status)}</span></div></div><div class="actions"><a class="secondary" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a><button class="secondary danger" data-delete="${esc(p.id)}">Delete</button></div>`;
       host.append(row);
     });
@@ -809,7 +667,7 @@
     const refreshActivity = () => { clearTimeout(activityRefresh); activityRefresh = setTimeout(async () => { try { await refreshFeedActivity(supabase, user); await refreshMessageBadge(); } catch (error) { console.error("Live activity refresh failed:", error); } }, 250); };
     const announce = (title, body) => {
       toast(body || title || "You have new activity.");
-      if (document.hidden && "Notification" in window && Notification.permission === "granted") new Notification(title || "Brand Media Collab", { body: body || "You have new activity." });
+      if (document.hidden && "Notification" in window && Notification.permission === "granted") new Notification(title || "Stagerang", { body: body || "You have new activity." });
     };
     window.bmcFeedRealtimeConnected = false;
     window.bmcFeedRealtimeChannel = supabase.channel(`creator-dashboard-${user.id}`)
@@ -830,7 +688,7 @@
   }
   async function openProjectsForFeed() {
     let selectedKind = window.bmcSelectedFeedKind || "brand";
-    if (!accountTypes.includes(selectedKind)) selectedKind = "brand";
+    if (!["brand", "creator", "agency", "celebrity", "event", "media"].includes(selectedKind)) selectedKind = "brand";
     document.querySelectorAll(".center-col > .post").forEach((node) => node.remove());
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error: pError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
@@ -839,7 +697,7 @@
     if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user);
     const name = profile.display_name || profile.company_name || "Member";
     window.bmcAccountType = profile.account_type;
-    const accountLabel = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[profile.account_type] || "Member";
+    const accountLabel = ({ brand: "Brand", creator: "Creator", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[profile.account_type] || "Member";
     const navAccount = $(".collabry-account > span");
     if (navAccount) navAccount.textContent = `${name} · ${accountLabel}`;
     const person = $(".identity .person");
@@ -848,7 +706,7 @@
       // The HTML template still contains a link to the old sample creator profile.
       // Route the signed-in member's identity card to their live Supabase profile.
       const identityLink = person.querySelector("a"); if (identityLink) identityLink.href = "my-profile.html";
-      const bio = person.querySelector("p"); if (bio) bio.textContent = `${accountLabel} account`;
+      const bio = person.querySelector("p"); if (bio) bio.textContent = profile.account_type === "brand" ? "Brand account" : profile.account_type === "agency" ? "Agency account" : "Creator account";
       const loc = person.querySelector(".loc"); if (loc) loc.textContent = profile.location || "Open to collaborations";
       const portrait = person.querySelector(".portrait"); if (portrait) portrait.innerHTML = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(name.slice(0, 1).toUpperCase());
     }
@@ -884,6 +742,20 @@
       const activity = document.createElement("section"); activity.id = "bmc-feed-activity"; activity.className = "panel";
       activity.innerHTML = '<h3>Your activity</h3><div id="bmc-feed-stats">Loading your activity…</div><div class="activity-link"><a href="dashboard.html">Open dashboard →</a></div>';
       side.prepend(activity);
+    }
+    if (side && !$("#bmc-feed-notification-center")) {
+      const notifications = document.createElement("section"); notifications.id = "bmc-feed-notification-center"; notifications.className = "panel";
+      notifications.innerHTML = '<h3>Notifications <span class="notification-count" data-notification-count hidden></span></h3><div id="bmc-notification-toolbar"><div id="bmc-notification-filters" role="group" aria-label="Filter notifications"><button type="button" data-notification-filter="all" aria-pressed="true">All</button><button type="button" data-notification-filter="unread" aria-pressed="false">Unread</button><button type="button" data-notification-filter="read" aria-pressed="false">Read</button></div><button type="button" id="bmc-mark-notifications-read">Mark all read</button></div><div id="bmc-feed-notifications">Loading notifications…</div>';
+      side.insertBefore(notifications, side.querySelector(".tip"));
+      notifications.querySelectorAll("[data-notification-filter]").forEach((button) => button.addEventListener("click", () => {
+        window.bmcNotificationFilter = button.dataset.notificationFilter;
+        notifications.querySelectorAll("[data-notification-filter]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+        window.bmcRenderFeedNotifications?.();
+      }));
+      notifications.querySelector("#bmc-mark-notifications-read").addEventListener("click", async () => {
+        try { const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null); if (error) throw error; await refreshFeedActivity(supabase, user); toast("All notifications marked as read."); }
+        catch (error) { toast(error.message || "Could not update notifications."); }
+      });
     }
     const feedTip = $(".right-col .tip p");
     if (feedTip) feedTip.textContent = "When you send interest, add a note and a private one-to-one project chat opens for both people. You can manage the application status from your dashboard.";
@@ -933,7 +805,7 @@
       if (projectType === "creator_idea") return "creator";
       if (projectType === "brand_campaign") return ownerType === "agency" ? "agency" : "brand";
       for (const kind of ["celebrity", "event", "media"]) if ([`${kind}_project`, kind].includes(projectType)) return kind;
-      if (accountTypes.includes(ownerType)) return ownerType;
+      if (["brand", "creator", "agency", "celebrity", "event", "media"].includes(ownerType)) return ownerType;
       return "brand";
     };
     const feedKinds = projects.map(kindOf);
@@ -946,7 +818,7 @@
     }
     if (!$("#bmc-feed-tabs")) {
       const tabs = document.createElement("div"); tabs.id = "bmc-feed-tabs"; tabs.className = "bmc-feed-tabs";
-      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects <span data-feed-count="brand">0</span></button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas <span data-feed-count="creator">0</span></button><button type="button" data-feed-kind="agency" class="${selectedKind === "agency" ? "active" : ""}">Agency projects <span data-feed-count="agency">0</span></button><button type="button" data-feed-kind="celebrity" class="${selectedKind === "celebrity" ? "active" : ""}">Celebrity projects <span data-feed-count="celebrity">0</span></button><button type="button" data-feed-kind="event" class="${selectedKind === "event" ? "active" : ""}">Event projects <span data-feed-count="event">0</span></button><button type="button" data-feed-kind="media" class="${selectedKind === "media" ? "active" : ""}">Media projects <span data-feed-count="media">0</span></button><button type="button" data-feed-kind="community" class="${selectedKind === "community" ? "active" : ""}">Community projects <span data-feed-count="community">0</span></button><button type="button" data-feed-kind="distributor" class="${selectedKind === "distributor" ? "active" : ""}">Distribution projects <span data-feed-count="distributor">0</span></button><button type="button" data-feed-kind="freelancer" class="${selectedKind === "freelancer" ? "active" : ""}">Freelance projects <span data-feed-count="freelancer">0</span></button>`;
+      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects <span data-feed-count="brand">0</span></button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas <span data-feed-count="creator">0</span></button><button type="button" data-feed-kind="agency" class="${selectedKind === "agency" ? "active" : ""}">Agency projects <span data-feed-count="agency">0</span></button><button type="button" data-feed-kind="celebrity" class="${selectedKind === "celebrity" ? "active" : ""}">Celebrity projects <span data-feed-count="celebrity">0</span></button><button type="button" data-feed-kind="event" class="${selectedKind === "event" ? "active" : ""}">Event projects <span data-feed-count="event">0</span></button><button type="button" data-feed-kind="media" class="${selectedKind === "media" ? "active" : ""}">Media projects <span data-feed-count="media">0</span></button>`;
       live.before(tabs);
       tabs.addEventListener("click", (event) => {
         const button = event.target.closest("[data-feed-kind]"); if (!button) return;
@@ -954,14 +826,14 @@
         window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind; applyFeedVisibility();
       });
     }
-    const allFeedKinds = accountTypes;
+    const allFeedKinds = ["brand", "creator", "agency", "celebrity", "event", "media"];
     if (!allFeedKinds.includes(selectedKind)) selectedKind = "brand";
     if (!projects.length) { live.innerHTML = ""; allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = "0"; }); live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user); if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000); return; }
     allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
     live.innerHTML = projects.map((p) => {
-      const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Brand Media Collab member";
+      const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Stagerang member";
       const kind = kindOf(p);
-      const type = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project", community: "Community partnership", distributor: "Distribution partnership", freelancer: "Freelance assignment" })[kind];
+      const type = ({ agency: "Agency project", creator: "Creator idea", celebrity: "Celebrity project", event: "Event project", media: "Media project", brand: "Brand project" })[kind];
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const canApply = user.id !== p.owner_id;
       return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(p.status)}</span></div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${canApply ? "Open opportunity" : "Your project"}</span><div class="actions"><button class="btn view-project-details" type="button">View details</button>${canApply ? `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button><button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>` : `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`}</div></div></article>`;
@@ -1028,6 +900,40 @@
     if (ids.length) { const received = await supabase.from("applications").select("id", { count: "exact", head: true }).in("project_id", ids).neq("status", "withdrawn"); if (received.error) throw received.error; receivedCount = received.count || 0; }
     await refreshMessageBadge();
     if (stats) stats.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><span><b>${postCount || 0}</b><br>Projects/ideas posted</span><span><b>${sentCount || 0}</b><br>Interests sent</span><span><b>${receivedCount}</b><br>Interests received</span><span><b>${window.bmcUnreadMessages || 0}</b><br>Unread messages</span></div>`;
+    const { data, error } = await supabase.from("notifications").select("id,title,body,type,actor_id,project_id,application_id,conversation_id,created_at,read_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25);
+    if (error) { if (notifications) notifications.textContent = "Notifications could not be loaded. Please try again."; return; }
+    const unreadResult = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("read_at", null);
+    const unread = unreadResult.error ? (data || []).filter((item) => !item.read_at).length : unreadResult.count || 0;
+    const countNode = document.querySelector("[data-notification-count]");
+    if (countNode) { countNode.textContent = unread > 99 ? "99+" : String(unread); countNode.hidden = unread === 0; countNode.setAttribute("aria-label", `${unread} unread notifications`); }
+    if (notifications) {
+      const icons = { new_message: "✉", application_received: "↗", application_status: "✓", connection_request: "＋", connection_accepted: "✓", connection_declined: "↗" };
+      window.bmcRenderFeedNotifications = () => {
+        const filter = window.bmcNotificationFilter || "all";
+        const visible = (data || []).filter((item) => filter === "all" || (filter === "unread" ? !item.read_at : Boolean(item.read_at)));
+        notifications.innerHTML = visible.length ? visible.map((item) => {
+          const href = item.conversation_id
+            ? `messages.html?conversation=${encodeURIComponent(item.conversation_id)}`
+            : ["connection_request", "connection_accepted", "connection_declined"].includes(item.type) && item.actor_id
+              ? `my-profile.html?user=${encodeURIComponent(item.actor_id)}`
+              : ["connection_request", "connection_accepted", "connection_declined"].includes(item.type)
+                ? "explore.html"
+            : item.type === "application_received" && item.project_id
+              ? `dashboard.html?project=${encodeURIComponent(item.project_id)}${item.application_id ? `&application=${encodeURIComponent(item.application_id)}` : ""}`
+              : item.type === "application_status" && item.application_id
+                ? `applications.html?application=${encodeURIComponent(item.application_id)}`
+                : item.project_id ? `projects.html?project=${encodeURIComponent(item.project_id)}` : "dashboard.html";
+          return `<a class="bmc-notification" href="${href}" data-notification-id="${esc(item.id)}" data-read="${Boolean(item.read_at)}" data-unread="${!item.read_at}" data-icon="${icons[item.type] || "•"}"><b>${esc(item.title)}</b><span>${esc(item.body)}</span><time datetime="${esc(item.created_at)}">${new Date(item.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time></a>`;
+        }).join("") : `<div class="bmc-empty">${filter === "unread" ? "You’re all caught up." : filter === "read" ? "No read notifications yet." : "No new activity yet."}</div>`;
+        notifications.querySelectorAll("[data-notification-id]").forEach((link) => link.addEventListener("click", async (event) => {
+          event.preventDefault();
+          if (link.dataset.read !== "true") { const { error: updateError } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", link.dataset.notificationId).eq("user_id", user.id); if (updateError) return toast(updateError.message); }
+          await refreshMessageBadge(); location.href = link.href;
+        }));
+      };
+      window.bmcRenderFeedNotifications();
+    }
+    window.bmcRefreshMessageBadge?.();
   }
   async function openProjectsDirectory() {
     if (window.bmcProjectsDirectoryHandled) return;
@@ -1063,30 +969,9 @@
     document.querySelectorAll("#q,#search").forEach((input) => input.dispatchEvent(new Event("input", { bubbles: true })));
     document.body.classList.add("bmc-projects-ready");
   }
-  async function init() {
+  function init() {
     const path = location.pathname;
-    const file = path.split("/").pop() || "index.html";
-    if (file === "index.html" || path === "/") {
-      const authError = new URLSearchParams(location.search).get("auth_error");
-      if (authError) {
-        const modal = $("#auth");
-        if (modal) modal.classList.add("open");
-        $(".tab[data-mode='login']")?.click();
-        toast(authError === "connection" ? "We could not verify your Brand Media Collab session because the service is unreachable. Check your connection and try again." : "Your session has expired. Sign in again to continue.");
-      } else if (new URLSearchParams(location.search).get("logged_out") === "1") {
-        const modal = $("#auth");
-        if (modal) modal.classList.add("open");
-        $(".tab[data-mode='login']")?.click();
-        toast("You have been signed out.");
-      }
-    }
-    if (protectedPages.has(file)) {
-      let supabase;
-      try { supabase = await client(); }
-      catch (_) { location.replace(`index.html?next=${encodeURIComponent(`${file}${location.search}${location.hash}`)}&auth_error=connection`); return; }
-      if (!(await requirePageSession(supabase, file))) return;
-    }
-    if (file !== "dashboard.html") { refreshMessageBadge(); window.setInterval(refreshMessageBadge, 20000); }
+    refreshMessageBadge(); window.setInterval(refreshMessageBadge, 20000);
     $("#search")?.addEventListener("input", (event) => { window.bmcFeedSearch = event.target.value; applyFeedVisibility(); });
     if (!path.endsWith("/index.html") && path !== "/" && !path.endsWith("/logout.html")) loadAccountHeader().catch(() => {});
     if (path.endsWith("/index.html") || path === "/") $("#auth-form")?.addEventListener("submit", authSubmit, true);
@@ -1104,18 +989,7 @@
     if (path.endsWith("/my-profile.html")) renderMyProfile().catch((error) => toast(error.message || "Could not load this profile."));
     if (path.endsWith("/feed.html")) openProjectsForFeed().catch(() => { location.href = "index.html"; });
     if (path.endsWith("/projects.html")) openProjectsDirectory().catch(() => { location.href = "index.html"; });
-    if (path.endsWith("/logout.html")) {
-      try {
-        const supabase = await client();
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-        location.replace("index.html?logged_out=1");
-      } catch (error) {
-        const heading = document.querySelector("main.card h1"), description = document.querySelector("main.card p");
-        if (heading) heading.textContent = "Sign out failed";
-        if (description) { description.setAttribute("role", "alert"); description.textContent = error.message || "We could not end the session. Check your connection and retry."; }
-      }
-    }
+    if (path.endsWith("/logout.html")) client().then((supabase) => supabase.auth.signOut()).finally(() => { location.href = "index.html"; });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
