@@ -1,37 +1,24 @@
-# Supabase update for the six Stagerang account types
+# Supabase migration update guide — Brand Media Collab
 
-This project uses the existing Supabase database. These steps add the six-role fields and allow Explore to receive profile updates through Supabase Realtime. They do not create accounts or remove existing records.
+The checked-in migration chain currently has **30 SQL files** in `supabase/migrations/`. It is an ordered history, not a single script. Applying migrations is separate from uploading code to GitHub or deploying on Vercel.
 
-## Before applying SQL
+## Before changing an existing project
 
-1. Open the existing Stagerang project in the Supabase Dashboard. Do not create a new project.
-2. Open **SQL Editor** and run this read-only check:
+1. Confirm you selected the intended Supabase project (especially Production vs test).
+2. Back up production and verify a restore path.
+3. Inspect the current schema and migration ledger. With the Supabase CLI, use `supabase migration list` after linking the correct project; also review the Dashboard migration history if that is your workflow.
+4. Compare the deployed database with the ordered files under `supabase/migrations/`. Apply only migrations confirmed missing and compatible with the current state.
+5. Do not paste all 30 files as one batch. Never rerun `202611150001_initial_schema.sql` on a populated project. Do not disable RLS.
 
-```sql
-select conname, pg_get_constraintdef(oid) as definition
-from pg_constraint
-where conrelid in ('public.profiles'::regclass, 'public.projects'::regclass)
-  and conname in (
-    'profiles_account_type_check',
-    'projects_owner_type_check',
-    'projects_project_type_check'
-  )
-order by conname;
-```
+## Nine account types
 
-If the profile and project constraints already include `celebrity`, `event`, and `media` (and the project type constraint includes `celebrity_project`, `event_project`, and `media_project`), the six-role schema migration is already applied. Do not run it again.
+The most recent account expansion is `20261121130000_expand_to_nine_account_types.sql`. It extends the existing schema to Creator, Brand, Agency, Celebrity, Event, Media, Community, Distributor, and Freelancer. Review its constraints and triggers against existing records before applying. The SQL chain also includes earlier incremental role/profile changes; a database that has only part of the older six-type chain needs careful migration-history reconciliation rather than rerunning files blindly.
 
-## Apply only missing migrations
+## Profile discovery Realtime migration
 
-The migration files are in `supabase/migrations/` in this ZIP.
+`20261119001000_enable_profile_discovery_realtime.sql` is an additive migration that adds `public.profiles` to the `supabase_realtime` publication only if it is not already present. A copy had previously been left at repository root; the canonical migration now lives in `supabase/migrations/`. Use the canonical copy and do not apply both copies.
 
-1. If the check above does not show all six profile/owner types, open `20261119000900_six_type_collaboration_ecosystem.sql` in the SQL Editor and run the full file.
-2. Then run `20261119001000_enable_profile_discovery_realtime.sql`. This migration safely adds `public.profiles` to `supabase_realtime` only if it is not already included.
-3. Do **not** run the initial schema migration (`202611150001_initial_schema.sql`) against the existing database. Do not disable RLS or change service-role keys for this update.
-
-## Verify Realtime publication
-
-Run this read-only query. It should return one row for `public.profiles`:
+After the migration is recorded/applied, this read-only check should return one row:
 
 ```sql
 select schemaname, tablename
@@ -41,10 +28,14 @@ where pubname = 'supabase_realtime'
   and tablename = 'profiles';
 ```
 
-The Explore page listens for profile changes and refetches the profile list through the `discover_profiles` RPC, which retains the existing discoverability and block filters. If the query returns no rows after the migration, stop and review the SQL Editor error before deploying.
+The page still depends on RLS and its `discover_profiles` RPC to control which profiles are returned. Publication membership does not grant table access.
 
-## Deploy the website code
+## Post-migration checks
 
-After pushing the ZIP contents to the existing GitHub repository with the folder structure preserved, wait for the connected Vercel Production deployment to finish. No new Supabase URL, anon/publishable key, or service-role key is needed for these changes. Never put a service-role key into `public/site` or browser JavaScript.
+- Confirm the project/account profile constraints contain all nine account types and matching project types.
+- Create test accounts in a non-production project and verify Auth-trigger profile initialization for each role.
+- Check RLS and privacy defaults, profile discoverability, application status rules, connection uniqueness, accepted-chat restrictions, and notification ownership.
+- Confirm avatar Storage policies and Realtime publication membership separately.
+- Run the journeys in `USER-JOURNEYS.md`; do not infer success from the SQL editor reporting “Success”.
 
-After deployment, hard-refresh the site. Verify signup/profile type choices, all six Explore filters, all six Projects tabs, Messages filters, and project search. Real profile/project rows still depend on existing accounts and data; this update does not seed fake records.
+The migration files in this package are not proof that they are applied to the live database. This repository-only review did not connect to the owner’s Supabase project.
