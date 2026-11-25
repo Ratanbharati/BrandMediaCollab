@@ -1,5 +1,16 @@
 // Small local outline icon set keeps static pages consistent without a CDN dependency.
 (() => {
+  window.BMCCategories = window.BMCCategories || Object.freeze([
+    { id: "brand", singular: "Brand", plural: "Brands", projectLabel: "Brand projects", description: "Companies building partnerships and campaigns." },
+    { id: "creator", singular: "Creator", plural: "Creators", projectLabel: "Creator ideas", description: "Creators sharing concepts and seeking partners." },
+    { id: "agency", singular: "Agency", plural: "Agencies", projectLabel: "Agency projects", description: "Teams offering strategy and campaign services." },
+    { id: "celebrity", singular: "Celebrity", plural: "Celebrities", projectLabel: "Celebrity projects", description: "Public figures and represented talent." },
+    { id: "event", singular: "Event", plural: "Events", projectLabel: "Event projects", description: "Event teams, organisers and live experiences." },
+    { id: "media", singular: "Media", plural: "Media", projectLabel: "Media projects", description: "Publishers, broadcasters and production teams." },
+    { id: "community", singular: "Community", plural: "Communities", projectLabel: "Community projects", description: "Interest groups and professional communities." },
+    { id: "distributor", singular: "Distributor", plural: "Distributors", projectLabel: "Distributor projects", description: "Distribution, retail and fulfilment partners." },
+    { id: "freelancer", singular: "Freelancer", plural: "Freelancers", projectLabel: "Freelance projects", description: "Independent creative and marketing professionals." },
+  ]);
   "use strict";
 
   const paths = {
@@ -105,6 +116,9 @@
 
   function ensureAppShell() {
     const header = document.querySelector(".collabry-nav");
+    if (!document.querySelector('script[data-bmc-category-select]')) {
+      const component = document.createElement("script"); component.src = "/site/category-select.js"; component.dataset.bmcCategorySelect = "true"; document.head.append(component);
+    }
     if (!header || document.body.classList.contains("sr-hero-page")) return;
     if (!header.querySelector(".bmc-global-search")) {
       const form = document.createElement("form"); form.className = "bmc-global-search"; form.setAttribute("role", "search"); form.setAttribute("aria-label", "Search Brand Media Collab");

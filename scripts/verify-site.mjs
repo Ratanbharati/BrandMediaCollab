@@ -62,6 +62,7 @@ const dashboard = fs.readFileSync(path.join(siteRoot, "dashboard.html"), "utf8")
 const dashboardLive = fs.readFileSync(path.join(siteRoot, "dashboard-live.js"), "utf8");
 const designSystemCss = fs.readFileSync(path.join(siteRoot, "design-system.css"), "utf8");
 const designSystemJs = fs.readFileSync(path.join(siteRoot, "design-system.js"), "utf8");
+const categorySelect = fs.readFileSync(path.join(siteRoot, "category-select.js"), "utf8");
 const myProjects = fs.readFileSync(path.join(siteRoot, "my-projects.html"), "utf8");
 const applicationsPage = fs.readFileSync(path.join(siteRoot, "applications-live.js"), "utf8");
 const messagesLive = fs.readFileSync(path.join(siteRoot, "messages-live.js"), "utf8");
@@ -75,6 +76,12 @@ for (const requirement of [".bmc-global-search", ".bmc-mobile-tabs", ".bmc-mobil
 }
 if (!designSystemJs.includes("data-notifications-link") || !designSystemJs.includes("Search people, projects") || !projectLive.includes('new URLSearchParams(location.search).get("q")') || !exploreLive.includes('new URLSearchParams(location.search).get("q")')) errors.push("App shell: notification navigation or global search handoff is missing");
 if (!app.includes('data-feed-kind="all"') || !app.includes('bmc-feed-more') || !app.includes('composer.querySelector(".composer-actions")?.remove()')) errors.push("Home feed: All/More category row or single project composer action is missing");
+for (const requirement of ["aria-haspopup", "role", "ArrowDown", "ArrowUp", "Escape", "typeBuffer", "pushState", "popstate", "bmc:message-type", "projectForm"]) {
+  if (!categorySelect.includes(requirement)) errors.push(`Category selector: missing accessible/shared behavior ${requirement}`);
+}
+if (!designSystemCss.includes(".bmc-category-menu") || !designSystemCss.includes("max-width: 767px") || !designSystemCss.includes("scrollbar-gutter: stable")) errors.push("Category selector: menu sizing, mobile sheet, or scroll behavior is missing");
+if (!landing.includes('data-open="signup">Join now</button>') || landing.includes('Find your next partnership')) errors.push("Landing hero: Join now and the secondary how-it-works link are not the only hero CTAs");
+if (landing.includes("class=\"tag\"") || landing.includes("class=\"float-card")) errors.push("Landing hero: decorative fake opportunity cards remain");
 for (const icon of ["home", "projects", "explore", "dashboard", "messages", "notifications", "settings", "logout"]) {
   if (!designSystemJs.includes(`"${icon}"`)) errors.push(`Design system icons: missing ${icon}`);
 }
@@ -82,6 +89,7 @@ const resetFlow = fs.readFileSync(path.join(siteRoot, "password-reset.js"), "utf
 const authMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261121130000_expand_to_nine_account_types.sql"), "utf8");
 const roles = ["creator", "brand", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"];
 for (const role of roles) {
+  if (!designSystemJs.includes(`id: "${role}"`)) errors.push(`Category selector config: missing canonical role ${role}`);
   if (!app.includes(`"${role}"`)) errors.push(`bmc-app.js: missing account type ${role}`);
   if (!projectForm.includes(`value="${role}"`)) errors.push(`project-form.html: missing project type ${role}`);
   if (!explore.includes(`data-type="${role}"`)) errors.push(`explore.html: missing profile filter ${role}`);
