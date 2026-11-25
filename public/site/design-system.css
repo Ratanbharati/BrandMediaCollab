@@ -211,7 +211,6 @@ body:not(.sr-hero-page) :is(.feed-head h1, .main-heading h1, .heading > div > h1
 body.sr-projects-page .left > button[data-status]:not([data-status="discover"]),
 body.sr-projects-page .left > button[data-side-kind],
 body.sr-projects-page .mobile-project-menu [data-mobile-kind] { display: none !important; }
-body.sr-explore-page .search-wrap::after { content: "Profiles appear here only while discoverability is on."; grid-column: 1 / -1; color: #68736b; font-size: var(--text-caption); line-height: var(--text-caption-line); }
 body.sr-dashboard-page .heading > div > a { display: none !important; }
 body.sr-notifications-page .panel[aria-label="Notification center"]::before { content: "Notifications"; display: block; padding: 14px 16px 8px; color: var(--sr-ink); font: 600 16px/24px var(--sr-font-display); }
 body.sr-home-page .layout { max-width: var(--sr-content-max) !important; grid-template-columns: 225px minmax(0, 1fr) 300px !important; gap: 24px !important; padding-top: 16px !important; }
