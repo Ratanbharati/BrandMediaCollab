@@ -83,18 +83,17 @@
   }
   function projectsPage() {
     const page = document.querySelector(".projects-content"), tabs = page?.querySelector(".segmented");
-    const row = page?.querySelector(".filter-row"); if (!tabs || !row) return;
-    const opts = sourceOptions(tabs, "All categories");
-    const selected = queryCategory(new URLSearchParams(location.search).get("kind") || "all");
-    // The control is moved from the content wrapper into the filter row below;
-    // search the whole Projects page so the observer never creates duplicates.
-    const existing = page.querySelector('.bmc-category-select[data-category-select="projects"]');
-    const instance = existing || makeSelect(page, { label: "Category", allLabel: "All categories", options: opts, initial: selected, idPrefix: "projects", onSelect(value) { if (value === "all") window.bmcSetProjectKind?.("all"); else tabs.querySelector(`[data-kind="${value}"]`)?.click(); } });
-    if (instance && existing) { instance.bmcSetOptions(opts); instance.bmcSetCategory(selected); const active = findSourceValue(tabs, "[data-kind]", "data-kind", "all"); if (active !== selected) { if (selected === "all") window.bmcSetProjectKind?.("all"); else tabs.querySelector(`[data-kind="${selected}"]`)?.click(); } }
-    if (instance && !existing) { if (selected === "all") window.bmcSetProjectKind?.("all"); else tabs.querySelector(`[data-kind="${selected}"]`)?.click(); }
-    if (instance && instance.parentElement !== row) {
-      row.prepend(instance);
-      const search = row.querySelector("#q"); if (search) row.insertBefore(search, instance);
+    if (!tabs) return;
+    // Project type tabs and the native project-category filter are separate
+    // controls. Older builds injected a second “All categories” control here,
+    // which made the filters look duplicated and conflated two URL values.
+    page.querySelectorAll('.bmc-category-select[data-category-select="projects"]').forEach((node) => node.remove());
+    const params = new URLSearchParams(location.search);
+    const selected = params.get("kind") || params.get("category") || "all";
+    const valid = selected === "all" || categories.some((item) => item.id === selected);
+    if (valid && selected !== "all" && tabs.querySelector(`[data-kind="${selected}"]`)) {
+      const active = findSourceValue(tabs, "[data-kind]", "data-kind", "all");
+      if (active !== selected) tabs.querySelector(`[data-kind="${selected}"]`)?.click();
     }
   }
   function explorePage() {
