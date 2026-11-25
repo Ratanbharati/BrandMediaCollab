@@ -806,7 +806,7 @@
       row.querySelector(".deliverable").value = item.deliverable || "Other";
       row.querySelector(".amount").value = item.amount_range || "";
     });
-    $("#title").textContent = "Edit project"; const save = $(".primary"); if (save) save.textContent = "Save changes ↗";
+    $("#title").textContent = "Edit project"; const save = $(".primary"); if (save) save.textContent = "Save changes ";
   }
   async function loadMyProjects() {
     const host = $("#list"); if (!host) return;
@@ -857,8 +857,8 @@
       .subscribe((status) => { window.bmcFeedRealtimeConnected = status === "SUBSCRIBED"; });
   }
   async function openProjectsForFeed() {
-    let selectedKind = window.bmcSelectedFeedKind || "brand";
-    if (!accountTypes.includes(selectedKind)) selectedKind = "brand";
+    let selectedKind = window.bmcSelectedFeedKind || "all";
+    if (selectedKind !== "all" && !accountTypes.includes(selectedKind)) selectedKind = "all";
     document.querySelectorAll(".center-col > .post").forEach((node) => node.remove());
     const supabase = await client(); const user = await signedIn(supabase);
     const { data: profile, error: pError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
@@ -881,12 +881,10 @@
       const portrait = person.querySelector(".portrait"); if (portrait) portrait.innerHTML = profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(name.slice(0, 1).toUpperCase());
     }
     const profileType = profile.account_type || "creator";
-    const roleStat = $(".identity .stats .stat:nth-child(3)");
-    if (roleStat) {
-      const label = roleStat.querySelector("span"), value = roleStat.querySelector("b");
-      if (label) label.textContent = profileType === "creator" ? "Creator tier" : "Account type";
-      if (value) value.textContent = profileType === "creator" ? profile.follower_tier || "Not set" : accountLabel;
-    }
+    $(".identity .stats .stat:first-child")?.remove();
+    const roleStat = $(".identity .stats .stat:last-child");
+    if (roleStat && profileType !== "creator") roleStat.remove();
+    else if (roleStat) { roleStat.querySelector("span").textContent = "Creator tier"; roleStat.querySelector("b").textContent = profile.follower_tier || "Not set"; }
     const completionFields = profileType === "creator"
       ? [profile.display_name, profile.bio, profile.category, profile.location, profile.avatar_url, profile.website_url, profile.follower_tier, (profile.content_categories || []).length > 0]
       : [profile.display_name || profile.company_name, profile.bio, profile.category, profile.location, profile.avatar_url, profile.website_url, profileType === "agency" ? profile.agency_type : true];
@@ -917,31 +915,10 @@
     if (feedTip) feedTip.textContent = "When you send interest, add a note and a private one-to-one project chat opens for both people. You can manage the application status from your dashboard.";
     const composer = $(".composer");
     if (composer) {
-      const idea = $("#open-post-idea"); const primary = $("#open-post");
-      if (["brand", "agency", "event", "media"].includes(profile.account_type)) {
-        if (primary) primary.textContent = ({ brand: "Share a campaign project with collaborators...", agency: "Share an agency project with collaborators...", event: "Share an event opportunity...", media: "Share a media project with collaborators..." })[profile.account_type];
-        if (idea) idea.textContent = ({ brand: "Post a project", agency: "Post an agency project", event: "Post an event project", media: "Post a media project" })[profile.account_type];
-      } else if (profile.account_type === "celebrity") {
-        if (primary) primary.textContent = "Share a celebrity collaboration idea...";
-        if (idea) idea.textContent = "Post a celebrity project";
-      } else {
-        if (primary) primary.textContent = "Share a collaboration idea with brands...";
-        if (idea) idea.textContent = "Post an idea";
-      }
+      composer.querySelector(".composer-actions")?.remove();
+      const primary = $("#open-post");
+      if (primary) primary.textContent = "Post a project or idea";
       if (primary && !primary.dataset.feedBound) { primary.dataset.feedBound = "true"; primary.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type}`; }, true); }
-      if (idea && !idea.dataset.feedBound) { idea.dataset.feedBound = "true"; idea.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = `project-form.html?kind=${profile.account_type}`; }, true); }
-      const addWork = $("#add-work");
-      if (addWork) {
-        addWork.innerHTML = '<span>▣</span><span>View my profile</span>';
-        if (!addWork.dataset.feedBound) { addWork.dataset.feedBound = "true"; addWork.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = "my-profile.html"; }, true); }
-      }
-      const availability = $("#set-availability");
-      if (availability) {
-        availability.hidden = false;
-        availability.innerHTML = profileType === "creator" ? '<span>◷</span>Set availability' : '<span>▣</span>Edit profile';
-        availability.setAttribute("aria-label", profileType === "creator" ? "Set your availability" : "Edit your profile");
-        if (!availability.dataset.feedBound) { availability.dataset.feedBound = "true"; availability.addEventListener("click", (event) => { event.preventDefault(); event.stopImmediatePropagation(); location.href = profileType === "creator" ? "profile-setup.html?edit=1#availability" : "profile-setup.html?edit=1"; }, true); }
-      }
     }
     const { data: projects, error } = await supabase.from("projects").select("*").eq("status", "Open").order("created_at", { ascending: false });
     if (error) throw error;
@@ -975,20 +952,30 @@
       const composer = center?.querySelector(".composer");
       if (composer) composer.insertAdjacentElement("afterend", live); else center?.append(live);
     }
-    if (!$("#bmc-feed-tabs")) {
-      const tabs = document.createElement("div"); tabs.id = "bmc-feed-tabs"; tabs.className = "bmc-feed-tabs";
-      tabs.innerHTML = `<button type="button" data-feed-kind="brand" class="${selectedKind === "brand" ? "active" : ""}">Brand projects <span data-feed-count="brand">0</span></button><button type="button" data-feed-kind="creator" class="${selectedKind === "creator" ? "active" : ""}">Creator ideas <span data-feed-count="creator">0</span></button><button type="button" data-feed-kind="agency" class="${selectedKind === "agency" ? "active" : ""}">Agency projects <span data-feed-count="agency">0</span></button><button type="button" data-feed-kind="celebrity" class="${selectedKind === "celebrity" ? "active" : ""}">Celebrity projects <span data-feed-count="celebrity">0</span></button><button type="button" data-feed-kind="event" class="${selectedKind === "event" ? "active" : ""}">Event projects <span data-feed-count="event">0</span></button><button type="button" data-feed-kind="media" class="${selectedKind === "media" ? "active" : ""}">Media projects <span data-feed-count="media">0</span></button><button type="button" data-feed-kind="community" class="${selectedKind === "community" ? "active" : ""}">Community projects <span data-feed-count="community">0</span></button><button type="button" data-feed-kind="distributor" class="${selectedKind === "distributor" ? "active" : ""}">Distribution projects <span data-feed-count="distributor">0</span></button><button type="button" data-feed-kind="freelancer" class="${selectedKind === "freelancer" ? "active" : ""}">Freelance projects <span data-feed-count="freelancer">0</span></button>`;
-      live.before(tabs);
+    if (!$("#bmc-feed-tabs")) { const tabs = document.createElement("div"); tabs.id = "bmc-feed-tabs"; tabs.className = "bmc-feed-tabs"; live.before(tabs); }
+    const allFeedKinds = accountTypes;
+    if (selectedKind !== "all" && !allFeedKinds.includes(selectedKind)) selectedKind = "all";
+    const counts = Object.fromEntries(allFeedKinds.map((kind) => [kind, feedKinds.filter((value) => value === kind).length]));
+    const kindLabels = { brand: "Brand projects", creator: "Creator ideas", agency: "Agency projects", celebrity: "Celebrity projects", event: "Event projects", media: "Media projects", community: "Community projects", distributor: "Distribution projects", freelancer: "Freelance projects" };
+    const visibleKinds = allFeedKinds.filter((kind) => counts[kind] > 0), zeroKinds = allFeedKinds.filter((kind) => counts[kind] === 0);
+    const tabs = $("#bmc-feed-tabs");
+    tabs.innerHTML = `<button type="button" data-feed-kind="all" class="${selectedKind === "all" ? "active" : ""}">All <span>${projects.length}</span></button>${visibleKinds.map((kind) => `<button type="button" data-feed-kind="${kind}" class="${selectedKind === kind ? "active" : ""}">${kindLabels[kind]} <span>${counts[kind]}</span></button>`).join("")}<label class="bmc-feed-more ${zeroKinds.includes(selectedKind) ? "active" : ""}"><span>More</span><select data-feed-more aria-label="More project categories"><option value="">Choose a category</option>${zeroKinds.map((kind) => `<option value="${kind}" ${selectedKind === kind ? "selected" : ""}>${kindLabels[kind]} · 0</option>`).join("")}</select></label>`;
+    if (!tabs.dataset.bound) {
+      tabs.dataset.bound = "true";
       tabs.addEventListener("click", (event) => {
         const button = event.target.closest("[data-feed-kind]"); if (!button) return;
-        tabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
-        window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind; applyFeedVisibility();
+        window.bmcSelectedFeedKind = button.dataset.feedKind; live.dataset.kind = button.dataset.feedKind;
+        tabs.querySelectorAll("[data-feed-kind]").forEach((item) => item.classList.toggle("active", item === button));
+        tabs.querySelector(".bmc-feed-more")?.classList.remove("active"); applyFeedVisibility();
+      });
+      tabs.addEventListener("change", (event) => {
+        const select = event.target.closest("[data-feed-more]"); if (!select?.value) return;
+        window.bmcSelectedFeedKind = select.value; live.dataset.kind = select.value;
+        tabs.querySelectorAll("[data-feed-kind]").forEach((item) => item.classList.remove("active"));
+        select.closest(".bmc-feed-more")?.classList.add("active"); applyFeedVisibility();
       });
     }
-    const allFeedKinds = accountTypes;
-    if (!allFeedKinds.includes(selectedKind)) selectedKind = "brand";
-    if (!projects.length) { live.innerHTML = ""; allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = "0"; }); live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user); if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000); return; }
-    allFeedKinds.forEach((kind) => { const badge = $(`[data-feed-count="${kind}"]`); if (badge) badge.textContent = String(feedKinds.filter((value) => value === kind).length); });
+    if (!projects.length) { live.innerHTML = ""; live.dataset.kind = selectedKind; applyFeedVisibility(); document.body.classList.add("bmc-data-ready"); await refreshFeedActivity(supabase, user); if (!window.bmcFeedRealtimeChannel) subscribeFeedRealtime(supabase, user); if (!window.bmcFeedFallbackTimer) window.bmcFeedFallbackTimer = window.setInterval(() => { if (!window.bmcFeedRealtimeConnected) openProjectsForFeed().catch((error) => console.error("Feed refresh failed:", error)); }, 30000); return; }
     live.innerHTML = projects.map((p) => {
       const owner = byId[p.owner_id] || {}; const display = owner.display_name || owner.company_name || "Brand Media Collab member";
       const kind = kindOf(p);
@@ -996,8 +983,8 @@
       const deliverables = (Array.isArray(p.budget_by_deliverable) ? p.budget_by_deliverable : []).map((x) => `<span class="deliverable">${esc(x.deliverable)}${x.amount_range ? `<b>${esc(x.amount_range)}</b>` : ""}</span>`).join("");
       const own = user.id === p.owner_id, app = applicationByProject[p.id], state = projectUiState(p, app);
       const action = own ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit project</a>`
-        : state.action === "apply" ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested ↗</button>`
-        : state.action === "chat" ? `<button class="btn interested" data-open-chat="${esc(p.id)}">Open chat ↗</button>`
+        : state.action === "apply" ? `<button class="btn interested" data-apply="${esc(p.id)}">Interested</button>`
+        : state.action === "chat" ? `<button class="btn interested" data-open-chat="${esc(p.id)}">Open chat</button>`
         : `<button class="btn interested" type="button" disabled>${state.action === "sent" ? "Interest sent ✓" : state.action === "passed" ? "Not selected" : "Closed"}</button>`;
       return `<article class="panel card post" data-kind="${kind}" data-project-id="${esc(p.id)}" data-search="${esc(`${display} ${p.project_name} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")}`.toLowerCase())}"><div class="post-head"><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}" style="display:contents"><div class="org-logo">${owner.avatar_url ? `<img src="${esc(owner.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(display.slice(0,2).toUpperCase())}</div></a><div class="org-meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(display)}</a></b><span>${type} · ${esc(p.location || "Remote")} · ${new Date(p.created_at).toLocaleDateString()}</span></div><span class="type-label">${esc(state.statusLabel)}</span></div><button type="button" class="project-title project-details-trigger" aria-label="View details for ${esc(p.project_name)}">${esc(p.project_name)}</button><p class="project-intro">${esc(p.requirements)}</p><div class="meta-grid"><span class="meta-chip">${esc(p.category)}</span><span class="meta-chip">Apply by <strong>${esc(p.application_deadline || "Open")}</strong></span><span class="meta-chip">Delivery <strong>${esc(p.delivery_date || "Not set")}</strong></span></div>${deliverables ? `<div class="deliverables"><div class="deliverables-title">Budget by deliverable</div><div class="deliverable-list">${deliverables}</div></div>` : ""}<div class="post-bottom"><span class="applications">${own ? "Your project" : state.label}</span><div class="actions"><button class="btn view-project-details" type="button">View details</button>${own ? "" : `<button class="btn save-project ${savedIds.has(p.id) ? "active" : ""}" data-save-project="${esc(p.id)}" aria-pressed="${savedIds.has(p.id)}">${savedIds.has(p.id) ? "♥ Saved" : "♡ Save"}</button>`}${action}</div></div></article>`;
     }).join("");
@@ -1049,14 +1036,15 @@
     const kind = host.dataset.kind || "brand";
     const search = (window.bmcFeedSearch || "").trim().toLowerCase();
     host.querySelectorAll(".post[data-kind]").forEach((card) => {
-      const visible = card.dataset.kind === kind && (!search || card.dataset.search.includes(search));
+      const visible = (kind === "all" || card.dataset.kind === kind) && (!search || card.dataset.search.includes(search));
       card.hidden = !visible; card.style.display = visible ? "" : "none";
     });
     let empty = $("#bmc-feed-kind-empty");
     if (!empty) { empty = document.createElement("div"); empty.id = "bmc-feed-kind-empty"; empty.className = "panel empty"; host.append(empty); }
     const visible = [...host.querySelectorAll(".post[data-kind]")].some((card) => !card.hidden);
     empty.hidden = visible;
-    empty.textContent = search ? "No projects or ideas match this search." : kind === "brand" ? "No brand projects have been posted yet." : kind === "agency" ? "No agency projects have been posted yet." : "No creator ideas have been posted yet.";
+    const labels = { brand: "brand projects", creator: "creator ideas", agency: "agency projects", celebrity: "celebrity projects", event: "event projects", media: "media projects", community: "community projects", distributor: "distribution projects", freelancer: "freelance projects" };
+    empty.textContent = search ? "No projects or ideas match this search." : kind === "all" ? "No projects or ideas have been posted yet." : `No ${labels[kind] || "projects or ideas"} have been posted yet.`;
   }
   async function refreshFeedActivity(supabase, user) {
     const stats = $("#bmc-feed-stats"), notifications = $("#bmc-feed-notifications");
@@ -1096,7 +1084,7 @@
       row.dataset.category = p.category; row.dataset.tier = (p.creator_tiers || []).join(","); row.dataset.platform = (p.platforms || []).join(","); row.dataset.location = p.location || "";
       row.dataset.search = `${p.project_name} ${names[p.owner_id] || ""} ${p.requirements} ${p.category} ${(p.platforms || []).join(" ")} ${(p.creator_tiers || []).join(" ")} ${p.location || ""}`.toLowerCase();
       const kindLabel = row.dataset.kind === "agency" ? "Agency project" : row.dataset.kind === "ideas" ? "Creator idea" : "Brand project";
-      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${kindLabel} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested ↗</button>`}</div></div>`;
+      row.innerHTML = `<div class="project-top"><div class="logo">${esc((names[p.owner_id] || "BMC").slice(0,2).toUpperCase())}</div><div class="meta"><b><a href="my-profile.html?user=${encodeURIComponent(p.owner_id)}">${esc(names[p.owner_id] || "Member")}</a></b><span>${kindLabel} · ${esc(p.location || "Remote")}</span></div></div><h2>${esc(p.project_name)}</h2><p>${esc(p.requirements)}</p><div class="chips"><span class="chip">${esc(p.category)}</span><span class="chip">Apply by ${esc(p.application_deadline || "Open")}</span><span class="chip">Delivery by ${esc(p.delivery_date || "Not set")}</span></div><div class="bottom"><small>${p.owner_id === user.id ? "Your project" : "Open opportunity"}</small><div class="actions">${p.owner_id === user.id ? `<a class="btn" href="project-form.html?id=${encodeURIComponent(p.id)}">Edit</a>` : `<button class="btn" data-apply="${esc(p.id)}" data-project-name="${esc(p.project_name)}">Interested</button>`}</div></div>`;
       host.insertBefore(row, empty || null);
     });
     host.querySelectorAll("[data-apply]").forEach((button) => button.addEventListener("click", async () => {

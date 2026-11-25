@@ -65,9 +65,12 @@ const designSystemJs = fs.readFileSync(path.join(siteRoot, "design-system.js"), 
 const myProjects = fs.readFileSync(path.join(siteRoot, "my-projects.html"), "utf8");
 const applicationsPage = fs.readFileSync(path.join(siteRoot, "applications-live.js"), "utf8");
 const messagesLive = fs.readFileSync(path.join(siteRoot, "messages-live.js"), "utf8");
-for (const token of ["--sr-heading-page", "--sr-heading-section", "--sr-heading-card", "--sr-space-4", "--sr-focus", ".sr-button", ".sr-field", ".sr-card", ".sr-empty", ".sr-error", ".sr-tab", ".sr-toast", "@media (max-width: 720px)", "prefers-reduced-motion"]) {
+for (const token of ["--sr-heading-page", "--sr-heading-section", "--sr-heading-card", "--text-title", "--text-section", "--text-card-title", "--text-body", "--text-label", "--text-caption", "--sr-space-4", "--sr-focus", ".sr-button", ".sr-field", ".sr-card", ".sr-empty", ".sr-error", ".sr-tab", ".sr-toast", "@media (max-width: 720px)", "prefers-reduced-motion"]) {
   if (!designSystemCss.includes(token)) errors.push(`Design system CSS: missing ${token}`);
 }
+if (/\["index\.html",\s*"landing-preview\.html",\s*"explore\.html"\]/.test(designSystemJs)) errors.push("Design system: Explore must use the internal page title scale, not the landing hero scale");
+if (!/--text-title:\s*28px/.test(designSystemCss) || !/--text-caption:\s*12px/.test(designSystemCss) || !/font-size:\s*12px\s*!important;\s*line-height:\s*16px\s*!important/.test(designSystemCss)) errors.push("Design system: internal title, caption minimum, or mobile title tokens are missing");
+if (!app.includes('data-feed-kind="all"') || !app.includes('bmc-feed-more') || !app.includes('composer.querySelector(".composer-actions")?.remove()')) errors.push("Home feed: All/More category row or single project composer action is missing");
 for (const icon of ["home", "projects", "explore", "dashboard", "messages", "notifications", "settings", "logout"]) {
   if (!designSystemJs.includes(`"${icon}"`)) errors.push(`Design system icons: missing ${icon}`);
 }

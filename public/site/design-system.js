@@ -105,7 +105,7 @@
   function update(root = document) {
     if (document.body) {
       const currentPage = location.pathname.split("/").pop().toLowerCase();
-      document.body.classList.toggle("sr-hero-page", ["index.html", "landing-preview.html", "explore.html"].includes(currentPage));
+      document.body.classList.toggle("sr-hero-page", ["index.html", "landing-preview.html"].includes(currentPage));
     }
     normalizeNavigation(root);
     normalizeMarkedGlyphs(root);

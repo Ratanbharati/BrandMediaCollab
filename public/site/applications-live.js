@@ -59,7 +59,7 @@
     card.dataset.applicationId = app.id;
     card.dataset.status = app.status;
     const chatAction = ["interested", "working_together"].includes(app.status)
-      ? '<button class="btn dark" type="button" data-open-chat>Open project conversation ↗</button>'
+      ? '<button class="btn dark" type="button" data-open-chat>Open project conversation</button>'
       : "";
     card.innerHTML = `<div class="topline"><div class="symbol">${esc((owner.display_name || owner.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="meta"><b><a class="row-link" href="my-profile.html?user=${encodeURIComponent(project.owner_id || "")}">${esc(owner.display_name || owner.company_name || "Project owner")}</a></b><span>Applied ${new Date(app.created_at).toLocaleDateString()} · ${esc(project.category || "Project")}</span></div><span class="status ${statusKey === "matched" ? "match" : statusKey === "passed" || statusKey === "withdrawn" ? "pass" : ""}">${statusKey === "pending" ? "Awaiting response" : statusKey === "matched" ? "Working together" : statusKey === "withdrawn" ? "Withdrawn" : "Not selected"}</span></div><h2><a class="row-link" href="projects.html?project=${encodeURIComponent(project.id || "")}">${esc(project.project_name || "Project")}</a></h2><p>${esc(app.message || "No note was added.")}</p><div class="actions">${chatAction}${app.status === "interested" ? '<button class="btn" type="button" data-withdraw>Withdraw interest</button>' : ""}</div>`;
     openChatButton(card, project, app);

@@ -133,7 +133,7 @@
     const contextLink = $("#chat-project-link");
     if (contextLink) {
       contextLink.href = item.isDirect ? `my-profile.html?user=${encodeURIComponent(item.otherId)}` : "projects.html?project=" + encodeURIComponent(item.projectId || "");
-      contextLink.textContent = item.isDirect ? "View profile ↗" : "View project ↗";
+      contextLink.textContent = item.isDirect ? "View profile" : "View project";
     }
     [...threadNode.querySelectorAll(".thread")].forEach((node) => node.classList.toggle("active", node.dataset.id === item.id));
     await loadMessages(item.id);
@@ -177,7 +177,7 @@
       if (error) throw error;
       conversations = data || [];
     }
-    if (!conversations.length) threadNode.innerHTML = '<div class="list-empty-state"><b>No conversations yet</b><span>Connect with someone or express interest in a project to start a private chat.</span><a href="explore.html">Explore profiles ↗</a></div>';
+    if (!conversations.length) threadNode.innerHTML = '<div class="list-empty-state"><b>No conversations yet</b><span>Connect with someone or express interest in a project to start a private chat.</span><a href="explore.html">Explore profiles</a></div>';
     const projectIds = [...new Set(conversations.map((c) => c.project_id).filter(Boolean))];
     const { data: members } = ids.length ? await supabase.from("conversation_members").select("conversation_id,user_id").in("conversation_id", ids) : { data: [] };
     const otherIds = [...new Set((members || []).map((m) => m.user_id).filter((id) => id !== user.id))];
