@@ -36,14 +36,11 @@
       celebrity: ["industry", "niche", "location", "language", "platform"],
       event: ["industry", "niche", "location", "service", "platform"],
       media: ["industry", "niche", "location", "platform", "service"],
-      community: ["industry", "niche", "location", "language", "service"],
-      distributor: ["industry", "niche", "location", "service"],
-      freelancer: ["niche", "location", "language", "platform", "service"],
       all: ["industry", "niche", "location", "language", "platform", "service"],
     }[type] || [];
     $$("[data-filter-field]").forEach((field) => { field.hidden = !typeFields.includes(field.dataset.filterField); });
     const heading = $("#results-title");
-    if (heading) heading.textContent = type === "all" ? "People to discover" : `${({ agency: "Agencies", celebrity: "Celebrities", event: "Events", media: "Media organisations", community: "Communities", distributor: "Distributors", freelancer: "Freelancers" })[type] || `${type[0].toUpperCase()}${type.slice(1)}s`} to discover`;
+    if (heading) heading.textContent = type === "all" ? "People to discover" : `${({ agency: "Agencies", celebrity: "Celebrities", event: "Events", media: "Media organisations" })[type] || `${type[0].toUpperCase()}${type.slice(1)}s`} to discover`;
     if (window.matchMedia("(min-width:721px)").matches) $("#filter-panel").open = true;
   }
 
@@ -55,7 +52,7 @@
   }
 
   function profileName(profile) {
-    return ["creator", "celebrity", "freelancer"].includes(profile.account_type)
+    return ["creator", "celebrity"].includes(profile.account_type)
       ? (profile.display_name || profile.company_name || "Stagerang creator")
       : (profile.company_name || profile.display_name || "Stagerang member");
   }
@@ -65,27 +62,17 @@
   function cardHtml(profile) {
     const name = profileName(profile);
     const role = profile.account_type || "member";
-    const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[role] || "Member";
+    const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media" })[role] || "Member";
     const subtitle = role === "creator" ? (profile.content_categories || []).slice(0, 2).join(" · ") || profile.category || "Creator"
       : role === "celebrity" ? (profile.profession || profile.category || "Talent")
       : role === "event" ? (profile.event_types || []).slice(0, 2).join(" · ") || profile.category || "Event organiser"
       : role === "media" ? (profile.media_types || []).slice(0, 2).join(" · ") || profile.category || "Media organisation"
-      : role === "community" ? profile.community_type || profile.category || "Community"
-      : role === "distributor" ? profile.company_type || profile.category || "Distributor"
-      : role === "freelancer" ? profile.profession || profile.category || "Freelancer"
-      : role === "agency" ? (profile.agency_type || profile.category || "Agency")
-      : (profile.category || "Brand");
+      : role === "agency" ? (profile.agency_type || profile.category || "Agency") : (profile.category || "Brand");
     const tags = [...new Set([
       ...(profile.content_categories || []), ...(profile.collaboration_categories || []),
       ...(profile.skills || []), ...(profile.content_formats || []), ...(profile.media_types || []), ...(profile.event_types || []),
       ...(role === "agency" ? [...(profile.services || []), ...(profile.specialisations || [])] : []),
       ...(role === "creator" ? (profile.languages || []) : []),
-      ...(role === "community" ? (profile.collaboration_categories || []) : []),
-      ...(role === "distributor" ? [...(profile.services || []), ...(profile.client_industries || [])] : []),
-      ...(role === "distributor" ? (profile.distribution_regions || []) : []),
-      ...(role === "distributor" ? (profile.business_capabilities || []) : []),
-      ...(role === "community" ? (profile.services || []) : []),
-      ...(role === "freelancer" ? [...(profile.skills || []), ...(profile.services || []), ...(profile.languages || [])] : []),
     ])].filter(Boolean).slice(0, 4);
     const social = (profile.social_accounts || []).filter((item) => item.platform).map((item) => item.platform).filter((item, index, all) => all.indexOf(item) === index).slice(0, 3);
     const avatar = /^https?:\/\//i.test(profile.avatar_url || "")
@@ -131,7 +118,7 @@
       else if (state.kind === "outgoing") controls = control("cancel", "Request sent · Cancel", "connect-action secondary");
       else if (state.kind === "unavailable") controls = '<button class="connect-action secondary" type="button" disabled>Unavailable</button>';
       else controls = control("connect", state.kind === "declined" ? "Connect again" : "Connect");
-      controls += `<details class="block-menu"><summary aria-label="More profile actions">···</summary><button type="button" data-action="block">Block profile</button><button type="button" data-action="report">Report profile</button></details>`;
+      controls += `<details class="block-menu"><summary aria-label="More profile actions">···</summary><button type="button" data-action="block">Block profile</button></details>`;
       host.innerHTML = controls;
       host.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", async (event) => {
         event.preventDefault(); event.stopPropagation(); button.disabled = true;
@@ -141,17 +128,6 @@
           else if (button.dataset.action === "decline") await window.bmcConnections.respond(profile.profile_id, "declined");
           else if (button.dataset.action === "cancel") await window.bmcConnections.cancel(profile.profile_id);
           else if (button.dataset.action === "block") await window.bmcConnections.block(profile.profile_id);
-          else if (button.dataset.action === "report") {
-            const reason = prompt("Choose a reason: spam, harassment, impersonation, unsafe_content, fraud, or other", "other") || "";
-            const normalized = reason.trim().toLowerCase();
-            if (!new Set(["spam", "harassment", "impersonation", "unsafe_content", "fraud", "other"]).has(normalized)) throw new Error("Enter one of the listed report reasons.");
-            const description = prompt("Please describe the concern (at least 10 characters):") || "";
-            if (description.trim().length < 10) throw new Error("Add a little more detail before submitting.");
-            const { data: { session } } = await supabase.auth.getSession();
-            const response = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}` }, body: JSON.stringify({ targetUserId: profile.profile_id, reason: normalized, description }) });
-            const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not submit this report.");
-            toast("Report sent to the moderation team."); return;
-          }
           toast(button.dataset.action === "accept" ? "You’re connected. You can now message each other." : button.dataset.action === "block" ? "Profile blocked. Manage blocked profiles below." : "Connection status updated.");
           renderCards();
         } catch (error) { button.disabled = false; toast(error.message || "Could not update this connection."); }
