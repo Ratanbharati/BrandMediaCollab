@@ -1,5 +1,16 @@
 // Small local outline icon set keeps static pages consistent without a CDN dependency.
 (() => {
+  window.BMCCategories = window.BMCCategories || Object.freeze([
+    { id: "brand", singular: "Brand", plural: "Brands", projectLabel: "Brand projects", description: "Companies building partnerships and campaigns." },
+    { id: "creator", singular: "Creator", plural: "Creators", projectLabel: "Creator ideas", description: "Creators sharing concepts and seeking partners." },
+    { id: "agency", singular: "Agency", plural: "Agencies", projectLabel: "Agency projects", description: "Teams offering strategy and campaign services." },
+    { id: "celebrity", singular: "Celebrity", plural: "Celebrities", projectLabel: "Celebrity projects", description: "Public figures and represented talent." },
+    { id: "event", singular: "Event", plural: "Events", projectLabel: "Event projects", description: "Event teams, organisers and live experiences." },
+    { id: "media", singular: "Media", plural: "Media", projectLabel: "Media projects", description: "Publishers, broadcasters and production teams." },
+    { id: "community", singular: "Community", plural: "Communities", projectLabel: "Community projects", description: "Interest groups and professional communities." },
+    { id: "distributor", singular: "Distributor", plural: "Distributors", projectLabel: "Distributor projects", description: "Distribution, retail and fulfilment partners." },
+    { id: "freelancer", singular: "Freelancer", plural: "Freelancers", projectLabel: "Freelance projects", description: "Independent creative and marketing professionals." },
+  ]);
   "use strict";
 
   const paths = {
@@ -17,6 +28,7 @@
     heart: '<path d="M20.8 8.7c0 5.1-8.8 10.2-8.8 10.2S3.2 13.8 3.2 8.7a4.7 4.7 0 0 1 8.8-2.3 4.7 4.7 0 0 1 8.8 2.3Z"/>',
     close: '<path d="m6 6 12 12M18 6 6 18"/>',
     back: '<path d="m15 18-6-6 6-6M9 12h12"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   };
 
   const navIcons = new Map([
@@ -102,14 +114,52 @@
     for (const element of collect(root, '.toast')) element.classList.add("sr-toast");
   }
 
+  function ensureAppShell() {
+    const header = document.querySelector(".collabry-nav");
+    if (!document.querySelector('script[data-bmc-category-select]')) {
+      const component = document.createElement("script"); component.src = "/site/category-select.js"; component.dataset.bmcCategorySelect = "true"; document.head.append(component);
+    }
+    if (!header || document.body.classList.contains("sr-hero-page")) return;
+    if (!header.querySelector(".bmc-global-search")) {
+      const form = document.createElement("form"); form.className = "bmc-global-search"; form.setAttribute("role", "search"); form.setAttribute("aria-label", "Search Brand Media Collab");
+      const input = document.createElement("input"); input.type = "search"; input.name = "q"; input.placeholder = "Search people, projects"; input.setAttribute("aria-label", "Search people or projects");
+      const current = location.pathname.split("/").pop().toLowerCase(); const params = new URLSearchParams(location.search); input.value = params.get("q") || "";
+      const icon = makeIcon("explore"); const iconWrap = document.createElement("span"); iconWrap.className = "bmc-global-search-icon"; iconWrap.setAttribute("aria-hidden", "true"); if (icon) iconWrap.append(icon);
+      form.append(iconWrap, input); form.addEventListener("submit", (event) => { event.preventDefault(); const targetPage = current === "projects.html" ? "projects.html" : "explore.html"; const target = new URL(`/site/${targetPage}`, location.origin); const query = input.value.trim(); if (query) target.searchParams.set("q", query); location.assign(target.href); });
+      const nav = header.querySelector("nav"); header.insertBefore(form, nav || header.querySelector(".collabry-account"));
+    }
+    const primaryNav = header.querySelector("nav");
+    if (primaryNav && !primaryNav.querySelector("[data-notifications-link]")) {
+      const link = document.createElement("a"); link.href = "notifications.html"; link.dataset.notificationsLink = "true"; link.innerHTML = "<span>♧</span><small>Notifications</small>";
+      if (location.pathname.toLowerCase().endsWith("/notifications.html")) { link.classList.add("active"); link.setAttribute("aria-current", "page"); }
+      const messages = primaryNav.querySelector('a[href$="messages.html"]'); if (messages) messages.after(link); else primaryNav.append(link);
+    }
+    if (!header.querySelector(".bmc-mobile-message")) {
+      const link = document.createElement("a"); link.className = "bmc-mobile-message"; link.href = "messages.html"; link.setAttribute("aria-label", "Messages"); const icon = makeIcon("messages"); if (icon) link.append(icon); header.append(link);
+    }
+    if (!document.querySelector(".bmc-mobile-tabs")) {
+      const mobile = document.createElement("nav"); mobile.className = "bmc-mobile-tabs"; mobile.setAttribute("aria-label", "Mobile navigation");
+      const links = [["feed.html", "Home", "home"], ["projects.html", "Projects", "projects"], ["explore.html", "Explore", "explore"], ["notifications.html", "Notifications", "notifications"]];
+      const currentPage = location.pathname.split("/").pop().toLowerCase();
+      for (const [page, label, iconName] of links) { const anchor = document.createElement("a"); anchor.href = page; anchor.setAttribute("aria-label", label); if (currentPage === page) { anchor.setAttribute("aria-current", "page"); } const icon = makeIcon(iconName); const iconWrap = document.createElement("span"); iconWrap.className = "sr-nav-icon"; iconWrap.setAttribute("aria-hidden", "true"); if (icon) iconWrap.append(icon); const text = document.createElement("small"); text.textContent = label; anchor.append(iconWrap, text); mobile.append(anchor); }
+      const more = document.createElement("details"); more.className = "bmc-mobile-more"; const summary = document.createElement("summary"); summary.setAttribute("aria-label", "More navigation options"); const moreIcon = document.createElement("span"); moreIcon.className = "sr-nav-icon"; moreIcon.setAttribute("aria-hidden", "true"); moreIcon.append(makeIcon("more")); const moreText = document.createElement("small"); moreText.textContent = "More"; summary.append(moreIcon, moreText); const menu = document.createElement("div"); menu.className = "bmc-mobile-more-menu";
+      for (const [page, label] of [["dashboard.html", "Dashboard"], ["messages.html", "Messages"], ["my-profile.html", "My profile"], ["settings.html", "Settings & privacy"], ["help.html", "Help"], ["logout.html", "Log out"]]) { const anchor = document.createElement("a"); anchor.href = page; anchor.textContent = label; menu.append(anchor); }
+      more.append(summary, menu); mobile.append(more); document.body.append(mobile);
+    }
+  }
+
   function update(root = document) {
     if (document.body) {
       const currentPage = location.pathname.split("/").pop().toLowerCase();
-      document.body.classList.toggle("sr-hero-page", ["index.html", "landing-preview.html", "explore.html"].includes(currentPage));
+      document.body.classList.toggle("sr-hero-page", ["index.html", "landing-preview.html"].includes(currentPage));
+      for (const [page, className] of Object.entries({ "feed.html": "sr-home-page", "projects.html": "sr-projects-page", "explore.html": "sr-explore-page", "dashboard.html": "sr-dashboard-page", "messages.html": "sr-messages-page", "notifications.html": "sr-notifications-page" })) {
+        document.body.classList.toggle(className, currentPage === page);
+      }
     }
     normalizeNavigation(root);
     normalizeMarkedGlyphs(root);
     normalizeComponents(root);
+    ensureAppShell();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => update(), { once: true });

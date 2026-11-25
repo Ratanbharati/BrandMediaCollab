@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="310" viewBox="0 0 1440 310" role="img" aria-labelledby="title desc">
+  <title id="title">Brand Media Collab navbar font size comparison</title>
+  <desc id="desc">Two navbar previews compare the current 16 pixel navigation text with an 18 pixel version. The logo and Join the network button stay the same.</desc>
+  <rect width="1440" height="310" fill="#f6f5f0"/>
+  <text x="48" y="34" font-family="Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="1.2" fill="#68746d">CURRENT NAV LINKS — 16 PX</text>
+  <rect x="32" y="50" width="1376" height="92" rx="14" fill="#ffffff" stroke="#e4e8e4"/>
+  <rect x="72" y="78" width="34" height="34" rx="9" fill="#dff1e7"/>
+  <text x="89" y="101" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#32885a">BMC</text>
+  <text x="118" y="101" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="#1b2b22">Brand Media Collab</text>
+  <text x="565" y="102" font-family="Arial,sans-serif" font-size="16" font-weight="500" fill="#26332d">How it works</text>
+  <text x="730" y="102" font-family="Arial,sans-serif" font-size="16" font-weight="500" fill="#26332d">Who it’s for</text>
+  <text x="1195" y="102" font-family="Arial,sans-serif" font-size="16" font-weight="500" fill="#26332d">Log in</text>
+  <rect x="1260" y="72" width="132" height="48" rx="24" fill="#1d2922"/>
+  <text x="1326" y="101" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="700" fill="#ffffff">Join the network</text>
+  <text x="48" y="184" font-family="Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="1.2" fill="#68746d">INCREASED BY 2 PX — 18 PX</text>
+  <rect x="32" y="200" width="1376" height="92" rx="14" fill="#ffffff" stroke="#e4e8e4"/>
+  <rect x="72" y="228" width="34" height="34" rx="9" fill="#dff1e7"/>
+  <text x="89" y="251" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#32885a">BMC</text>
+  <text x="118" y="251" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="#1b2b22">Brand Media Collab</text>
+  <text x="565" y="252" font-family="Arial,sans-serif" font-size="18" font-weight="500" fill="#26332d">How it works</text>
+  <text x="744" y="252" font-family="Arial,sans-serif" font-size="18" font-weight="500" fill="#26332d">Who it’s for</text>
+  <text x="1195" y="252" font-family="Arial,sans-serif" font-size="18" font-weight="500" fill="#26332d">Log in</text>
+  <rect x="1260" y="222" width="132" height="48" rx="24" fill="#1d2922"/>
+  <text x="1326" y="251" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="700" fill="#ffffff">Join the network</text>
+</svg>

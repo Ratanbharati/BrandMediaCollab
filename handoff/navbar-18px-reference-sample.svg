@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="112" viewBox="0 0 1000 112" role="img" aria-labelledby="title desc">
+  <title id="title">Brand Media Collab navbar at the reference text size</title>
+  <desc id="desc">Brand Media Collab navigation links and login use 18 pixel medium text in dark charcoal. The Join the network button retains its existing style.</desc>
+  <rect width="1000" height="112" fill="#ffffff"/>
+  <line x1="0" y1="111" x2="1000" y2="111" stroke="#e4e8e4"/>
+  <rect x="32" y="39" width="34" height="34" rx="9" fill="#dff1e7"/>
+  <text x="49" y="61" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#32885a">BMC</text>
+  <text x="78" y="62" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="#1b2b22">Brand Media Collab</text>
+  <text x="345" y="63" font-family="Arial,sans-serif" font-size="18" font-weight="500" fill="#26332d">How it works</text>
+  <text x="515" y="63" font-family="Arial,sans-serif" font-size="18" font-weight="500" fill="#26332d">Who it’s for</text>
+  <text x="790" y="63" font-family="Arial,sans-serif" font-size="18" font-weight="500" fill="#26332d">Log in</text>
+  <rect x="850" y="34" width="128" height="46" rx="23" fill="#1d2922"/>
+  <text x="914" y="62" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#ffffff">Join the network</text>
+</svg>

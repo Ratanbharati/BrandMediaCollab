@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Brand Media Collab — UI/UX Sample Pages</title>
+  <style>
+    :root{--ink:#1b2b22;--muted:#718075;--paper:#f6f5f0;--surface:#fffefa;--line:#e8e7de;--green:#b9ee73;--deep:#293d30;--pale:#eff5e8;--shadow:0 12px 34px #2135260c;--radius:18px}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 'DM Sans',Arial,sans-serif}.top{height:72px;background:#fffefa;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 max(20px,calc((100% - 1240px)/2));gap:12px}.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-weight:800;font-size:18px}.mark{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#dff1e7;color:#32885a;font-size:12px}.wrap{max-width:1000px;margin:72px auto;padding:0 24px}.eyebrow{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#65814f;font-weight:800}.wrap h1{font-size:clamp(34px,5vw,54px);line-height:1.08;letter-spacing:-.045em;margin:12px 0}.intro{color:var(--muted);font-size:17px;max-width:660px}.samples{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:36px}.sample{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:240px}.sample h2{font-size:23px;letter-spacing:-.03em;margin:8px 0}.sample p{color:var(--muted);margin:0 0 20px}.sample a{margin-top:auto;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 18px;border-radius:999px;background:var(--deep);color:white;text-decoration:none;font-weight:700}.sample a:hover{background:#3d5948}.note{margin-top:22px;padding:15px 17px;border:1px solid #dbe8ce;background:var(--pale);border-radius:12px;color:#506447;font-size:13px}@media(max-width:640px){.top{height:62px;padding:0 16px}.wrap{margin:42px auto;padding:0 16px}.samples{grid-template-columns:1fr;gap:12px}.sample{padding:20px;min-height:210px}.intro{font-size:15px}}
+  </style>
+</head>
+<body>
+  <header class="top"><a class="brand" href="/ui-samples/"><span class="mark">BMC</span>Brand Media Collab</a></header>
+  <main class="wrap">
+    <div class="eyebrow">Design review · preview only</div>
+    <h1>Two sample pages</h1>
+    <p class="intro">A first consistency pass for the Home feed and Projects experience, based on the screenshots you shared. Open each sample on desktop or a phone-sized screen.</p>
+    <div class="samples">
+      <article class="sample"><div class="eyebrow">Sample 01</div><h2>Home collaboration feed</h2><p>Balanced three-column desktop layout, calmer feed heading, category tabs that wrap cleanly, and cards/actions sized for touch on mobile.</p><a href="/ui-samples/home.html">Open Home sample →</a></article>
+      <article class="sample"><div class="eyebrow">Sample 02</div><h2>Projects discovery</h2><p>Clear workspace navigation, role categories, compact search/filter controls, and project cards that reflow without horizontal scrolling.</p><a href="/ui-samples/projects.html">Open Projects sample →</a></article>
+    </div>
+    <p class="note"><strong>Preview only.</strong> These pages use example content to show layout and styling. They do not connect to your account or Supabase, and your existing site pages are unchanged.</p>
+  </main>
+</body>
+</html>

@@ -15,6 +15,7 @@
     $("#table-head")?.replaceChildren();
     const postsPanel = $("#table-body")?.closest(".table-panel");
     const sentPanel = $("#creator-table-body")?.closest(".table-panel");
+    if (postsPanel) postsPanel.dataset.bmcCategory = "brand";
     postsPanel?.querySelector("#table-body")?.replaceChildren(); sentPanel?.querySelector("#creator-table-body")?.replaceChildren();
     const firstHead = postsPanel?.querySelector(".table-head h2"); if (firstHead) firstHead.textContent = "Brand projects";
     const firstSpan = postsPanel?.querySelector(".table-head span"); if (firstSpan) firstSpan.textContent = "Incoming interest, decisions, and private chats";
@@ -26,6 +27,7 @@
     if (secondHeads) secondHeads.innerHTML = "<th>Project</th><th>Owner</th><th>Application status</th><th>Your note</th><th>Applied</th><th colspan=2>Conversation</th><th>Actions</th>";
     const makePanel = (id, title, summaryId, bodyId, emptyId, interestLabel) => {
       const section = document.createElement("section"); section.id = id; section.className = "panel table-panel";
+      section.dataset.bmcCategory = ({ "creator-ideas-panel": "creator", "agency-projects-panel": "agency", "celebrity-projects-panel": "celebrity", "event-projects-panel": "event", "media-projects-panel": "media", "community-projects-panel": "community", "distributor-projects-panel": "distributor", "freelancer-projects-panel": "freelancer" })[id] || "brand";
       section.innerHTML = `<div class="table-head"><div><h2>${title}</h2><span id="${summaryId}">Loading live project activity…</span></div><span>Counts use this account’s saved project activity</span></div><div class="table-wrap"><table><thead><tr><th>Project</th><th>Status</th><th>Responses</th><th>${interestLabel}</th><th>Working together</th><th>Rejected</th><th>Project chats</th><th>Actions</th></tr></thead><tbody id="${bodyId}"></tbody></table><div class="empty" id="${emptyId}">No projects in this date range.</div></div><div class="table-footer">Project activity is grouped by the account type that created the post.</div>`;
       return section;
     };
@@ -39,7 +41,7 @@
     const freelancerPanel = makePanel("freelancer-projects-panel", "Freelance assignments", "freelancer-projects-summary", "freelancer-projects-body", "freelancer-projects-empty", "Interested clients");
     if (postsPanel && sentPanel) { postsPanel.after(creatorPanel); creatorPanel.after(agencyPanel); agencyPanel.after(celebrityPanel); celebrityPanel.after(eventPanel); eventPanel.after(mediaPanel); mediaPanel.after(communityPanel); communityPanel.after(distributorPanel); distributorPanel.after(freelancerPanel); }
     const rolePicker = $("#role"); if (rolePicker) rolePicker.hidden = true;
-    const insight = $(".insight"); if (insight) insight.innerHTML = '<b>How it works:</b> Projects and ideas for all nine account types stay in the same collaboration network and are grouped by the account that posted them. “Applications sent” is your interest in other people’s posts. Each conversation is private and one-to-one. A bulk update sends the same message separately to accepted collaborators.';
+    const insight = $(".insight"); if (insight) insight.innerHTML = '<b>How it works:</b> Projects and ideas for all nine account types stay in the same collaboration network and are grouped by the account that posted them. “Applications sent” is your interest in other people’s posts. Each conversation is private and one-to-one. A bulk update sends a separate private message to each interested member.';
   }
 
   async function ensureChat(projectId, otherId, message) {
@@ -88,11 +90,11 @@
         const { error } = await supabase.from("applications").update({ status: select.value, updated_at: new Date().toISOString() }).eq("id", app.id);
         select.disabled = false;
         if (error) { select.value = previous; toast(error.message || "Could not update this application."); return; }
-        app.status = select.value; if (button) { button.disabled = app.status !== "working_together"; button.textContent = button.disabled ? "Accept to chat" : "Open chat"; }
+        app.status = select.value; if (button) { button.disabled = !["interested", "working_together"].includes(app.status); button.textContent = button.disabled ? "Chat unavailable" : "Open chat"; }
         toast("Application status updated."); await refreshDashboardData();
       }; }
-      if (button) { button.disabled = app.status !== "working_together"; button.textContent = button.disabled ? "Accept to chat" : "Open chat"; button.onclick = async () => {
-        if (app.status !== "working_together") return toast("Accept the collaboration before starting a project chat.");
+      if (button) { button.disabled = !["interested", "working_together"].includes(app.status); button.textContent = button.disabled ? "Chat unavailable" : "Open chat"; button.onclick = async () => {
+        if (!["interested", "working_together"].includes(app.status)) return toast("This project conversation is unavailable.");
         button.disabled = true; try { const id = await ensureChat(projectId, app.applicant_id); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message || "Could not open this project chat."); button.disabled = false; }
       }; }
     });
@@ -106,9 +108,9 @@
   }
 
   async function bulkMessage(projectId) {
-    const project = projectById[projectId]; const recipients = (project?.applications || []).filter((app) => app.status === "working_together");
-    if (!recipients.length) return toast("Accept an application first. Project chats are available to accepted collaborators.");
-    const text = prompt(`Send a private message about “${project.project_name}” to ${recipients.length} accepted collaborator(s). Each person gets a separate private message:`);
+    const project = projectById[projectId]; const recipients = (project?.applications || []).filter((app) => app.status === "interested");
+    if (!recipients.length) return toast("There are no active project conversations to message yet.");
+    const text = prompt(`Send a private message about “${project.project_name}” to ${recipients.length} interested member(s). Each person gets a separate private message:`);
     if (!text?.trim()) return;
     try {
       let sent = 0; const failed = [];
@@ -160,13 +162,13 @@
       const project = projectById[app.project_id] || {}; const owner = profileById[project.owner_id] || {};
       const name = owner.display_name || owner.company_name || "Project owner";
       const chat = conversations.find((c) => c.project_id === app.project_id && c.memberIds?.includes(project.owner_id));
-      return `<tr class="data-row" data-role="applications" data-date="${esc((app.created_at || "").slice(0,10))}" data-project="${esc(project.project_name || "Project")}"><td class="project-cell"><b>${esc(project.project_name || "Project")}</b><span>${esc(project.category || "")}</span></td><td>${esc(name)}</td><td>${esc(app.status)}</td><td>${esc(app.message || "—")}</td><td>${new Date(app.created_at).toLocaleDateString()}</td><td colspan="2">${chat ? "Private chat ready" : "No chat yet"}</td><td><button class="action primary-action" data-open-chat="${esc(app.project_id)}" data-other="${esc(project.owner_id || "")}" ${app.status !== "working_together" ? "disabled title=\"Chat opens after the project owner accepts your application.\"" : ""}>${app.status === "working_together" ? "Open chat" : "Accept to chat"}</button></td></tr>`;
+      return `<tr class="data-row" data-role="applications" data-date="${esc((app.created_at || "").slice(0,10))}" data-project="${esc(project.project_name || "Project")}"><td class="project-cell"><b>${esc(project.project_name || "Project")}</b><span>${esc(project.category || "")}</span></td><td>${esc(name)}</td><td>${esc(app.status)}</td><td>${esc(app.message || "—")}</td><td>${new Date(app.created_at).toLocaleDateString()}</td><td colspan="2">${chat ? "Private chat ready" : "No chat yet"}</td><td><button class="action primary-action" data-open-chat="${esc(app.project_id)}" data-other="${esc(project.owner_id || "")}" ${!["interested", "working_together"].includes(app.status) ? "disabled title=\"Conversation unavailable for this application.\"" : ""}>${["interested", "working_together"].includes(app.status) ? "Open chat" : "Chat unavailable"}</button></td></tr>`;
     }).join("");
     [ownBody, creatorIdeaBody, agencyBody, celebrityBody, eventBody, mediaBody, communityBody, distributorBody, freelancerBody].filter(Boolean).forEach((body) => {
       body.querySelectorAll("[data-applicants]").forEach((button) => button.onclick = () => openApplicants(button.dataset.applicants));
       body.querySelectorAll("[data-bulk]").forEach((button) => button.onclick = () => bulkMessage(button.dataset.bulk));
     });
-    if (sentBody) sentBody.querySelectorAll("[data-open-chat]").forEach((button) => button.onclick = async () => { if (button.disabled) return; button.disabled = true; try { const id = await ensureChat(button.closest("tr").querySelector("[data-open-chat]").dataset.openChat, button.dataset.other); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message || "Chat opens after the project owner accepts your application."); button.disabled = false; } });
+    if (sentBody) sentBody.querySelectorAll("[data-open-chat]").forEach((button) => button.onclick = async () => { if (button.disabled) return; button.disabled = true; try { const id = await ensureChat(button.dataset.openChat, button.dataset.other); location.href = `messages.html?conversation=${encodeURIComponent(id)}`; } catch (error) { toast(error.message || "Could not open this project conversation."); button.disabled = false; } });
     const setEmpty = (id, list, text) => { const el = $(id); if (el) { el.textContent = text; el.style.display = list.length ? "none" : "block"; } };
     setEmpty("#empty", brandPosts, "No brand projects have been posted yet.");
     setEmpty("#creator-ideas-empty", creatorPosts, "No creator ideas have been posted yet.");
@@ -284,7 +286,8 @@
     const { data: profile, error: profileError } = await supabase.from("profiles").select("display_name,company_name,account_type").eq("id", user.id).maybeSingle();
     if (profileError) throw profileError;
     const name = profile?.display_name || profile?.company_name || "Member";
-    const type = profile?.account_type || "creator"; accountType = type;
+    const type = profile?.account_type || "creator"; accountType = type; window.bmcAccountType = type;
+    const ownedPanel = $("#table-body")?.closest(".table-panel"); if (ownedPanel) ownedPanel.dataset.bmcCategory = type;
     const roleLabel = ({ creator: "Creator", brand: "Brand", agency: "Agency", celebrity: "Celebrity", event: "Event", media: "Media", community: "Community", distributor: "Distributor", freelancer: "Freelancer" })[type] || "Member";
     const header = $(".collabry-account > span"); if (header) header.textContent = `${name} · ${roleLabel}`;
     const picker = $("#role"); if (picker) { picker.value = type; picker.disabled = true; }
