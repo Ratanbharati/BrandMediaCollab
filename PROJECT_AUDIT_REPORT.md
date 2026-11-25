@@ -59,3 +59,17 @@ Reviewed the attached implementation and UI/UX audit prompts against the active 
 - Navigation unread badge placement remains within the nav item bounds.
 
 **Follow-up verification:** Node syntax checks passed for the five touched/live browser scripts. `pnpm test` passed, including the static site verifier and TypeScript check. The production build passed (Next.js 15.5.29). No browser-driven or hosted Supabase end-to-end test was possible, so conversation creation, realtime delivery, and database state are still **not live-verified**. Do not treat this report as production certification.
+
+## Internal UI addendum — 25 November 2026
+
+Applied a focused shared-style and home-feed pass from `BMC-Codex-Addendum-Calm-Internal-UI.md`:
+
+- Added internal typography tokens: H1 28/36px (24/32px mobile, 600); section 18/28px (600); card title 16/24px (600); body 14/22px; label 14/20px; caption 12/16px; stat 24/32px. Shared body typography uses DM Sans and headings use Manrope, as in the existing design system. Landing-page hero scale remains separate; Explore now uses the internal H1 scale.
+- Unified desktop internal navigation labels at 14/500 and increased navigation icons to 20px. Mobile navigation text stays at 12px to fit the existing six-item row; mobile form controls use 16px text.
+- Added a 12px floor for common text roles and darker common muted text, standardized status pill sizing, and kept project-type tabs in one horizontally scrollable row.
+- Home feed now starts with an All filter; categories with results appear in the row and zero-count categories are available in More. The composer keeps one project/idea action. The untracked profile-view statistic and redundant account-type stat are removed; creator tier remains for creator accounts. Internal action arrows were removed from the cited UI actions.
+- Added static verifier checks for the internal title tokens, Explore scale, and home All/More/composer behavior.
+
+**Design-system completion is partial.** Many page templates still contain inline, legacy type declarations, and not every card, CTA, sidebar row, notification row, message snapshot, date format, and AppShell/PageHeader was refactored to the requested shared component. Source scans still find page-specific values. Five viewport screenshots, rendered contrast measurements, and browser interaction checks were not performed. The table and CTA rules in the addendum therefore remain follow-up work rather than verified completion.
+
+**Verification after this follow-up:** Node syntax checks passed for the modified browser scripts. `pnpm test:site` passed after the latest home-feed and token changes. A production build and full `pnpm test` passed after the typography and feed changes; the first concurrent build/test attempt raced on generated `.next/types`, then the sequential build passed. Live Supabase and browser-level verification remain blocked by unavailable hosted access and test accounts.

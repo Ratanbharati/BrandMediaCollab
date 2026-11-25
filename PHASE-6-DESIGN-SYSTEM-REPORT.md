@@ -41,3 +41,24 @@ The three retired profile/edit/saved pages still redirect to their live destinat
 - Inline action glyphs that are not in marked icon slots were not all replaced; primary navigation and explicitly marked icons now use the shared family.
 - Several pages have custom breakpoint rules. Those remain in place and were not visually validated on physical mobile/tablet devices here.
 - The production build is still unverified because of the workspace filesystem restriction.
+
+## Addendum — 25 November 2026
+
+The previous build-status bullets above describe the 22 November run and are superseded by this follow-up: the production build passed on 25 November after the generated `.next` API output directory was created in the workspace; the full `pnpm test` also passed when run sequentially after the build.
+
+The internal-page tokens now defined in `public/site/design-system.css` are:
+
+| Role | Desktop | Mobile / weight |
+|---|---:|---|
+| Page title | 28px / 36px | 24px / 32px, 600 |
+| Section title | 18px / 28px | 600 |
+| Card title | 16px / 24px | 600 |
+| Body | 14px / 22px | 400 |
+| Label and desktop nav | 14px / 20px | 500 |
+| Caption | 12px / 16px | 400 |
+| Stat | 24px / 32px | 600 |
+| Mobile form control | — | 16px / 24px |
+
+DM Sans remains the body/UI stack and Manrope remains the display/heading stack. Explore now uses the 28px internal page title instead of the landing hero scale. Desktop internal navigation is 14px and mobile nav remains 12px to fit the current one-row six-item layout. The home feed category row is now horizontally scrollable with All and active categories; zero-count categories are in More. The redundant non-creator account-type statistic and untracked profile-view statistic were removed, as were the composer’s extra profile/availability actions.
+
+This is not a complete replacement of legacy inline style declarations. Page-specific font sizes, page shells, card and CTA variants, dashboard/message/notification details, and date formats still need a component-by-component pass. The exact five-width before/after screenshot review and rendered contrast measurements in the addendum were not performed. See [PROJECT_AUDIT_REPORT.md](PROJECT_AUDIT_REPORT.md) for remaining scope and tested/blocked status.
