@@ -53,7 +53,6 @@ const explore = fs.readFileSync(path.join(siteRoot, "explore.html"), "utf8");
 const exploreLive = fs.readFileSync(path.join(siteRoot, "explore-live.js"), "utf8");
 const projectLive = fs.readFileSync(path.join(siteRoot, "projects-live.js"), "utf8");
 const landing = fs.readFileSync(path.join(siteRoot, "index.html"), "utf8");
-const landingPreview = fs.readFileSync(path.join(siteRoot, "landing-preview.html"), "utf8");
 const profileSetup = fs.readFileSync(path.join(siteRoot, "profile-setup.html"), "utf8");
 const messages = fs.readFileSync(path.join(siteRoot, "messages.html"), "utf8");
 const notifications = fs.readFileSync(path.join(siteRoot, "notifications.html"), "utf8");
@@ -62,32 +61,12 @@ const dashboard = fs.readFileSync(path.join(siteRoot, "dashboard.html"), "utf8")
 const dashboardLive = fs.readFileSync(path.join(siteRoot, "dashboard-live.js"), "utf8");
 const designSystemCss = fs.readFileSync(path.join(siteRoot, "design-system.css"), "utf8");
 const designSystemJs = fs.readFileSync(path.join(siteRoot, "design-system.js"), "utf8");
-const categorySelect = fs.readFileSync(path.join(siteRoot, "category-select.js"), "utf8");
 const myProjects = fs.readFileSync(path.join(siteRoot, "my-projects.html"), "utf8");
 const applicationsPage = fs.readFileSync(path.join(siteRoot, "applications-live.js"), "utf8");
 const messagesLive = fs.readFileSync(path.join(siteRoot, "messages-live.js"), "utf8");
-for (const token of ["--sr-heading-page", "--sr-heading-section", "--sr-heading-card", "--text-title", "--text-section", "--text-card-title", "--text-body", "--text-label", "--text-caption", "--sr-space-4", "--sr-focus", ".sr-button", ".sr-field", ".sr-card", ".sr-empty", ".sr-error", ".sr-tab", ".sr-toast", "@media (max-width: 720px)", "prefers-reduced-motion"]) {
+for (const token of ["--sr-heading-page", "--sr-heading-section", "--sr-heading-card", "--sr-space-4", "--sr-focus", ".sr-button", ".sr-field", ".sr-card", ".sr-empty", ".sr-error", ".sr-tab", ".sr-toast", "@media (max-width: 720px)", "prefers-reduced-motion"]) {
   if (!designSystemCss.includes(token)) errors.push(`Design system CSS: missing ${token}`);
 }
-if (/\["index\.html",\s*"landing-preview\.html",\s*"explore\.html"\]/.test(designSystemJs)) errors.push("Design system: Explore must use the internal page title scale, not the landing hero scale");
-if (!/--text-title:\s*20px/.test(designSystemCss) || !/--text-caption:\s*12px/.test(designSystemCss) || !/font-size:\s*20px\s*!important;\s*line-height:\s*28px\s*!important/.test(designSystemCss)) errors.push("Design system: internal title, caption minimum, or mobile title tokens are missing");
-for (const requirement of [".bmc-global-search", ".bmc-mobile-tabs", ".bmc-mobile-more-menu", "height: 56px", "max-width: 1128px"]) {
-  if (!designSystemCss.includes(requirement)) errors.push(`App shell: missing compact responsive shell rule ${requirement}`);
-}
-if (!designSystemJs.includes("data-notifications-link") || !designSystemJs.includes("Search people, projects") || !projectLive.includes('new URLSearchParams(location.search).get("q")') || !exploreLive.includes('new URLSearchParams(location.search).get("q")')) errors.push("App shell: notification navigation or global search handoff is missing");
-if (!app.includes('data-feed-kind="all"') || !app.includes('bmc-feed-more') || !app.includes('composer.querySelector(".composer-actions")?.remove()')) errors.push("Home feed: All/More category row or single project composer action is missing");
-for (const requirement of ["aria-haspopup", "role", "ArrowDown", "ArrowUp", "Escape", "typeBuffer", "pushState", "popstate", "bmc:message-type", "projectForm"]) {
-  if (!categorySelect.includes(requirement)) errors.push(`Category selector: missing accessible/shared behavior ${requirement}`);
-}
-if (!designSystemCss.includes(".bmc-category-menu") || !designSystemCss.includes("max-width: 767px") || !designSystemCss.includes("scrollbar-gutter: stable")) errors.push("Category selector: menu sizing, mobile sheet, or scroll behavior is missing");
-if (!landing.includes('data-open="signup">Join now</button>') || landing.includes('Find your next partnership')) errors.push("Landing hero: Join now and the secondary how-it-works link are not the only hero CTAs");
-if (landing.includes('class="float-card') && (!landing.includes("Example partnership brief") || !landing.includes('aria-label="How a creative match works"'))) errors.push("Landing hero: illustrative partnership cards must be clearly labeled as examples");
-if (!categorySelect.includes('label: "Project type"') || !categorySelect.includes('All project types') || !categorySelect.includes('queryParam: "kind"') || !categorySelect.includes('controls.forEach((node) => node.remove())')) errors.push("Projects: one deduplicated project-type dropdown must filter through the existing kind logic");
-if (!projectLive.includes('state.action === "chat" ? ""') || !app.includes('state.action === "chat" ? ""')) errors.push("Project cards: the redundant Working together label should be hidden while chat actions and state remain");
-if (!projectLive.includes('setKind("all")')) errors.push("Projects: Clear filters must reset the project-type selection");
-if (!explore.includes('id="search-submit"') || !exploreLive.includes('$("#search-submit")?.addEventListener("click"')) errors.push("Explore: the search action must submit the current real profile filters");
-if (!designSystemCss.includes('body.sr-dashboard-page .heading-row .date-wrap { grid-column: 2;') || !designSystemCss.includes('body.sr-dashboard-page .heading-row #create-project { grid-column: 3;')) errors.push("Dashboard: date range and project creation controls must share a desktop row");
-if (!app.includes('.bmc-mobile-tabs a[href$="notifications.html"]') || !app.includes('top:-5px;right:-7px')) errors.push("Navigation: notification badges must sit beside the icon and reach mobile navigation");
 for (const icon of ["home", "projects", "explore", "dashboard", "messages", "notifications", "settings", "logout"]) {
   if (!designSystemJs.includes(`"${icon}"`)) errors.push(`Design system icons: missing ${icon}`);
 }
@@ -95,7 +74,6 @@ const resetFlow = fs.readFileSync(path.join(siteRoot, "password-reset.js"), "utf
 const authMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261121130000_expand_to_nine_account_types.sql"), "utf8");
 const roles = ["creator", "brand", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"];
 for (const role of roles) {
-  if (!designSystemJs.includes(`id: "${role}"`)) errors.push(`Category selector config: missing canonical role ${role}`);
   if (!app.includes(`"${role}"`)) errors.push(`bmc-app.js: missing account type ${role}`);
   if (!projectForm.includes(`value="${role}"`)) errors.push(`project-form.html: missing project type ${role}`);
   if (!explore.includes(`data-type="${role}"`)) errors.push(`explore.html: missing profile filter ${role}`);
@@ -107,7 +85,6 @@ for (const role of roles) {
   if (!authMigration.includes(`'${role}'`)) errors.push(`Auth profile trigger migration: missing account type ${role}`);
 }
 if (!app.includes("`${accountLabel} account`")) errors.push("bmc-app.js: the home profile card does not display the actual account type");
-if (!/name=["']robots["'][^>]*content=["']noindex,\s*nofollow["']/i.test(landingPreview)) errors.push("Landing preview: duplicate prototype page must stay out of search indexes");
 if (!explore.includes("explore-live.js") || !exploreLive.includes('rpc("discover_profiles"')) errors.push("Explore page: live profile discovery RPC is missing");
 if (!projectLive.includes("postgres_changes")) errors.push("projects-live.js: project live updates are not subscribed");
 if (!app.includes('"notifications.html"') || !app.includes('data-notifications-link')) errors.push("Notifications: protected route or main-navigation entry is missing");
@@ -120,20 +97,9 @@ if (/table:\s*["']notifications["']|renderNotifications|notification-list|activi
 if (!dashboardLive.includes('table: "projects"') || !dashboardLive.includes('table: "applications"') || !dashboardLive.includes('table: "messages"')) errors.push("Dashboard: project/application/message Realtime refresh is incomplete");
 if (/localStorage|data-row|A little joy, in every bite|Send project update/.test(dashboard)) errors.push("Dashboard: hardcoded demo activity or fake action UI remains");
 if (/localStorage|bmc_projects/.test(myProjects) || !app.includes('if (path.endsWith("/my-projects.html")) loadMyProjects()')) errors.push("My projects: browser-only demo persistence or missing Supabase renderer remains");
-if (!applicationsPage.includes('["interested", "working_together"].includes(app.status)') || !applicationsPage.includes('supabase.rpc("submit_project_interest"')) errors.push("Applications: active project interests do not open their persisted conversation");
-if (!app.includes('messagesUrl.searchParams.set("conversation", conversationId)') || !app.includes('messagesUrl.searchParams.set("interest", "sent")')) errors.push("Project interest: successful send does not close the dialog and route to its conversation");
-const interestChatMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261123150000_interest_opens_project_chat.sql"), "utf8");
-if (!interestChatMigration.includes("submit_project_interest") || !interestChatMigration.includes("a.status in ('interested', 'working_together')")) errors.push("Project chat: Supabase migration does not authorize active-interest conversations");
-if (!dashboardLive.includes('app.status !== "working_together"') && !dashboardLive.includes('["interested", "working_together"].includes(app.status)')) errors.push("Dashboard: project chat actions are missing active-interest state handling");
-if (!messagesLive.includes('.in("status", ["interested", "working_together"])') || !messagesLive.includes('Project conversations')) errors.push("Messages: active interests are not available as project conversations");
+if (!applicationsPage.includes('app.status === "working_together"') || !applicationsPage.includes("Private project chat opens after the project owner accepts")) errors.push("Applications: project chat is not restricted to accepted collaborations");
 if (!messagesLive.includes("notificationReadError")) errors.push("Messages: notification read-update failures are silently ignored");
 const integrityMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261120120000_phase5_application_integrity.sql"), "utf8");
-const profileRealtimeMigrationPath = path.join(root, "supabase", "migrations", "20261119001000_enable_profile_discovery_realtime.sql");
-if (!fs.existsSync(profileRealtimeMigrationPath)) errors.push("Supabase migrations: canonical profile discovery Realtime migration is missing");
-else {
-  const profileRealtimeMigration = fs.readFileSync(profileRealtimeMigrationPath, "utf8").toLowerCase();
-  if (!profileRealtimeMigration.includes("supabase_realtime") || !profileRealtimeMigration.includes("public.profiles")) errors.push("Supabase migrations: profile discovery Realtime migration does not include public.profiles");
-}
 const adminHelperMigration = fs.readFileSync(path.join(root, "supabase", "migrations", "20261118052016_platform_admin_private_helper.sql"), "utf8");
 if (!adminHelperMigration.includes("create or replace function app_private.is_platform_admin()") || !integrityMigration.includes("create or replace function app_private.is_platform_admin()")) errors.push("Admin authorization helper: migration-chain or existing-install repair is missing");
 for (const requirement of ["applications_guard_write", "guard_application_write", "target_profile_types", "application_deadline", "revoke update on public.applications", "with check ("]) {

@@ -44,7 +44,6 @@
     $$("[data-filter-field]").forEach((field) => { field.hidden = !typeFields.includes(field.dataset.filterField); });
     const heading = $("#results-title");
     if (heading) heading.textContent = type === "all" ? "People to discover" : `${({ agency: "Agencies", celebrity: "Celebrities", event: "Events", media: "Media organisations", community: "Communities", distributor: "Distributors", freelancer: "Freelancers" })[type] || `${type[0].toUpperCase()}${type.slice(1)}s`} to discover`;
-    const url = new URL(location.href); if (type === "all") url.searchParams.delete("category"); else url.searchParams.set("category", type); history.replaceState({}, "", url);
     if (window.matchMedia("(min-width:721px)").matches) $("#filter-panel").open = true;
   }
 
@@ -196,8 +195,7 @@
   function clearFilters() {
     $("#profile-search").value = "";
     ["#filter-industry", "#filter-niche", "#filter-location", "#filter-language", "#filter-platform", "#filter-service"].forEach((id) => { if ($(id)) $(id).value = ""; });
-    const initialType = new URLSearchParams(location.search).get("category");
-    setRoleFilter(["all", "brand", "creator", "agency", "celebrity", "event", "media", "community", "distributor", "freelancer"].includes(initialType) ? initialType : "all");
+    setRoleFilter("all");
     loadProfiles({ reset: true });
   }
 
@@ -217,8 +215,6 @@
   try {
     const { supabase: client, user: currentUser } = await window.bmcConnections.ready();
     supabase = client; user = currentUser;
-    const initialSearch = new URLSearchParams(location.search).get("q");
-    if (initialSearch) $("#profile-search").value = initialSearch;
     if (window.matchMedia("(min-width:721px)").matches) $("#filter-panel").open = true;
     setRoleFilter("all");
     $(".role-tabs").addEventListener("click", (event) => {
@@ -228,7 +224,6 @@
     $("#profile-search").addEventListener("input", () => {
       clearTimeout(searchTimer); searchTimer = setTimeout(() => loadProfiles({ reset: true }), 280);
     });
-    $("#search-submit")?.addEventListener("click", () => { clearTimeout(searchTimer); loadProfiles({ reset: true }); $("#profile-search").focus(); });
     $$(".filter-field input").forEach((input) => input.addEventListener("input", () => {
       clearTimeout(searchTimer); searchTimer = setTimeout(() => loadProfiles({ reset: true }), 180);
     }));
