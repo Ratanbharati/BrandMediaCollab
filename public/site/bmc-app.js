@@ -446,26 +446,8 @@
     if (socialAction) {
       event.preventDefault(); event.stopImmediatePropagation();
       const row = socialAction.closest(".connected");
-      const platform = row?.dataset.platform?.toLowerCase();
-      if (platform === "instagram" || platform === "youtube") {
-        socialAction.disabled = true;
-        (async () => {
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) throw new Error("Sign in again before connecting a social account.");
-            const response = await fetch("/api/social/connect", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ provider: platform }) });
-            const result = await response.json().catch(() => ({}));
-            if (!response.ok || !result.url) throw new Error(result.error || `Could not start ${platform} authorization.`);
-            location.assign(result.url);
-          } catch (error) {
-            toast(error.message || `Could not connect ${platform}.`);
-            socialAction.disabled = false;
-          }
-        })();
-        return;
-      }
       const input = row?.querySelector(".social-url");
-      input?.focus(); toast("Add the public profile URL, then save your profile."); return;
+      input?.focus(); toast("Paste the public profile link, then save your profile."); return;
     }
     if (event.target.closest(".upload")) {
       event.preventDefault(); event.stopImmediatePropagation(); chooseAvatar(event.target.closest(".upload")); return;
@@ -749,23 +731,15 @@
         document.title = "Profile unavailable — Brand Media Collab";
         return;
       }
-    const { data: socialAccounts, error: socialError } = await supabase.from("social_accounts").select("platform,profile_url,follower_count,last_synced_at").eq("user_id", targetId).order("platform");
+    const { data: socialAccounts, error: socialError } = await supabase.from("social_accounts").select("platform,profile_url").eq("user_id", targetId).order("platform");
     if (socialError) throw socialError;
     const isOwner = current.data.user?.id === targetId;
     const publicTags = [...(profile.content_categories || []), ...(profile.collaboration_categories || []), ...(profile.languages || []), ...(profile.services || []), ...(profile.specialisations || [])];
     const publicLink = (value) => { try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.href : ""; } catch (_) { return ""; } };
-    const socialLinks = (socialAccounts || []).map((account) => {
-      const url = publicLink(account.profile_url); if (!url) return "";
-      const hasSyncedAudience = account.follower_count != null && account.last_synced_at;
-      const audienceLabel = String(account.platform).toLowerCase() === "youtube" ? "subscribers" : "followers";
-      const audience = hasSyncedAudience ? `${new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(Number(account.follower_count))} ${audienceLabel}` : "";
-      const updatedAt = account.last_synced_at ? new Date(account.last_synced_at) : null;
-      const updated = updatedAt && !Number.isNaN(updatedAt.getTime()) ? `Updated ${updatedAt.toLocaleDateString()}` : "";
-      return `<div class="public-social-item"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>${audience ? `<span>${esc(audience)}</span>` : ""}${updated ? `<small>${esc(updated)}</small>` : ""}</div>`;
-    }).join("");
+    const socialLinks = (socialAccounts || []).map((account) => { const url = publicLink(account.profile_url); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>` : ""; }).join("");
     const portfolioLinks = (profile.portfolio_links || []).map((value) => { const url = publicLink(value); return url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Featured work</a>` : ""; }).join("");
     const social = socialLinks || portfolioLinks ? `<div class="public-social-links">${socialLinks}${portfolioLinks}</div>` : "";
-    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || profile.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}${profile.is_verified ? " · Verified" : ""}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.agency_type || profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "This member is still completing their public profile.")}</p>${profile.website_url && publicLink(profile.website_url) ? `<a href="${esc(publicLink(profile.website_url))}" target="_blank" rel="noopener noreferrer">${esc(profile.website_url)}</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>${social}${isOwner ? `<p class="profile-discovery-status">${profile.is_discoverable ? "Your profile is visible in Explore." : "Your profile is hidden from Explore."}</p><a class="edit" href="profile-setup.html?edit=1">Edit my profile</a><section id="verification-box" style="margin-top:20px;padding:16px;border:1px solid #e9e7df;border-radius:12px"><b>Profile verification</b><p id="verification-status" class="profile-discovery-status">Checking request status…</p>${profile.is_verified ? "" : '<button id="verification-toggle" class="edit" type="button">Request verification</button><form id="verification-form" hidden style="margin-top:12px"><label for="verification-statement">Tell us why your profile should be verified</label><textarea id="verification-statement" minlength="20" maxlength="2000" required style="display:block;width:100%;min-height:100px;margin:8px 0;padding:10px;border:1px solid #e9e7df;border-radius:8px;font:inherit"></textarea><button class="edit" type="submit">Send request</button></form>'}</section>` : '<div id="profile-connection-actions" class="profile-connection-actions" aria-live="polite"><span>Loading connection options…</span></div>'}</div></section>`;
+    root.innerHTML = `<section class="card"><div class="avatar">${profile.avatar_url ? `<img src="${esc(profile.avatar_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc((profile.display_name || profile.company_name || "SR").slice(0, 2).toUpperCase())}</div><div class="profile-body"><span class="role">${esc(profile.account_type)}${profile.is_verified ? " · Verified" : ""}</span><h1>${esc(profile.display_name || profile.company_name || "New member")}</h1><p>${esc(profile.agency_type || profile.category || "")}${profile.location ? ` · ${esc(profile.location)}` : ""}</p><p class="bio">${esc(profile.bio || "This member is still completing their public profile.")}</p>${profile.website_url && publicLink(profile.website_url) ? `<a href="${esc(publicLink(profile.website_url))}" target="_blank" rel="noopener noreferrer">Website</a>` : ""}<div class="tags">${publicTags.map((x) => `<span>${esc(x)}</span>`).join("")}</div>${social}${isOwner ? `<p class="profile-discovery-status">${profile.is_discoverable ? "Your profile is visible in Explore." : "Your profile is hidden from Explore."}</p><a class="edit" href="profile-setup.html?edit=1">Edit my profile</a><section id="verification-box" style="margin-top:20px;padding:16px;border:1px solid #e9e7df;border-radius:12px"><b>Profile verification</b><p id="verification-status" class="profile-discovery-status">Checking request status…</p>${profile.is_verified ? "" : '<button id="verification-toggle" class="edit" type="button">Request verification</button><form id="verification-form" hidden style="margin-top:12px"><label for="verification-statement">Tell us why your profile should be verified</label><textarea id="verification-statement" minlength="20" maxlength="2000" required style="display:block;width:100%;min-height:100px;margin:8px 0;padding:10px;border:1px solid #e9e7df;border-radius:8px;font:inherit"></textarea><button class="edit" type="submit">Send request</button></form>'}</section>` : '<div id="profile-connection-actions" class="profile-connection-actions" aria-live="polite"><span>Loading connection options…</span></div>'}</div></section>`;
     if (!isOwner) {
       await window.bmcConnections?.renderProfileActions(profile.id, false);
       const actions = $("#profile-connection-actions");
@@ -940,10 +914,10 @@
       const switcher = profileMenu.querySelector("select"); if (switcher) switcher.remove();
       const label = profileMenu.querySelector(".person-label"); if (label) label.textContent = `${name} · ${profile.account_type}`;
     }
-    const metricPanel = [...document.querySelectorAll(".left-col .panel")].find((panel) => panel.textContent.includes("Your social stats"));
+    const metricPanel = [...document.querySelectorAll(".left-col .panel")].find((panel) => panel.textContent.includes("Your social links"));
     if (metricPanel) {
-      const { data: socialRows, error: socialError } = await supabase.from("social_accounts").select("id,platform,profile_url,follower_count,engagement_rate,last_synced_at").eq("user_id", user.id).order("platform");
-      metricPanel.innerHTML = `<div class="side-title">Social accounts</div>${socialError ? '<div class="trend"><b>Social account metrics unavailable</b><span>Reconnect your profile to refresh these stats.</span></div>' : socialRows?.length ? socialRows.map((account) => `<div class="trend"><b>${account.profile_url ? `<a href="${esc(account.profile_url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>` : esc(account.platform)}${account.follower_count != null ? ` · ${Number(account.follower_count).toLocaleString()} ${String(account.platform).toLowerCase() === "youtube" ? "subscribers" : "followers"}` : ""}</b><span>${account.engagement_rate != null ? `${Number(account.engagement_rate).toLocaleString()}% engagement · ` : ""}${account.last_synced_at ? `Updated ${new Date(account.last_synced_at).toLocaleDateString()}` : "Connected"}</span></div>`).join("") : '<div class="trend"><b>No social accounts connected</b><span>Connect a profile to show verified audience metrics.</span></div>'}`;
+      const { data: socialRows, error: socialError } = await supabase.from("social_accounts").select("platform,profile_url").eq("user_id", user.id).order("platform");
+      metricPanel.innerHTML = `<div class="side-title">Social links</div>${socialError ? '<div class="trend"><b>Social links unavailable</b><span>Please try again later.</span></div>' : socialRows?.length ? socialRows.map((account) => `<div class="trend"><b>${account.profile_url ? `<a href="${esc(account.profile_url)}" target="_blank" rel="noopener noreferrer">${esc(account.platform)}</a>` : esc(account.platform)}</b><span>Public profile link</span></div>`).join("") : '<div class="trend"><b>No social links added yet</b><span>Add Instagram, YouTube, or another public link in Edit Profile.</span></div>'}`;
     }
     $(".right-col .profile-prompt")?.remove();
     $(".right-col .upcoming")?.remove();
@@ -1192,5 +1166,6 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
+
 
 

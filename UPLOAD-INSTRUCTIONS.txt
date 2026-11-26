@@ -1,14 +1,8 @@
-LATEST BMC PROFILE LINKS PATCH
+BRAND MEDIA COLLAB — LINK-ONLY UPDATE
 
-This ZIP includes the current code to save Instagram/YouTube links and authorized audience counts to Supabase and show the public links, counts, and sync date on member profiles. It also includes the existing website_url display and the migration needed for private encrypted social authorization.
-
-UPLOAD:
-1. Extract into the GitHub repository root, keeping folders, and replace files.
+1. Extract this ZIP into the current GitHub repository root and preserve folder paths.
 2. Commit the extracted files and deploy a preview.
-3. Run supabase/migrations/20261126120000_social_oauth_connections.sql once in the correct Supabase project.
-4. Configure the environment variables and OAuth callback URLs in SOCIAL-INTEGRATION-SETUP.md before trying Instagram/YouTube authorization.
-5. In the member's settings, enable profile discoverability. Only connect accounts the member owns or is authorized to represent.
+3. In Supabase SQL Editor, run supabase/link-only-social-profiles.sql once.
+4. No Meta/Google app credentials or OAuth sign-in are required for this version.
 
-The public website/profile link is already stored in profiles.website_url; it does not need the social OAuth migration. The social links and audience count are stored in public.social_accounts. The migration creates only the private OAuth credential table and does not delete or replace existing profile data.
-
-This is a 17-file patch package, not a full website. GitHub does not unpack ZIP files automatically.
+Member flow: My Profile > Edit Profile > enter a Website link and use Add link next to Instagram/YouTube > Save profile. Enable discoverability to show links to other signed-in members.
