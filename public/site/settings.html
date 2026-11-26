@@ -19,9 +19,9 @@
     <div class="row"><div><b>Password</b><p>Request a secure password reset link for your account email.</p></div><a class="secondary" id="reset-password" href="reset-password.html">Send reset link</a></div>
   </section>
   <section class="card"><h2>Profile visibility</h2><div class="row"><div><b>Discoverable to members</b><p>Control whether your profile can appear in member discovery.</p></div><button id="discoverable" class="toggle" type="button" role="switch" aria-checked="false" aria-label="Profile discoverability"></button></div><div class="status" id="notice" role="status" aria-live="polite"></div></section>
-  <section class="card"><h2>Connected services</h2><div class="row"><div><b>Social accounts</b><p>Social authorization and automatic follower syncing aren’t available yet. Profile website details can be edited on your profile page.</p></div><a class="secondary" href="profile-setup.html?edit=1">Edit profile</a></div><div class="row"><div><b>Google Calendar</b><p>Calendar connection and automatic invitations aren’t available yet.</p></div><button class="secondary disabled" type="button" disabled>Unavailable</button></div></section>
+  <section class="card"><h2>Connected services</h2><div class="row"><div><b>Social accounts</b><p>Connect Instagram or YouTube to display the account details and read-only metrics each platform makes available. You can disconnect at any time.</p></div><a class="secondary" href="profile-setup.html?edit=1">Edit profile</a></div><div class="row"><div><b>Google Calendar</b><p>Calendar connection and automatic invitations aren’t available yet.</p></div><button class="secondary disabled" type="button" disabled>Unavailable</button></div></section>
   <section class="card"><h2>Your data</h2><div class="row"><div><b>Download a copy of your data</b><p>Download the profile, projects, applications, saved projects, and conversations your account can access.</p></div><button class="primary" id="export-data" type="button">Download my data</button></div><div class="row"><div><b>Delete account</b><p>Account deletion is handled by support so your request can be reviewed. Your account will not be deleted by this button.</p></div><a class="secondary" href="help.html?topic=Account%20or%20profile&amp;subject=Account%20deletion%20request">Request deletion</a></div></section>
-  <section class="card"><h2>Help &amp; support</h2><div class="row"><div><b>Need help?</b><p>Submit a support request and view its status.</p></div><a class="secondary" href="help.html">Contact support</a></div></section>
+  <section class="card"><h2>Help &amp; support</h2><div class="row"><div><b>Need help?</b><p>Submit a support request and view its status.</p></div><a class="secondary" href="help.html">Contact support</a></div><div class="row"><div><b>Policies</b><p>Review the terms for using BMC and how account and connected social data is handled.</p></div><div class="policy-links"><a href="terms.html">Terms of Service</a><a href="privacy.html">Privacy Policy</a></div></div></section>
   <div class="status" id="export-notice" role="status" aria-live="polite"></div>
 </main>
 <script src="/site/bmc-supabase.js"></script><script>
@@ -48,4 +48,4 @@
     }catch(err){exportSay(err.message||'Could not prepare your data download.',true)}finally{btn.disabled=false}});
   }catch(error){exportSay(error.message||'Could not load account settings.',true)}
 })();
-</script></body></html>
+</script><script src="/site/social-integrations.js"></script></body></html>

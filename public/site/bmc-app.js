@@ -242,7 +242,7 @@
       if (!accountTypes.includes(selectedRole)) { toast("Choose one of the available account types."); return; }
       if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) { passwordInput.setCustomValidity("Use at least 8 characters, including a letter and a number."); passwordInput.reportValidity(); passwordInput.setCustomValidity(""); return; }
       if (confirmation.value !== password) { confirmation.setCustomValidity("The passwords do not match."); confirmation.reportValidity(); confirmation.setCustomValidity(""); return; }
-      if (!$("#account-consent").checked) { $("#account-consent").focus(); toast("Please acknowledge how Brand Media Collab uses your account details before creating an account."); return; }
+      if (!$("#account-consent").checked) { $("#account-consent").focus(); toast("Please agree to the Terms of Service and acknowledge the Privacy Policy before creating an account."); return; }
     } else if (!password) { passwordInput.reportValidity(); return; }
     button.disabled = true;
     const originalButtonText = button.textContent;
@@ -257,7 +257,7 @@
         const { data, error } = await supabase.auth.signUp({
           email, password,
           options: {
-            data: { account_type: accountType, display_name: displayName, full_name: displayName, account_data_acknowledged_at: new Date().toISOString() },
+            data: { account_type: accountType, display_name: displayName, full_name: displayName, account_data_acknowledged_at: new Date().toISOString(), terms_accepted_at: new Date().toISOString(), terms_version: "2026-11-26" },
             emailRedirectTo: `${location.origin}/site/profile-setup.html`,
           },
         });
@@ -445,8 +445,27 @@
     const socialAction = event.target.closest(".connected .connect");
     if (socialAction) {
       event.preventDefault(); event.stopImmediatePropagation();
-      const input = socialAction.closest(".connected")?.querySelector(".social-url");
-      input?.focus(); toast("Add a public profile URL, then save your profile. Social verification is not connected yet."); return;
+      const row = socialAction.closest(".connected");
+      const platform = row?.dataset.platform?.toLowerCase();
+      if (platform === "instagram" || platform === "youtube") {
+        socialAction.disabled = true;
+        (async () => {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) throw new Error("Sign in again before connecting a social account.");
+            const response = await fetch("/api/social/connect", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ provider: platform }) });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.url) throw new Error(result.error || `Could not start ${platform} authorization.`);
+            location.assign(result.url);
+          } catch (error) {
+            toast(error.message || `Could not connect ${platform}.`);
+            socialAction.disabled = false;
+          }
+        })();
+        return;
+      }
+      const input = row?.querySelector(".social-url");
+      input?.focus(); toast("Add the public profile URL, then save your profile."); return;
     }
     if (event.target.closest(".upload")) {
       event.preventDefault(); event.stopImmediatePropagation(); chooseAvatar(event.target.closest(".upload")); return;
