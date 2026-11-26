@@ -1,10 +1,14 @@
-BRAND MEDIA COLLAB PATCH ZIP — UPLOAD STEPS
+LATEST BMC PROFILE LINKS PATCH
 
-1. Make a backup or branch of the current GitHub repository.
-2. Extract this ZIP into the repository root, preserving folder paths and replacing files when asked.
-3. Commit and deploy a Preview build.
-4. Run supabase/migrations/20261126120000_social_oauth_connections.sql in the BMC Supabase SQL editor.
-5. Follow SOCIAL-INTEGRATION-SETUP.md to create Meta and Google OAuth apps and add server environment variables. Do not commit actual secrets.
-6. Test using accounts you control before opening provider access to members.
+This ZIP includes the current code to save Instagram/YouTube links and authorized audience counts to Supabase and show the public links, counts, and sync date on member profiles. It also includes the existing website_url display and the migration needed for private encrypted social authorization.
 
-This is a patch ZIP, not a full website export. GitHub will not unpack a ZIP automatically; extract it first, then upload/commit its contents.
+UPLOAD:
+1. Extract into the GitHub repository root, keeping folders, and replace files.
+2. Commit the extracted files and deploy a preview.
+3. Run supabase/migrations/20261126120000_social_oauth_connections.sql once in the correct Supabase project.
+4. Configure the environment variables and OAuth callback URLs in SOCIAL-INTEGRATION-SETUP.md before trying Instagram/YouTube authorization.
+5. In the member's settings, enable profile discoverability. Only connect accounts the member owns or is authorized to represent.
+
+The public website/profile link is already stored in profiles.website_url; it does not need the social OAuth migration. The social links and audience count are stored in public.social_accounts. The migration creates only the private OAuth credential table and does not delete or replace existing profile data.
+
+This is a 17-file patch package, not a full website. GitHub does not unpack ZIP files automatically.
